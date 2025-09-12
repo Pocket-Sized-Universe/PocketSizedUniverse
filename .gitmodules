@@ -1,0 +1,9 @@
+[submodule "syncthing"]
+	path = syncthing
+	url = https://github.com/syncthing/syncthing
+[submodule "syncthing.net"]
+	path = syncthing.net
+	url = https://github.com/Pocket-Sized-Universe/syncthing.net
+[submodule "OtterGui"]
+	path = OtterGui
+	url = https://github.com/Ottermandias/OtterGui

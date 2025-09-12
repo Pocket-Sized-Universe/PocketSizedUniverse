@@ -1,0 +1,22 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PocketSizedUniverse", "PocketSizedUniverse\PocketSizedUniverse.csproj", "{67089E59-3C70-4C86-8C72-B786A866FF87}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "OtterGui", "OtterGui\OtterGui.csproj", "{8776F96A-3ADA-4AC0-A86E-7C5645525F9A}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{67089E59-3C70-4C86-8C72-B786A866FF87}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{67089E59-3C70-4C86-8C72-B786A866FF87}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{67089E59-3C70-4C86-8C72-B786A866FF87}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{67089E59-3C70-4C86-8C72-B786A866FF87}.Release|Any CPU.Build.0 = Release|Any CPU
+		{8776F96A-3ADA-4AC0-A86E-7C5645525F9A}.Debug|Any CPU.ActiveCfg = Debug|x64
+		{8776F96A-3ADA-4AC0-A86E-7C5645525F9A}.Debug|Any CPU.Build.0 = Debug|x64
+		{8776F96A-3ADA-4AC0-A86E-7C5645525F9A}.Release|Any CPU.ActiveCfg = Release|x64
+		{8776F96A-3ADA-4AC0-A86E-7C5645525F9A}.Release|Any CPU.Build.0 = Release|x64
+	EndGlobalSection
+EndGlobal

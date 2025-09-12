@@ -1,0 +1,23 @@
+﻿<Project Sdk="Dalamud.NET.Sdk/13.0.0">
+
+    <PropertyGroup>
+        <TargetFramework>net9.0-windows7.0</TargetFramework>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+    </PropertyGroup>
+
+    <ItemGroup>
+      <PackageReference Include="ECommons" Version="3.0.1.13" />
+      <PackageReference Include="Glamourer.Api" Version="2.6.0" />
+      <PackageReference Include="Penumbra.Api" Version="5.12.0" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <Content Include="PocketSizedUniverse.json" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <ProjectReference Include="..\OtterGui\OtterGui.csproj" />
+    </ItemGroup>
+
+</Project>
