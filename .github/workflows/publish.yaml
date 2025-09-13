@@ -29,9 +29,6 @@ jobs:
 
       - name: Set up Go
         uses: actions/setup-go@v5
-        with:
-          go-version: '>=1.22'
-
       - name: Download Dalamud Latest
         run: |
           Invoke-WebRequest -Uri https://goatcorp.github.io/dalamud-distrib/stg/latest.zip -OutFile latest.zip
@@ -39,8 +36,9 @@ jobs:
 
       - name: Build SyncThing
         run: |
-          go run syncthing\build.go
-
+          cd syncthing
+          go mod download
+          go run build.go build
       - name: Restore Nuget Packages
         run: dotnet restore PocketSizedUniverse\PocketSizedUniverse.csproj
 
