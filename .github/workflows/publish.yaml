@@ -27,23 +27,20 @@ jobs:
         with:
           dotnet-version: 9.0.x
 
-      - name: Set up Go
-        uses: actions/setup-go@v5
-        with:
-          go-version: '1.23.x'
-
       - name: Download Dalamud Latest
         run: |
           Invoke-WebRequest -Uri https://goatcorp.github.io/dalamud-distrib/stg/latest.zip -OutFile latest.zip
           Expand-Archive -Force latest.zip "$env:AppData\\XIVLauncher\\addon\\Hooks\\dev"
 
-      - name: Build SyncThing
+      - name: Download SyncThing v2.0.9
         run: |
-          cd syncthing
-          $syncthing_version = git describe --tags --always
-          Write-Host "Building SyncThing version: $syncthing_version"
-          go mod download
-          go run build.go -version $syncthing_version build
+          $download_url = "https://github.com/syncthing/syncthing/releases/download/v2.0.9/syncthing-windows-amd64-v2.0.9.zip"
+          Write-Host "Downloading SyncThing v2.0.9 from: $download_url"
+          Invoke-WebRequest -Uri $download_url -OutFile "syncthing-v2.0.9.zip"
+          Expand-Archive -Path "syncthing-v2.0.9.zip" -DestinationPath "syncthing-extracted"
+          # The ZIP contains syncthing-windows-amd64-v2.0.9/syncthing.exe
+          Copy-Item -Path "syncthing-extracted\syncthing-windows-amd64-v2.0.9\syncthing.exe" -Destination "syncthing.exe"
+          Write-Host "SyncThing v2.0.9 binary ready"
       - name: Restore Nuget Packages
         run: dotnet restore PocketSizedUniverse/PocketSizedUniverse.csproj
 
@@ -52,7 +49,7 @@ jobs:
 
       - name: Copy SyncThing Binary
         run: |
-          copy syncthing\syncthing.exe build\syncthing.exe
+          copy syncthing.exe build\syncthing.exe
 
       - name: Zip Plugin
         run: Compress-Archive -Path .\build\* -DestinationPath .\build\PocketSizedUniverse.zip
