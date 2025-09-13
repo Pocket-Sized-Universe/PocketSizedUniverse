@@ -19,13 +19,17 @@ namespace Syncthing.Models.Response
             System.IO.Directory.CreateDirectory(FilesPath);
         }
 
-        public Guid Id => Guid.Parse(IdString);
+        public Guid Id
+        {
+            get => Guid.Parse(IdString);
+            set => IdString = value.ToString();
+        }
 
         /// <summary>
         /// The folder ID, must be unique. (mandatory)
         /// </summary>
         [JsonProperty("id")]
-        private string IdString { get; set; } = Guid.NewGuid().ToString();
+        private string IdString { get; set; }
 
         /// <summary>
         /// The label of a folder is a human readable and descriptive local name.  May be different on each star,
@@ -82,7 +86,7 @@ namespace Syncthing.Models.Response
         /// <summary>
         /// All mentioned stars are those that will be sharing the folder in question.
         /// </summary>
-        [JsonProperty("stars")]
+        [JsonProperty("devices")]
         public List<Star> Stars { get; set; }
 
         /// <summary>

@@ -19,11 +19,11 @@ public class SetupWindow : Window
     private string _tempApiKey = "";
     private string _tempDataPackName = Adjectives.GetRandom() + " " + Nouns.GetRandom();
     private readonly FileDialogManager _fileDialogManager = new();
-    
+
     // Connection monitoring
     private DateTime _connectionStartTime;
     private bool _connectionAttempted = false;
-    
+
     // Star editing state
     private Star? _editingStar;
     private string _tempStarName = "";
@@ -121,17 +121,18 @@ public class SetupWindow : Window
         if (PsuPlugin.Configuration.ApiUri != null && !PsuPlugin.SyncThingService.IsHealthy && _connectionAttempted)
         {
             var elapsed = (DateTime.Now - _connectionStartTime).TotalSeconds;
-            
+
             ImGuiUtil.PrintIcon(FontAwesomeIcon.ExclamationTriangle);
             ImGui.SameLine();
-            ImGui.TextColored(ImGui.ColorConvertU32ToFloat4(ImGui.GetColorU32(ImGuiCol.Button)), 
+            ImGui.TextColored(ImGui.ColorConvertU32ToFloat4(ImGui.GetColorU32(ImGuiCol.Button)),
                 $"Connection failed or timed out ({elapsed:F1}s). Please check your settings.");
-            
+
             ImGui.Spacing();
             if (ImGui.Button("Reset Connection", new System.Numerics.Vector2(150, 0)))
             {
                 ResetConnection();
             }
+
             return;
         }
 
@@ -183,8 +184,9 @@ public class SetupWindow : Window
         ImGui.Spacing();
         ImGui.Separator();
 
-        var canProceed = useBuiltIn || (!string.IsNullOrWhiteSpace(_tempServerUri) && !string.IsNullOrWhiteSpace(_tempApiKey));
-        
+        var canProceed = useBuiltIn ||
+                         (!string.IsNullOrWhiteSpace(_tempServerUri) && !string.IsNullOrWhiteSpace(_tempApiKey));
+
         if (!canProceed)
         {
             ImGui.BeginDisabled();
@@ -200,19 +202,19 @@ public class SetupWindow : Window
             ImGui.EndDisabled();
         }
     }
-    
+
     private void StartConnection(bool useBuiltIn)
     {
         _connectionAttempted = true;
         _connectionStartTime = DateTime.Now;
-        
+
         // Configure connection based on choice
         if (useBuiltIn)
         {
             PsuPlugin.Configuration.UseBuiltInSyncThing = true;
             PsuPlugin.Configuration.ApiKey = Guid.NewGuid().ToString().Replace("-", "");
             PsuPlugin.Configuration.ApiUri = new Uri("http://127.0.0.1:42069");
-            
+
             // Start built-in server
             try
             {
@@ -225,22 +227,21 @@ public class SetupWindow : Window
                 return;
             }
         }
+
         else
         {
             PsuPlugin.Configuration.UseBuiltInSyncThing = false;
             PsuPlugin.Configuration.ApiKey = _tempApiKey;
             PsuPlugin.Configuration.ApiUri = new Uri(_tempServerUri);
         }
-        
+
         // Save configuration and reinitialize service
         EzConfig.Save();
         PsuPlugin.SyncThingService?.InitializeClient();
     }
-    
+
     private void ResetConnection()
     {
-        if (PsuPlugin.Configuration.UseBuiltInSyncThing)
-            PsuPlugin.StopServer();
         _connectionAttempted = false;
         PsuPlugin.Configuration.ApiUri = null;
         PsuPlugin.Configuration.ApiKey = null;
@@ -287,7 +288,7 @@ public class SetupWindow : Window
         ImGui.Spacing();
 
         ImGui.InputText("Star Name", ref _tempStarName, 128);
-        
+
         ImGui.Spacing();
         ImGui.Text("Bandwidth Limits (0 = unlimited):");
         ImGui.SliderInt("Max Upload (KB/s)", ref _tempMaxSendKbps, 0, 10000);
@@ -316,7 +317,7 @@ public class SetupWindow : Window
         }
 
         ImGui.SameLine();
-        
+
         var canProceed = !string.IsNullOrWhiteSpace(_tempStarName);
         if (!canProceed)
         {
@@ -333,11 +334,11 @@ public class SetupWindow : Window
             ImGui.EndDisabled();
         }
     }
-    
+
     private void SaveStarConfiguration()
     {
         if (_editingStar == null) return;
-        
+
         // Update the star object
         _editingStar.Name = _tempStarName;
         _editingStar.MaxSendKbps = _tempMaxSendKbps;
@@ -345,7 +346,7 @@ public class SetupWindow : Window
         _editingStar.Paused = _tempPaused;
         _editingStar.Compression = _tempCompression;
         _editingStar.AutoAcceptFolders = _tempAutoAcceptFolders;
-        
+
         // Post the updated star back to the SyncThing API
         _ = Task.Run(async () =>
         {
@@ -359,10 +360,10 @@ public class SetupWindow : Window
                 Svc.Log.Error($"Failed to update star configuration: {ex}");
             }
         });
-        
+
         // Update the cache
         PsuPlugin.SyncThingService.Stars.AddOrUpdate(_editingStar.StarId, _editingStar, (_, _) => _editingStar);
-        
+
         // Mark star configuration as complete
         PsuPlugin.Configuration.StarConfigurationComplete = true;
         EzConfig.Save();
@@ -384,7 +385,7 @@ public class SetupWindow : Window
 
         ImGui.InputText("DataPack Name", ref _tempDataPackName, 128);
         ImGui.Spacing();
-        
+
         // Set up default directory if not set
         if (PsuPlugin.Configuration.DefaultDataPackDirectory == null)
         {
@@ -394,9 +395,9 @@ public class SetupWindow : Window
         }
 
         var dataPackPath = Path.Combine(PsuPlugin.Configuration.DefaultDataPackDirectory, _tempDataPackName);
-        
+
         ImGui.Text($"Location: {dataPackPath}");
-        
+
         ImGui.Spacing();
         if (ImGui.Button("Choose Different Location...", new System.Numerics.Vector2(200, 0)))
         {
@@ -409,7 +410,7 @@ public class SetupWindow : Window
                 }
             }, PsuPlugin.Configuration.DefaultDataPackDirectory, false);
         }
-        
+
         ImGui.Spacing();
         ImGui.Separator();
 
@@ -423,7 +424,7 @@ public class SetupWindow : Window
         }
 
         ImGui.SameLine();
-        
+
         var canProceed = !string.IsNullOrWhiteSpace(_tempDataPackName);
         if (!canProceed)
         {
@@ -440,14 +441,14 @@ public class SetupWindow : Window
             ImGui.EndDisabled();
         }
     }
-    
+
     private void CreateDataPack()
     {
         try
         {
             var dataPackId = Guid.NewGuid();
             var dataPackPath = Path.Combine(PsuPlugin.Configuration.DefaultDataPackDirectory!, _tempDataPackName);
-            
+
             // Get the configured star
             var firstStar = PsuPlugin.SyncThingService.Stars.Values.FirstOrDefault();
             if (firstStar == null)
@@ -455,7 +456,7 @@ public class SetupWindow : Window
                 Svc.Chat.PrintError("No configured star found. Please restart setup.");
                 return;
             }
-            
+
             // Create the DataPack
             var dataPack = new DataPack(dataPackId)
             {
@@ -467,24 +468,24 @@ public class SetupWindow : Window
                 RescanIntervalS = 3600,
                 FsWatcherEnabled = true,
                 FsWatcherDelayS = 10,
-                MinDiskFree = new MinDiskFree { Value = 1000, Unit = "MB" },
-                Stars = new List<Star> { firstStar }
+                MinDiskFree = new MinDiskFree { Value = 2000, Unit = "MB" },
+                Stars = [firstStar]
             };
-            
+
             // Create directories
             dataPack.EnsureFolders();
-            
+
             // Post to SyncThing API
             PsuPlugin.SyncThingService.PostNewDataPack(dataPack);
-            
+
             // Update configuration
             var starPack = new StarPack(firstStar.StarId, dataPackId);
             PsuPlugin.Configuration.MyStarPack = starPack;
             EzConfig.Save();
-            
+
             // Add to cache
             PsuPlugin.SyncThingService.DataPacks.AddOrUpdate(dataPackId, dataPack, (_, _) => dataPack);
-            
+
             Svc.Chat.Print($"DataPack '{_tempDataPackName}' created successfully!");
             Svc.Log.Information($"Created DataPack: {dataPack.Name} at {dataPack.Path}");
         }
@@ -508,7 +509,7 @@ public class SetupWindow : Window
         ImGui.Spacing();
 
         ImGui.TextWrapped("Your setup includes:");
-        
+
         var firstStar = PsuPlugin.SyncThingService.Stars.Values.FirstOrDefault();
         if (firstStar != null)
         {
@@ -516,10 +517,12 @@ public class SetupWindow : Window
             ImGui.SameLine();
             ImGui.Text($"Star: {firstStar.Name}");
         }
-        
+
         if (PsuPlugin.Configuration.MyStarPack != null)
         {
-            var dataPack = PsuPlugin.SyncThingService.DataPacks.Values.FirstOrDefault(dp => dp.Id == PsuPlugin.Configuration.MyStarPack.DataPackId);
+            var dataPack =
+                PsuPlugin.SyncThingService.DataPacks.Values.FirstOrDefault(dp =>
+                    dp.Id == PsuPlugin.Configuration.MyStarPack.DataPackId);
             if (dataPack != null)
             {
                 ImGuiUtil.PrintIcon(FontAwesomeIcon.FolderOpen);
@@ -527,7 +530,7 @@ public class SetupWindow : Window
                 ImGui.Text($"DataPack: {dataPack.Name}");
             }
         }
-        
+
         ImGui.Spacing();
         ImGui.TextWrapped("You can now:");
         ImGui.BulletText("Share your Star Code with friends to sync mods");
@@ -542,7 +545,7 @@ public class SetupWindow : Window
             CompleteSetup();
         }
     }
-    
+
     private void CompleteSetup()
     {
         // Mark setup as complete
@@ -550,7 +553,7 @@ public class SetupWindow : Window
         EzConfig.Save();
 
         Svc.Log.Information("Setup completed successfully!");
-        
+
         IsOpen = false;
 
         // Open the main window

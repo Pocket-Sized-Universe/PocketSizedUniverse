@@ -68,6 +68,12 @@ public class PsuPlugin : IDalamudPlugin
         var homePath = Path.Combine(Svc.PluginInterface.GetPluginConfigDirectory(), "engine-home");
         Directory.CreateDirectory(homePath);
 
+        if (ServerProcess is { HasExited: false })
+        {
+            Svc.Log.Debug("Server process already running, nothing to start");
+            return;
+        }
+
         var args = $"--home=\"{homePath}\" --gui-address={Configuration.ApiUri?.ToString()} --gui-apikey={Configuration.ApiKey} --no-browser";
         ServerProcess = new SyncThingProcess(args);
         ServerProcess.Start();
