@@ -29,6 +29,9 @@ jobs:
 
       - name: Set up Go
         uses: actions/setup-go@v5
+        with:
+          go-version: '1.23.x'
+
       - name: Download Dalamud Latest
         run: |
           Invoke-WebRequest -Uri https://goatcorp.github.io/dalamud-distrib/stg/latest.zip -OutFile latest.zip
@@ -38,12 +41,12 @@ jobs:
         run: |
           cd syncthing
           go mod download
-          go run build.go build
+          go run build.go -version v${{ env.tag }} build
       - name: Restore Nuget Packages
-        run: dotnet restore PocketSizedUniverse\PocketSizedUniverse.csproj
+        run: dotnet restore PocketSizedUniverse/PocketSizedUniverse.csproj
 
       - name: Build Plugin
-        run: dotnet build --no-restore -c Release PocketSizedUniverse\PocketSizedUniverse.csproj -p:AssemblyVersion=${{ env.tag }} -p:FileVersion=${{ env.tag }} -p:PackageVersion=${{ env.tag }} -p:InformationalVersion=${{ env.tag }} --output .\build
+        run: dotnet build --no-restore -c Release PocketSizedUniverse/PocketSizedUniverse.csproj -p:AssemblyVersion=${{ env.tag }} -p:FileVersion=${{ env.tag }} -p:PackageVersion=${{ env.tag }} -p:InformationalVersion=${{ env.tag }} --output .\build
 
       - name: Copy SyncThing Binary
         run: |
