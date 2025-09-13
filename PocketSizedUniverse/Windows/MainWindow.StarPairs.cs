@@ -27,7 +27,7 @@ public partial class MainWindow
         {
             using var id = ImRaii.PushId("StarPackSelector-Outer");
             using var group = ImRaii.Group();
-            if (ImGui.Button("Import Star Pair", new Vector2(width - 5, 0)))
+            if (ImGui.Button("Import Star Code", new Vector2(width - 5, 0)))
             {
                 try
                 {

@@ -1,3 +1,4 @@
+using Newtonsoft.Json;
 using PocketSizedUniverse.Interfaces;
 
 namespace PocketSizedUniverse.Models.Mods;
@@ -11,8 +12,8 @@ public record AssetSwap(string? GamePath, string RealPath): IAssetSwap;
 
 public record CustomRedirect(string? GamePath, byte[] Hash): IWriteableData, IAssetSwap
 {
-    public string ToShortHash => Convert.ToBase64String(Hash).Replace("/", "_").Replace("+", "-");
-    public string FileName => $"{ToShortHash}.psu_mod";
+    [JsonIgnore]
+    public string FileName => $"{Convert.ToBase64String(Hash).Replace("/", "_").Replace("+", "-")}.psu_mod";
     public bool Equals(IWriteableData? x, IWriteableData? y)
     {
         return ReferenceEquals(x, y);
