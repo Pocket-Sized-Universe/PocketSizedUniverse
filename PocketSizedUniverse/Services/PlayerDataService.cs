@@ -45,14 +45,20 @@ public class PlayerDataService : IUpdatable
         penumbra.MetaManipulations = manips;
         foreach (var node in tree.Nodes)
         {
+            if (node.GamePath!.EndsWith(".imc") || node.ActualPath.EndsWith(".imc"))
+            {
+                Svc.Log.Debug("Skipping IMC file: " + node.ActualPath);
+                continue;
+            }
+
+            if (node.GamePath == null || node.GamePath == node.ActualPath)
+            {
+                Svc.Log.Debug("Skipping identical or non-existent item: " + node.ActualPath);
+                continue;
+            }
             var filesBase = PsuPlugin.Configuration.MyStarPack!.GetDataPack().FilesPath;
             if (File.Exists(node.ActualPath))
             {
-                if (node.GamePath!.EndsWith(".imc") || node.ActualPath.EndsWith(".imc"))
-                {
-                    Svc.Log.Debug("Skipping IMC file: " + node.ActualPath);
-                    continue;
-                }
                 Svc.Log.Debug("Handling custom file: " + node.ActualPath);
                 var data = File.ReadAllBytes(node.ActualPath);
                 var hash = SHA256.Create().ComputeHash(data);
