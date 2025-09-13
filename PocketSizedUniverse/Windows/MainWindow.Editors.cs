@@ -73,13 +73,6 @@ public partial class MainWindow
             changed = true;
         }
 
-        var tempAutoAccept = star.AutoAcceptFolders;
-        if (ImGui.Checkbox("Auto accept folders", ref tempAutoAccept))
-        {
-            star.AutoAcceptFolders = tempAutoAccept;
-            changed = true;
-        }
-
         // Compression dropdown
         ImGui.Spacing();
         var compressionTypes = new[] { "always", "metadata", "never" };

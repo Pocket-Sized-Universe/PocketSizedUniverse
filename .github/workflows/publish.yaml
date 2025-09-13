@@ -1,0 +1,61 @@
+name: Publish
+on:
+  push:
+    tags:
+      - '*.*.*'
+jobs:
+  Build:
+    permissions:
+      contents: write
+    runs-on: windows-latest
+    env:
+      REPO_NAME: ${{ github.repository }}
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Get Environment Variables
+        run: |
+          $tag = "${{ github.ref }}" -replace 'refs/tags/', ''
+
+          "tag=$tag" | Out-File -Append -FilePath $Env:GITHUB_ENV
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 9.0.x
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '>=1.22'
+
+      - name: Download Dalamud Latest
+        run: |
+          Invoke-WebRequest -Uri https://goatcorp.github.io/dalamud-distrib/stg/latest.zip -OutFile latest.zip
+          Expand-Archive -Force latest.zip "$env:AppData\\XIVLauncher\\addon\\Hooks\\dev"
+
+      - name: Build SyncThing
+        run: |
+          go run syncthing\build.go
+
+      - name: Restore Nuget Packages
+        run: dotnet restore PocketSizedUniverse\PocketSizedUniverse.csproj
+
+      - name: Build Plugin
+        run: dotnet build --no-restore -c Release PocketSizedUniverse\PocketSizedUniverse.csproj -p:AssemblyVersion=${{ env.tag }} -p:FileVersion=${{ env.tag }} -p:PackageVersion=${{ env.tag }} -p:InformationalVersion=${{ env.tag }} --output .\build
+
+      - name: Copy SyncThing Binary
+        run: |
+          copy syncthing\syncthing.exe build\syncthing.exe
+
+      - name: Zip Plugin
+        run: Compress-Archive -Path .\build\* -DestinationPath .\build\PocketSizedUniverse.zip
+
+      - name: Publish Plugin
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ./build/PocketSizedUniverse.zip
+          token: ${{ secrets.GITHUB_TOKEN }}
