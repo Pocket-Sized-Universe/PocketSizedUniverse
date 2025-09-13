@@ -1,19 +1,12 @@
-using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 using PocketSizedUniverse.Interfaces;
-using PocketSizedUniverse.Models.Mods;
 
 namespace PocketSizedUniverse.Models.Data;
 
-public class PenumbraWriteableData : IDataFile
+public class GlamourerData : IDataFile
 {
     public int Version { get; set; } = 1;
-    public static string Filename { get; } = "Penumbra.dat";
-    [JsonIgnore]
-    public Guid? CollectionId { get; set; }
-
-    public List<CustomRedirect> CustomFiles { get; set; } = new();
-    public List<AssetSwap> AssetSwaps { get; set; } = new();
-
+    public static string Filename { get; } = "Glamourer.dat";
     public bool Equals(IWriteableData? x, IWriteableData? y)
     {
         if (ReferenceEquals(x, y)) return true;
@@ -27,7 +20,9 @@ public class PenumbraWriteableData : IDataFile
     {
         return obj.Id.GetHashCode();
     }
-    public string MetaManipulations { get; set; } = string.Empty;
+
+    public JObject GlamState { get; set; }
+
     public Guid Id { get; set; } = Guid.NewGuid();
     public string GetPath(string basePath) => Path.Combine(basePath, Filename);
 }

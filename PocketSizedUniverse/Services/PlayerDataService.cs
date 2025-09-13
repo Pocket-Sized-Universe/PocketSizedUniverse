@@ -39,13 +39,13 @@ public class PlayerDataService : IUpdatable
             Svc.Log.Warning("Failed to get player resource tree.");
             return;
         }
-        var penumbra = new PenumbraWriteableData();
+        var penumbra = new PenumbraData();
         Svc.Log.Debug("Updating local player data.");
         Svc.Log.Debug("Node Count: " + tree.Nodes.Count);
         penumbra.MetaManipulations = manips;
         foreach (var node in tree.Nodes)
         {
-            if (node.GamePath!.EndsWith(".imc") || node.ActualPath.EndsWith(".imc"))
+            if (node.GamePath == null || node.GamePath.EndsWith(".imc") || node.ActualPath.EndsWith(".imc"))
             {
                 Svc.Log.Debug("Skipping IMC file: " + node.ActualPath);
                 continue;
@@ -56,7 +56,13 @@ public class PlayerDataService : IUpdatable
                 Svc.Log.Debug("Skipping identical or non-existent item: " + node.ActualPath);
                 continue;
             }
-            var filesBase = PsuPlugin.Configuration.MyStarPack!.GetDataPack().FilesPath;
+            var myDataPack = PsuPlugin.Configuration.MyStarPack?.GetDataPack();
+            if (myDataPack == null)
+            {
+                Svc.Log.Warning("MyDataPack was null while updating local player data.");
+                continue;
+            }
+            var filesBase = myDataPack.FilesPath;
             if (File.Exists(node.ActualPath))
             {
                 Svc.Log.Debug("Handling custom file: " + node.ActualPath);
@@ -83,6 +89,18 @@ public class PlayerDataService : IUpdatable
                 Svc.Log.Debug("Handled asset redirect: " + node.ActualPath);
             }
         }
+
+        var glamState = PsuPlugin.GlamourerService.GetState.Invoke(Player.Object.ObjectIndex);
+        if (glamState.Item2 == null)
+        {
+            Svc.Log.Warning("Failed to get glamourer state.");
+            return;
+        }
+
+        var glamData = new GlamourerData()
+        {
+            GlamState = glamState.Item2
+        };
         if (LocalPlayerData == null)
         {
             LocalPlayerData = new PlayerData()
@@ -92,7 +110,8 @@ public class PlayerDataService : IUpdatable
                     PlayerName = Player.Name,
                     WorldId = Player.HomeWorldId
                 },
-                PenumbraData = penumbra
+                PenumbraData = penumbra,
+                GlamourerData = glamData,
             };
         }
         else
@@ -123,6 +142,10 @@ public class PlayerDataService : IUpdatable
         var encodedPenumbra = Base64Util.ToBase64(LocalPlayerData.PenumbraData);
         File.WriteAllText(penumbraLoc, encodedPenumbra);
         Svc.Log.Debug("Updated penumbra data on disk.");
+        var glamourerLoc = LocalPlayerData.GlamourerData.GetPath(localPack.DataPath);
+        var encodedGlamourer = Base64Util.ToBase64(LocalPlayerData.GlamourerData);
+        File.WriteAllText(glamourerLoc, encodedGlamourer);
+        Svc.Log.Debug("Updated glamourer data on disk.");
         Svc.Log.Debug("Updated local player data on disk.");
         RemotePlayerData.Clear();
         foreach (var pair in PsuPlugin.Configuration.StarPacks)
@@ -189,6 +212,8 @@ public class PlayerDataService : IUpdatable
             }
             PsuPlugin.PenumbraService.AddTemporaryMod.Invoke(remotePlayer.PenumbraData.Id.ToString(), remotePlayer.PenumbraData.CollectionId.Value, paths, remotePlayer.PenumbraData.MetaManipulations, 0);
             Svc.Log.Debug($"Added temporary mod for {remotePlayer.Data.PlayerName}");
+            PsuPlugin.GlamourerService.ApplyState.Invoke(remotePlayer.GlamourerData.GlamState, player.ObjectIndex);
+            Svc.Log.Debug($"Applied glamourer state for {remotePlayer.Data.PlayerName}");
             PsuPlugin.PenumbraService.RedrawObject.Invoke(player.ObjectIndex);
             Svc.Log.Debug($"Redrawed player {player.Name.TextValue}");
         }

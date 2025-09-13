@@ -21,17 +21,30 @@ public class PlayerData
             Svc.Log.Warning($"Failed to load basic data from {basicDataEndcodedPath}");
             return null;
         }
-        var penumbraDataEndcodedPath = Path.Combine(dataPack.DataPath, PenumbraWriteableData.Filename);
+        var penumbraDataEndcodedPath = Path.Combine(dataPack.DataPath, Models.Data.PenumbraData.Filename);
         if (!File.Exists((penumbraDataEndcodedPath)))
         {
             Svc.Log.Warning($"Penumbra data file not found at {penumbraDataEndcodedPath}");
             return null;
         }
         var penumbraDataEncoded = File.ReadAllText(penumbraDataEndcodedPath);
-        var penumbraData = Base64Util.FromBase64<PenumbraWriteableData>(penumbraDataEncoded);
+        var penumbraData = Base64Util.FromBase64<PenumbraData>(penumbraDataEncoded);
         if (penumbraData == null)
         {
             Svc.Log.Warning($"Failed to load penumbra data from {penumbraDataEndcodedPath}");
+            return null;
+        }
+        var glamourerDataEndcodedPath = Path.Combine(dataPack.DataPath, GlamourerData.Filename);
+        if (!File.Exists(glamourerDataEndcodedPath))
+        {
+            Svc.Log.Warning($"Glamourer data file not found at {glamourerDataEndcodedPath}");
+            return null;
+        }
+        var glamourerDataEncoded = File.ReadAllText(glamourerDataEndcodedPath);
+        var glamourerData = Base64Util.FromBase64<GlamourerData>(glamourerDataEncoded);
+        if (glamourerData == null)
+        {
+            Svc.Log.Warning($"Failed to load glamourer data from {glamourerDataEndcodedPath}");
             return null;
         }
 
@@ -46,5 +59,8 @@ public class PlayerData
     public BasicData Data { get; init; } = new();
 
     [JsonRequired]
-    public PenumbraWriteableData PenumbraData { get; set; }
+    public PenumbraData PenumbraData { get; set; }
+
+    [JsonRequired]
+    public GlamourerData GlamourerData { get; set; } = new();
 }
