@@ -40,8 +40,10 @@ jobs:
       - name: Build SyncThing
         run: |
           cd syncthing
+          $syncthing_version = git describe --tags --always
+          Write-Host "Building SyncThing version: $syncthing_version"
           go mod download
-          go run build.go -version v${{ env.tag }} build
+          go run build.go -version $syncthing_version build
       - name: Restore Nuget Packages
         run: dotnet restore PocketSizedUniverse/PocketSizedUniverse.csproj
 

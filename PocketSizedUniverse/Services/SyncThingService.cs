@@ -384,6 +384,7 @@ public class SyncThingService : ICache
             catch (Exception e)
             {
                 Svc.Log.Error($"Failed to refresh caches: {e}");
+                _client = null;
             }
         });
     }
