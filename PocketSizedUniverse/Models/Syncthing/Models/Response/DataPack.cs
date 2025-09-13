@@ -48,14 +48,15 @@ namespace Syncthing.Models.Response
         /// Controls how the folder is handled by Syncthing.
         /// Possible values are from Type <see cref="FolderType"/>. 
         /// </summary>
+        [JsonIgnore]
         public FolderType Type
         {
-            get => _typeString.FromApiString();
-            set => _typeString = value.ToApiString();
+            get => TypeString.FromApiString();
+            set => TypeString = value.ToApiString();
         }
 
         [JsonProperty("type")]
-        private string _typeString { get; set; }
+        private string TypeString { get; set; }
 
         /// <summary>
         /// The rescan interval, in seconds. Can be set to zero to disable when external plugins are used to trigger
