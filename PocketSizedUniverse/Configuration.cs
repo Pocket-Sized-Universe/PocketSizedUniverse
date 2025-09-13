@@ -5,9 +5,8 @@ namespace PocketSizedUniverse;
 
 public class Configuration
 {
-    public string SyncThingHomePath { get; set; } = Path.Combine(Svc.PluginInterface.GetPluginConfigDirectory(), "engine-home");
     public string? DefaultDataPackDirectory { get; set; }
-    public bool UseBuiltInSyncThing { get; set; } = false;
+    public bool UseBuiltInSyncThing { get; set; } = true;
     public bool SetupComplete { get; set; } = false;
     public bool StarConfigurationComplete { get; set; } = false;
     public string? ApiKey { get; set; }

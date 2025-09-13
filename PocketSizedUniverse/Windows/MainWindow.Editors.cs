@@ -123,36 +123,10 @@ public partial class MainWindow
         // Show DataPack ID (read-only)
         ImGui.TextColored(new Vector4(0.6f, 0.6f, 0.6f, 1.0f), $"DataPack ID: {dataPack.Id}");
 
-        // Type and status
-        var typeColor = dataPack.GetTypeColor();
-        var typeText = dataPack.GetTypeText();
-        ImGui.TextColored(typeColor, $"Type: {typeText}");
-
         // Path display
         ImGui.Text($"Path: {UIHelpers.FormatPath(dataPack.Path ?? "", 60)}");
-        
-        ImGui.Spacing();
-
-        // Star count
-        var starCount = dataPack.GetStarCount();
-        ImGuiUtil.PrintIcon(FontAwesomeIcon.Star);
-        ImGui.SameLine();
-        ImGui.Text($"Shared with {starCount} star(s)");
 
         ImGui.Spacing();
-
-        // Folder type selection
-        var folderTypes = new[] { "Send & Receive", "Send Only", "Receive Only" };
-        var folderTypeValues = new[] { FolderType.Sendreceive, FolderType.Sendonly, FolderType.Receiveonly };
-        var currentTypeIndex = Array.IndexOf(folderTypeValues, dataPack.Type);
-        if (currentTypeIndex == -1) currentTypeIndex = 0;
-
-        SetInputWidth(180);
-        if (ImGui.Combo("Folder Type", ref currentTypeIndex, folderTypes, folderTypes.Length))
-        {
-            dataPack.Type = folderTypeValues[currentTypeIndex];
-            changed = true;
-        }
 
         // Advanced settings
         ImGui.Spacing();

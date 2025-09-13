@@ -65,13 +65,6 @@ public partial class MainWindow
             }
             
             ImGui.SameLine();
-            if (ImGui.Button("Discard Changes", new Vector2(120, 0)))
-            {
-                // Refresh from service to discard local changes
-                PsuPlugin.SyncThingService.InvalidateCaches();
-                _starEditorChanged = false;
-                _dataPackEditorChanged = false;
-            }
         }
         else
         {

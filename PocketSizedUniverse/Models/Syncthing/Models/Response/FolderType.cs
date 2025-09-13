@@ -4,22 +4,36 @@ namespace Syncthing.Models.Response
 {
     public enum FolderType
     {
-        /// <summary>
-        /// The folder is in default mode. Sending local and accepting remote changes. Note that this type was
-        /// previously called “readwrite” which is deprecated but still accepted in incoming configs.
-        /// </summary>
-        [JsonProperty("sendreceive")]
-        Sendreceive,
-        /// <summary>
-        /// The folder is in “send only” mode – it will not be modified by Syncthing on this star. Note that this
-        /// type was previously called “readonly” which is deprecated but still accepted in incoming configs.
-        /// </summary>
-        [JsonProperty("sendonly")]
-        Sendonly,
-        /// <summary>
-        /// The folder is in “receive only” mode – it will not propagate changes to other stars.
-        /// </summary>
-        [JsonProperty("receiveonly")]
-        Receiveonly
+        SendReceive,
+        SendOnly,
+        ReceiveEncrypted,
+        ReceiveOnly
+    }
+
+    public static class FolderTypeExtensions
+    {
+        public static string ToApiString(this FolderType folderType)
+        {
+            return folderType switch
+            {
+                FolderType.SendReceive => "sendreceive",
+                FolderType.SendOnly => "sendonly",
+                FolderType.ReceiveOnly => "receiveonly",
+                FolderType.ReceiveEncrypted => "receiveencrypted",
+                _ => throw new ArgumentOutOfRangeException(nameof(folderType), folderType, null)
+            };
+        }
+
+        public static FolderType FromApiString(this string folderTypeString)
+        {
+            return folderTypeString switch
+            {
+                "sendreceive" => FolderType.SendReceive,
+                "sendonly" => FolderType.SendOnly,
+                "receiveonly" => FolderType.ReceiveOnly,
+                "receiveencrypted" => FolderType.ReceiveEncrypted,
+                _ => throw new ArgumentOutOfRangeException(nameof(folderTypeString), folderTypeString, null)
+            };
+        }
     }
 }

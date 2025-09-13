@@ -1,11 +1,14 @@
 using System.Collections.Concurrent;
+using System.Diagnostics;
 using Dalamud.Plugin.Services;
 using ECommons.DalamudServices;
 using PocketSizedUniverse.Interfaces;
 using PocketSizedUniverse.Models;
+using PocketSizedUniverse.Models.Syncthing.Models.Response;
 using Syncthing;
 using Syncthing.Http;
 using Syncthing.Models.Response;
+using Connection = Syncthing.Http.Connection;
 
 namespace PocketSizedUniverse.Services;
 
@@ -14,9 +17,12 @@ public class SyncThingService : ICache
     public ConcurrentDictionary<string, Star> Stars { get; } = new();
     public ConcurrentDictionary<Guid, DataPack> DataPacks { get; } = new();
 
+    public ConnectionsResponse? Connections { get; set; }
+
     private SyncthingClient? _client;
-    public bool IsHealthy { get; private set; } = false;
     public DateTime LastRefresh { get; private set; } = DateTime.MinValue;
+
+    public bool IsHealthy { get; private set; } = false;
 
     public SyncThingService()
     {
@@ -61,7 +67,6 @@ public class SyncThingService : ICache
     {
         DataPacks.Clear();
         Stars.Clear();
-        IsHealthy = false;
         InitializeClient(); // Reinitialize client with updated configuration
         RefreshCaches();
     }
@@ -267,7 +272,7 @@ public class SyncThingService : ICache
             {
                 Name = pendingFolder.OfferedBy.Values.First().Label,
                 Path = Path.Combine(PsuPlugin.Configuration.DefaultDataPackDirectory!, folderId),
-                Type = FolderType.Receiveonly,
+                Type = FolderType.ReceiveOnly,
                 Stars = [ .. matchingStars, PsuPlugin.Configuration.MyStarPack!.GetStar()],
             };
             
@@ -300,13 +305,11 @@ public class SyncThingService : ICache
                 // Step 3: Accept any PendingFolder requests if their IDs match a paired star's DataPack ID
                 await AcceptMatchingPendingFolders();
 
-                IsHealthy = true;
                 Svc.Log.Information("HealSyncThing completed successfully");
             }
             catch (Exception ex)
             {
                 Svc.Log.Error($"HealSyncThing failed: {ex}");
-                IsHealthy = false;
             }
         });
     }
@@ -347,12 +350,18 @@ public class SyncThingService : ICache
 
     public void RefreshCaches()
     {
-        _ = Task.Run(() =>
+        _ = Task.Run(async () =>
         {
             if (_client == null)
                 return;
             try
             {
+                var ping = await _client.Config.System.Ping().ConfigureAwait(false);
+                IsHealthy = ping.Ok;
+                Svc.Log.Debug($"SyncThing API ping: {ping.Ok}");
+                if (!IsHealthy)
+                    return;
+                Connections = await _client.Config.System.GetConnections().ConfigureAwait(false);
                 if (_client?.Config.Folders != null)
                 {
                     var constellations = _client.Config.Folders.Get().ConfigureAwait(false).GetAwaiter().GetResult();
@@ -374,7 +383,7 @@ public class SyncThingService : ICache
             }
             catch (Exception e)
             {
-                IsHealthy = false;
+                Svc.Log.Error($"Failed to refresh caches: {e}");
             }
         });
     }

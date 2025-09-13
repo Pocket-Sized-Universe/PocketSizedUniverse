@@ -30,6 +30,8 @@ public class PlayerDataService : IUpdatable
 
     private void PushLocalPlayerData()
     {
+        if (!PsuPlugin.Configuration.SetupComplete)
+            return;
         var manips = PsuPlugin.PenumbraService.GetPlayerMetaManipulations.Invoke();
         var tree = PsuPlugin.PenumbraService.GetPlayerResourceTrees.Invoke().FirstOrDefault().Value;
         if (tree == null)

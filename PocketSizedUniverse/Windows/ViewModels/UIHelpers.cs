@@ -28,33 +28,6 @@ public static class UIHelpers
     {
         return star.Paused ? new Vector4(0.8f, 0.4f, 0.4f, 1.0f) : new Vector4(0.4f, 0.8f, 0.4f, 1.0f);
     }
-
-    public static string GetTypeText(this DataPack dataPack)
-    {
-        return dataPack.Type switch
-        {
-            FolderType.Sendreceive => "Send & Receive",
-            FolderType.Sendonly => "Send Only",
-            FolderType.Receiveonly => "Receive Only",
-            _ => "Unknown",
-        };
-    }
-    
-    public static Vector4 GetTypeColor(this DataPack dataPack)
-    {
-        return dataPack.GetStatusColor(); // Use the same color logic
-    }
-    
-    public static Vector4 GetStatusColor(this DataPack dataPack)
-    {
-        return dataPack.Type switch
-        {
-            FolderType.Sendreceive => new Vector4(0.4f, 0.8f, 0.4f, 1.0f),
-            FolderType.Sendonly => new Vector4(0.8f, 0.6f, 0.4f, 1.0f),
-            FolderType.Receiveonly => new Vector4(0.4f, 0.6f, 0.8f, 1.0f),
-            _ => new Vector4(0.6f, 0.6f, 0.6f, 1.0f),
-        };
-    }
     
     // Pending folder helpers
     public static string GetDisplayName(this PendingFolder pendingFolder)
@@ -80,11 +53,6 @@ public static class UIHelpers
             return pendingFolder.OfferedBy.Values.Max(invite => invite.Time);
         }
         return DateTime.MinValue;
-    }
-
-    public static int GetStarCount(this DataPack dataPack)
-    {
-        return dataPack.Stars?.Count ?? 0;
     }
 
     public static bool IsValidStarId(string starId)

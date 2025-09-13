@@ -28,12 +28,6 @@ public class PsuPlugin : IDalamudPlugin
         ECommonsMain.Init(dalamudPluginInterface, this, Module.All);
         Configuration = EzConfig.Init<Configuration>();
 
-        // Configure JSON.NET to use string values for enums
-        JsonConvert.DefaultSettings = () => new JsonSerializerSettings
-        {
-            Converters = [new StringEnumConverter()]
-        };
-
         if (Configuration.UseBuiltInSyncThing && Configuration.SetupComplete)
         {
             StartServer();

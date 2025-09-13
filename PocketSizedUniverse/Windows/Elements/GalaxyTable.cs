@@ -10,14 +10,12 @@ public class GalaxyTable : Table<DataPack>
 {
     private static NameColumn _nameColumn = new();
     private static PathColumn _pathColumn = new();
-    private static TypeColumn _typeColumn = new();
-    private static StarCountColumn _starCountColumn = new();
     private static RescanColumn _rescanColumn = new();
     
     public DataPack? SelectedItem { get; private set; }
 
     public GalaxyTable(IReadOnlyCollection<DataPack> items) : base("Galaxies", items,
-        _nameColumn, _pathColumn, _typeColumn, _starCountColumn, _rescanColumn)
+        _nameColumn, _pathColumn, _rescanColumn)
     {
         Flags = ImGuiTableFlags.Borders | ImGuiTableFlags.Resizable | ImGuiTableFlags.Reorderable | 
                 ImGuiTableFlags.ScrollY | ImGuiTableFlags.RowBg | ImGuiTableFlags.SizingStretchProp;
@@ -68,46 +66,7 @@ public class GalaxyTable : Table<DataPack>
         
         public override float Width => 200f;
     }
-    
-    public class TypeColumn : Column<DataPack>
-    {
-        public TypeColumn()
-        {
-            Label = "Type";
-        }
-        
-        public override void DrawColumn(DataPack item, int index)
-        {
-            var typeText = item.GetTypeText();
-            var typeColor = item.GetTypeColor();
-            
-            ImGui.TextColored(typeColor, typeText);
-        }
-        
-        public override float Width => 120f;
-        public override int Compare(DataPack lhs, DataPack rhs) => lhs.Type.CompareTo(rhs.Type);
-    }
-    
-    public class StarCountColumn : Column<DataPack>
-    {
-        public StarCountColumn()
-        {
-            Label = "Stars";
-        }
-        
-        public override void DrawColumn(DataPack item, int index)
-        {
-            var starCount = item.GetStarCount();
-            var color = starCount > 0 
-                ? new Vector4(0.4f, 0.8f, 0.4f, 1.0f)
-                : new Vector4(0.8f, 0.6f, 0.4f, 1.0f);
-            
-            ImGui.TextColored(color, starCount.ToString());
-        }
-        
-        public override float Width => 70f;
-        public override int Compare(DataPack lhs, DataPack rhs) => lhs.GetStarCount().CompareTo(rhs.GetStarCount());
-    }
+
     
     public class RescanColumn : Column<DataPack>
     {

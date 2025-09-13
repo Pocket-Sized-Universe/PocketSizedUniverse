@@ -19,8 +19,41 @@ public partial class MainWindow
     
     private class StarPackSelector : ItemSelector<StarPack>
     {
-        public StarPackSelector(IList<StarPack> items) : base(items, Flags.Import | Flags.Delete | Flags.Filter)
+        public StarPackSelector(IList<StarPack> items) : base(items, Flags.Delete | Flags.Filter)
         {
+        }
+
+        public new void Draw(float width)
+        {
+            using var id = ImRaii.PushId("StarPackSelector-Outer");
+            using var group = ImRaii.Group();
+            if (ImGui.Button("Import Star Pair", new Vector2(width - 5, 0)))
+            {
+                try
+                {
+                    var data = ImGui.GetClipboardText();
+                    var starPack = Base64Util.FromBase64<StarPack>(data);
+                    if (starPack != null)
+                    {
+                        // Check if this StarPack already exists
+                        if (PsuPlugin.Configuration.StarPacks.Any(sp => sp.StarId == starPack.StarId))
+                        {
+                            Notify.Error("This Star Pair is already imported.");
+                        }
+
+                        PsuPlugin.Configuration.StarPacks.Add(starPack);
+                        EzConfig.Save();
+                        Notify.Info("Imported Star Pair successfully!");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Svc.Log.Error($"Failed to import Star Pair: {ex.Message}");
+                    Notify.Error("Failed to import Star Pair. Invalid format.");
+                }
+            }
+            ImGui.Separator();
+            base.Draw(width);
         }
 
         protected override bool OnDraw(int idx)
@@ -99,34 +132,6 @@ public partial class MainWindow
             EzConfig.Save();
             Notify.Info("Star Pair deleted.");
             return true;
-        }
-
-        protected override bool OnClipboardImport(string name, string data)
-        {
-            try
-            {
-                var starPack = Base64Util.FromBase64<StarPack>(data);
-                if (starPack != null)
-                {
-                    // Check if this StarPack already exists
-                    if (PsuPlugin.Configuration.StarPacks.Any(sp => sp.StarId == starPack.StarId))
-                    {
-                    Notify.Error("This Star Pair is already imported.");
-                        return false;
-                    }
-                    
-                    PsuPlugin.Configuration.StarPacks.Add(starPack);
-                    EzConfig.Save();
-                Notify.Info("Imported Star Pair successfully!");
-                    return true;
-                }
-            }
-            catch (Exception ex)
-            {
-                Svc.Log.Error($"Failed to import Star Pair: {ex.Message}");
-                Notify.Error("Failed to import Star Pair. Invalid format.");
-            }
-            return false;
         }
     }
 
@@ -222,12 +227,6 @@ public partial class MainWindow
             }
             
             ImGui.SameLine();
-            if (ImGui.Button("Discard Changes", new Vector2(120, 0)))
-            {
-                PsuPlugin.SyncThingService.InvalidateCaches();
-                _starEditorChanged = false;
-                _dataPackEditorChanged = false;
-            }
         }
         else
         {
@@ -282,9 +281,7 @@ public partial class MainWindow
         ImGui.TextColored(statusColor, $"Connection: {statusText}");
 
         // DataPack info
-        ImGui.Text($"Type: {dataPack.GetTypeText()}");
         ImGui.Text($"Path: {UIHelpers.FormatPath(dataPack.Path ?? "", 40)}");
-        ImGui.Text($"Shared with: {dataPack.GetStarCount()} star(s)");
 
         // Additional stats could be added here when available from the SyncThing API
         ImGui.Spacing();

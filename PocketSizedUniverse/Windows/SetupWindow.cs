@@ -31,7 +31,6 @@ public class SetupWindow : Window
     private int _tempMaxRecvKbps = 0;
     private bool _tempPaused = false;
     private string _tempCompression = "metadata";
-    private bool _tempAutoAcceptFolders = true;
 
     public SetupWindow() : base("Pocket Sized Universe - First Time Setup")
     {
@@ -276,15 +275,14 @@ public class SetupWindow : Window
         if (_editingStar == null || _editingStar.StarId != firstStar.StarId)
         {
             _editingStar = firstStar;
-            _tempStarName = firstStar.Name ?? $"Star-{firstStar.StarId[..8]}";
+            _tempStarName = Adjectives.GetRandom() + " " + Nouns.GetRandom();
             _tempMaxSendKbps = firstStar.MaxSendKbps;
             _tempMaxRecvKbps = firstStar.MaxRecvKbps;
             _tempPaused = firstStar.Paused;
             _tempCompression = firstStar.Compression ?? "metadata";
-            _tempAutoAcceptFolders = firstStar.AutoAcceptFolders;
         }
 
-        ImGui.Text($"Star ID: {firstStar.StarId[..8]}...");
+        ImGui.Text($"Star ID: {firstStar.StarId}");
         ImGui.Spacing();
 
         ImGui.InputText("Star Name", ref _tempStarName, 128);
@@ -296,7 +294,6 @@ public class SetupWindow : Window
 
         ImGui.Spacing();
         ImGui.Checkbox("Pause synchronization", ref _tempPaused);
-        ImGui.Checkbox("Auto accept folders", ref _tempAutoAcceptFolders);
 
         var compressionTypes = new[] { "always", "metadata", "never" };
         var currentCompressionIndex = Array.IndexOf(compressionTypes, _tempCompression);
@@ -345,7 +342,6 @@ public class SetupWindow : Window
         _editingStar.MaxRecvKbps = _tempMaxRecvKbps;
         _editingStar.Paused = _tempPaused;
         _editingStar.Compression = _tempCompression;
-        _editingStar.AutoAcceptFolders = _tempAutoAcceptFolders;
 
         // Post the updated star back to the SyncThing API
         _ = Task.Run(async () =>
@@ -462,7 +458,7 @@ public class SetupWindow : Window
             {
                 Name = _tempDataPackName,
                 Path = dataPackPath,
-                Type = FolderType.Sendonly,
+                Type = FolderType.SendOnly,
                 IgnorePerms = true,
                 AutoNormalize = true,
                 RescanIntervalS = 3600,

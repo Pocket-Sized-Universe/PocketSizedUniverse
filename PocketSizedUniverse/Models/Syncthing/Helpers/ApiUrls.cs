@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Net.NetworkInformation;
 
 namespace Syncthing.Helpers
 {
@@ -74,6 +75,16 @@ namespace Syncthing.Helpers
         public static Uri PendingFolders(string starId, string folderId)
         {
             return "rest/cluster/pending/folders?device={0}&folder={1}".FormatUri(starId, folderId);
+        }
+
+        public static Uri Ping()
+        {
+            return "/rest/system/ping".FormatUri();
+        }
+
+        public static Uri Connections()
+        {
+            return "/rest/system/connections".FormatUri();
         }
     }
 }

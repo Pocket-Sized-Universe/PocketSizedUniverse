@@ -13,6 +13,7 @@ namespace Syncthing.Clients
             Folders = new FoldersClient(apiConnection);
             Stars = new StarsClient(apiConnection);
             PendingFolders = new PendingFoldersClient(apiConnection);
+            System = new SystemClient(apiConnection);
         }
 
         /// <summary>
@@ -32,5 +33,6 @@ namespace Syncthing.Clients
         public IFoldersClient Folders { get; }
         public IStarsClient Stars { get; }
         public IPendingFoldersClient PendingFolders { get; }
+        public ISystemClient System { get; }
     }
 }

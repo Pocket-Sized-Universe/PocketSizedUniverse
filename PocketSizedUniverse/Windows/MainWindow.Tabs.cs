@@ -11,7 +11,7 @@ public partial class MainWindow
         {
             if (ImGui.BeginTabItem("Star Pairs"))
             {
-                if (IsServiceConnected())
+                if (PsuPlugin.SyncThingService.IsHealthy)
                 {
                     DrawStarPairs();
                 }
@@ -24,7 +24,7 @@ public partial class MainWindow
 
             if (ImGui.BeginTabItem("Galaxies"))
             {
-                if (IsServiceConnected())
+                if (PsuPlugin.SyncThingService.IsHealthy)
                 {
                     DrawGalaxies();
                 }
@@ -37,7 +37,7 @@ public partial class MainWindow
 
             if (ImGui.BeginTabItem("My Star Code"))
             {
-                if (IsServiceConnected())
+                if (PsuPlugin.SyncThingService.IsHealthy)
                 {
                     DrawMyStarCode();
                 }
@@ -56,11 +56,6 @@ public partial class MainWindow
 
             ImGui.EndTabBar();
         }
-    }
-
-    private bool IsServiceConnected()
-    {
-        return PsuPlugin.SyncThingService.IsHealthy;
     }
 
     private void DrawNotConnectedMessage()
