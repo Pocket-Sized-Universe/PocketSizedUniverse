@@ -178,7 +178,8 @@ public class PlayerDataService : IUpdatable
             foreach (var assetSwap in remotePlayer.PenumbraData.AssetSwaps)
             {
                 Svc.Log.Debug($"Processing asset swap: {assetSwap.GamePath}");
-                paths[assetSwap.GamePath!] = assetSwap.RealPath;
+                if (assetSwap.GamePath != null)
+                    paths[assetSwap.GamePath] = assetSwap.RealPath;
             }
             PsuPlugin.PenumbraService.AddTemporaryMod.Invoke(remotePlayer.PenumbraData.Id.ToString(), remotePlayer.PenumbraData.CollectionId.Value, paths, remotePlayer.PenumbraData.MetaManipulations, 0);
             Svc.Log.Debug($"Added temporary mod for {remotePlayer.Data.PlayerName}");
