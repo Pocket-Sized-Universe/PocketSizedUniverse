@@ -3,6 +3,7 @@ using System.Security.Cryptography;
 using Dalamud.Plugin.Services;
 using ECommons.DalamudServices;
 using ECommons.GameHelpers;
+using Glamourer.Api.Enums;
 using Penumbra.Api.Enums;
 using PocketSizedUniverse.Interfaces;
 using PocketSizedUniverse.Models.Data;
@@ -210,7 +211,9 @@ public class PlayerDataService : IUpdatable
                 if (assetSwap.GamePath != null)
                     paths[assetSwap.GamePath] = assetSwap.RealPath;
             }
-            PsuPlugin.GlamourerService.ApplyState.Invoke(remotePlayer.GlamourerData.GlamState, player.ObjectIndex, 42069);
+
+            Svc.Log.Debug($"Glam state for {remotePlayer.Data.PlayerName}: {remotePlayer.GlamourerData.GlamState}");
+            PsuPlugin.GlamourerService.ApplyState.Invoke(remotePlayer.GlamourerData.GlamState, player.ObjectIndex, 42069, ApplyFlag.Customization | ApplyFlag.Equipment);
             Svc.Log.Debug($"Applied glamourer state for {remotePlayer.Data.PlayerName}");
             PsuPlugin.PenumbraService.AddTemporaryMod.Invoke(remotePlayer.PenumbraData.Id.ToString(), remotePlayer.PenumbraData.CollectionId.Value, paths, remotePlayer.PenumbraData.MetaManipulations, 0);
             Svc.Log.Debug($"Added temporary mod for {remotePlayer.Data.PlayerName}");
