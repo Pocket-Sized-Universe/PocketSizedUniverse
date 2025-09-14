@@ -90,7 +90,7 @@ public class PlayerDataService : IUpdatable
             }
         }
 
-        var glamState = PsuPlugin.GlamourerService.GetState.Invoke(Player.Object.ObjectIndex);
+        var glamState = PsuPlugin.GlamourerService.GetStateBase64.Invoke(Player.Object.ObjectIndex);
         if (glamState.Item2 == null)
         {
             Svc.Log.Warning("Failed to get glamourer state.");
@@ -210,10 +210,10 @@ public class PlayerDataService : IUpdatable
                 if (assetSwap.GamePath != null)
                     paths[assetSwap.GamePath] = assetSwap.RealPath;
             }
+            PsuPlugin.GlamourerService.ApplyState.Invoke(remotePlayer.GlamourerData.GlamState, player.ObjectIndex, 42069);
+            Svc.Log.Debug($"Applied glamourer state for {remotePlayer.Data.PlayerName}");
             PsuPlugin.PenumbraService.AddTemporaryMod.Invoke(remotePlayer.PenumbraData.Id.ToString(), remotePlayer.PenumbraData.CollectionId.Value, paths, remotePlayer.PenumbraData.MetaManipulations, 0);
             Svc.Log.Debug($"Added temporary mod for {remotePlayer.Data.PlayerName}");
-            PsuPlugin.GlamourerService.ApplyState.Invoke(remotePlayer.GlamourerData.GlamState, player.ObjectIndex);
-            Svc.Log.Debug($"Applied glamourer state for {remotePlayer.Data.PlayerName}");
             PsuPlugin.PenumbraService.RedrawObject.Invoke(player.ObjectIndex);
             Svc.Log.Debug($"Redrawed player {player.Name.TextValue}");
         }

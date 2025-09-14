@@ -7,9 +7,9 @@ public class GlamourerService
 {
     public GlamourerService()
     {
-        GetState = new GetState(Svc.PluginInterface);
+        GetStateBase64 = new GetStateBase64(Svc.PluginInterface);
         ApplyState = new ApplyState(Svc.PluginInterface);
     }
-    public GetState GetState { get; }
+    public GetStateBase64 GetStateBase64 { get; }
     public ApplyState ApplyState { get; }
 }

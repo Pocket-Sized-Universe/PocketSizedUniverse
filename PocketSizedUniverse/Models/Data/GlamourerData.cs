@@ -21,7 +21,7 @@ public class GlamourerData : IDataFile
         return obj.Id.GetHashCode();
     }
 
-    public JObject GlamState { get; set; }
+    public string GlamState { get; init; }
 
     public Guid Id { get; set; } = Guid.NewGuid();
     public string GetPath(string basePath) => Path.Combine(basePath, Filename);

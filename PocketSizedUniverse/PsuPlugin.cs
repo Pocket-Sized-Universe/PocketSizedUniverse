@@ -1,6 +1,7 @@
 ﻿using Dalamud.Interface.Windowing;
 using Dalamud.Plugin;
 using ECommons;
+using ECommons.Commands;
 using ECommons.Configuration;
 using ECommons.DalamudServices;
 using Newtonsoft.Json;
@@ -100,6 +101,19 @@ public class PsuPlugin : IDalamudPlugin
         {
             Svc.Log.Error($"Failed to stop syncthing process: {ex}");
         }
+    }
+
+    [Cmd("/psu", "/psu help for more info")]
+    public void OnCommand(string command, string args)
+    {
+        if (string.Equals(args, "help", StringComparison.OrdinalIgnoreCase))
+        {
+            Svc.Chat.Print("Here be dragons (TODO)");
+            return;
+        }
+
+        if (Configuration.SetupComplete)
+            MainWindow.Toggle();
     }
 
     public void Dispose()
