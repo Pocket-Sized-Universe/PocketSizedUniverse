@@ -46,12 +46,6 @@ public class PlayerDataService : IUpdatable
         penumbra.MetaManipulations = manips;
         foreach (var node in tree.Nodes)
         {
-            if (node.GamePath == null || node.GamePath.EndsWith(".imc") || node.ActualPath.EndsWith(".imc"))
-            {
-                Svc.Log.Debug("Skipping IMC file: " + node.ActualPath);
-                continue;
-            }
-
             if (node.GamePath == null || node.GamePath == node.ActualPath)
             {
                 Svc.Log.Debug("Skipping identical or non-existent item: " + node.ActualPath);
@@ -133,6 +127,7 @@ public class PlayerDataService : IUpdatable
             Svc.Log.Warning("Local data pack was null while updating local player data.");
             return;
         }
+        LocalPlayerData.StarPackReference = PsuPlugin.Configuration.MyStarPack!;
 
         Svc.Log.Debug("Updating local player data on disk.");
         var playerDataLoc = LocalPlayerData.Data.GetPath(localPack.DataPath);
@@ -170,6 +165,7 @@ public class PlayerDataService : IUpdatable
                 Svc.Log.Warning($"Failed to load data from data pack {pair.DataPackId}");
                 continue;
             }
+            data.StarPackReference = pair;
             Svc.Log.Debug($"Updating remote player data for {remoteStar.StarId}: {data.Data.PlayerName}");
             RemotePlayerData.Add(data);
         }
@@ -199,10 +195,21 @@ public class PlayerDataService : IUpdatable
             }
             Dictionary<string, string> paths = new Dictionary<string, string>();
             Svc.Log.Debug($"Processing {remotePlayer.PenumbraData.CustomFiles.Count} custom files.");
+            var dataPack = remotePlayer.StarPackReference.GetDataPack();
+            if (dataPack == null)
+            {
+                Svc.Log.Warning($"No data pack found for {remotePlayer.Data.PlayerName}");
+                continue;
+            }
+            Svc.Log.Debug($"Data pack for {remotePlayer.Data.PlayerName}: {dataPack.Id}");
             foreach (var customFile in remotePlayer.PenumbraData.CustomFiles)
             {
+                if (customFile.GamePath == null)
+                    continue;
                 Svc.Log.Debug($"Processing custom file: {customFile.GamePath}");
-                paths[customFile.GamePath!] = customFile.GetPath(localPack.FilesPath);
+                var realPath = customFile.GetPath(dataPack.FilesPath);
+                Svc.Log.Debug($"Real path for {customFile.GamePath}: {realPath}");
+                paths[customFile.GamePath] = realPath;
             }
             Svc.Log.Debug($"Processing {remotePlayer.PenumbraData.AssetSwaps.Count} asset swaps.");
             foreach (var assetSwap in remotePlayer.PenumbraData.AssetSwaps)

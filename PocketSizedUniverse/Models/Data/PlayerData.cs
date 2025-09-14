@@ -70,11 +70,14 @@ public class PlayerData
     }
     
     [JsonRequired]
-    public BasicData Data { get; init; } = new();
+    public BasicData Data { get; init; }
 
     [JsonRequired]
     public PenumbraData PenumbraData { get; set; }
 
     [JsonRequired]
-    public GlamourerData GlamourerData { get; set; } = new();
+    public GlamourerData GlamourerData { get; set; }
+
+    [JsonIgnore]
+    public StarPack StarPackReference { get; set; }
 }
