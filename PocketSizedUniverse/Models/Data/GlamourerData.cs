@@ -5,6 +5,17 @@ namespace PocketSizedUniverse.Models.Data;
 
 public class GlamourerData : IDataFile
 {
+    public static GlamourerData? LoadFromDisk(string basePath)
+    {
+        var path = Path.Combine(basePath, Filename);
+        if (!File.Exists(path))
+        {
+            return new GlamourerData();
+        }
+
+        var data = File.ReadAllText(path);
+        return Base64Util.FromBase64<GlamourerData>(data);
+    }
     public int Version { get; set; } = 1;
     public static string Filename { get; } = "Glamourer.dat";
     public bool Equals(IWriteableData? x, IWriteableData? y)

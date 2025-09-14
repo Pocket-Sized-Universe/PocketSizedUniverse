@@ -1,83 +1,244 @@
+using System.Security.Cryptography;
+using Dalamud.Game.ClientState.Objects.SubKinds;
 using ECommons.DalamudServices;
+using ECommons.GameHelpers;
 using Newtonsoft.Json;
+using Penumbra.Api.Enums;
+using PocketSizedUniverse.Models.Mods;
 using Syncthing.Models.Response;
 
 namespace PocketSizedUniverse.Models.Data;
 
 public class PlayerData
 {
-    public static PlayerData? FromDataPack(DataPack dataPack)
+    public async Task PopulateFromLocalAsync(IPlayerCharacter player)
+    {
+        var localPlayer = Svc.Framework.RunOnFrameworkThread(() => Player.Object).Result;
+        if (localPlayer == null)
+        {
+            Svc.Log.Warning("Local player object is null.");
+            return;
+        }
+
+        var penumbra = new PenumbraData();
+        Svc.Log.Debug("Updating local player data.");
+        var manips = PsuPlugin.PenumbraService.GetPlayerMetaManipulations.Invoke();
+        var mods = new List<SyncedMod>();
+        var penumbraResourceTree = PsuPlugin.PenumbraService.GetPlayerResourceTrees.Invoke();
+        foreach (var resourceTree in penumbraResourceTree)
+        {
+            var effectiveCollectionId = PsuPlugin.PenumbraService.GetCollectionForObject.Invoke(resourceTree.Key);
+            if (!effectiveCollectionId.ObjectValid)
+            {
+                Svc.Log.Warning("Local player object not valid");
+                return;
+            }
+
+            var settings =
+                PsuPlugin.PenumbraService.GetAllModSettings.Invoke(effectiveCollectionId.EffectiveCollection.Id);
+            if (settings.Item1 != PenumbraApiEc.Success || settings.Item2 == null)
+            {
+                Svc.Log.Warning("Failed to get mod settings.");
+                return;
+            }
+
+            var penumbraDir = PsuPlugin.PenumbraService.GetModDirectory.Invoke();
+            string? packPath = PsuPlugin.Configuration.MyStarPack?.GetDataPack()?.FilesPath;
+            if (packPath == null)
+            {
+                Svc.Log.Warning("My star pack data pack path is null.");
+                return;
+            }
+
+            foreach (var activeMod in settings.Item2)
+            {
+                var modDir = Path.Combine(penumbraDir, activeMod.Key);
+                var mod = activeMod.Value;
+                if (!Directory.Exists(modDir))
+                {
+                    Svc.Log.Warning($"Mod directory {modDir} does not exist.");
+                    continue;
+                }
+
+                var syncMod = new SyncedMod()
+                {
+                    Enabled = mod.Item1,
+                    Priority = mod.Item2,
+                    Settings = mod.Item3,
+                    Inherited = mod.Item4,
+                    Temporary = mod.Item5,
+                };
+
+                // Process files in the background but wait for completion before continuing
+                var customFiles = await ProcessModFilesAsync(modDir, packPath);
+                syncMod.CustomFiles = customFiles;
+                mods.Add(syncMod);
+            }
+
+            foreach (var directSwap in resourceTree.Value.Nodes.Where(n => !File.Exists(n.ActualPath)))
+            {
+                if (directSwap.GamePath == null || directSwap.ActualPath.EndsWith("imc") || directSwap.GamePath.EndsWith("imc")) continue;
+                var swap = new AssetSwap(directSwap.GamePath, directSwap.ActualPath);
+                penumbra.AssetSwaps.Add(swap);
+            }
+        }
+
+        penumbra.Mods = mods;
+        penumbra.MetaManipulations = manips;
+
+        var glamState = PsuPlugin.GlamourerService.GetStateBase64.Invoke(localPlayer.ObjectIndex);
+        if (glamState.Item2 == null)
+        {
+            Svc.Log.Warning("Failed to get glamourer state.");
+            return;
+        }
+
+        var glamData = new GlamourerData()
+        {
+            GlamState = glamState.Item2
+        };
+
+        Data = new BasicData()
+        {
+            PlayerName = localPlayer.Name.TextValue,
+            WorldId = localPlayer.HomeWorld.RowId,
+        };
+        PenumbraData = penumbra;
+        GlamourerData = glamData;
+    }
+
+    private async Task<List<CustomRedirect>> ProcessModFilesAsync(string modDir, string packPath)
+    {
+        var customFiles = new List<CustomRedirect>();
+
+        try
+        {
+            // Get files to process
+            var filesToProcess = Directory.GetFiles(modDir, "*", SearchOption.AllDirectories)
+                .Where(f => !f.EndsWith(".json"))
+                .ToList();
+
+            foreach (var file in filesToProcess)
+            {
+                try
+                {
+                    //Svc.Log.Debug($"Processing file: {file}");
+                    var data = await File.ReadAllBytesAsync(file);
+                    using var sha256 = SHA256.Create();
+                    var hash = sha256.ComputeHash(data);
+                    var redirectedFile = new CustomRedirect(hash);
+
+                    var redirectPath = redirectedFile.GetPath(packPath);
+                    if (File.Exists(redirectPath))
+                    {
+                        //Svc.Log.Debug($"Found redirected file: {redirectPath}");
+                    }
+                    else
+                    {
+                        //Svc.Log.Debug($"Moving new file {file} to {redirectPath}");
+                        // Ensure directory exists
+                        //Directory.CreateDirectory(Path.GetDirectoryName(redirectPath)!);
+                        await File.WriteAllBytesAsync(redirectPath, data);
+                    }
+
+                    customFiles.Add(redirectedFile);
+                }
+                catch (Exception ex)
+                {
+                    Svc.Log.Error($"Error processing file {file}: {ex.Message}");
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Svc.Log.Error($"Error processing mod directory {modDir}: {ex.Message}");
+        }
+
+        return customFiles;
+    }
+
+    public async Task SavePlayerDataToDiskAsync()
     {
         try
         {
-            var basicDataEndcodedPath = Path.Combine(dataPack.DataPath, BasicData.Filename);
-            if (!File.Exists(basicDataEndcodedPath))
+            Svc.Log.Debug("Updating local player data on disk.");
+
+            var myDataPack = PsuPlugin.Configuration.MyStarPack?.GetDataPack();
+            if (myDataPack == null)
             {
-                Svc.Log.Warning($"Basic data file not found at {basicDataEndcodedPath}");
-                return null;
+                Svc.Log.Warning("My star pack data pack is null.");
+                return;
             }
 
-            var basicDataEncoded = File.ReadAllText(basicDataEndcodedPath);
-            var basicData = Base64Util.FromBase64<BasicData>(basicDataEncoded);
-            if (basicData == null)
-            {
-                Svc.Log.Warning($"Failed to load basic data from {basicDataEndcodedPath}");
-                return null;
-            }
+            // Save basic data
+            var playerDataLoc = Data.GetPath(myDataPack.DataPath);
+            var encodedData = Base64Util.ToBase64(Data);
+            await File.WriteAllTextAsync(playerDataLoc, encodedData);
+            Svc.Log.Debug("Updated basic info on disk.");
 
-            var penumbraDataEndcodedPath = Path.Combine(dataPack.DataPath, Models.Data.PenumbraData.Filename);
-            if (!File.Exists((penumbraDataEndcodedPath)))
-            {
-                Svc.Log.Warning($"Penumbra data file not found at {penumbraDataEndcodedPath}");
-                return null;
-            }
+            // Save Penumbra data
+            var penumbraLoc = PenumbraData.GetPath(myDataPack.DataPath);
+            var encodedPenumbra = Base64Util.ToBase64(PenumbraData);
+            await File.WriteAllTextAsync(penumbraLoc, encodedPenumbra);
+            Svc.Log.Debug("Updated penumbra data on disk.");
 
-            var penumbraDataEncoded = File.ReadAllText(penumbraDataEndcodedPath);
-            var penumbraData = Base64Util.FromBase64<PenumbraData>(penumbraDataEncoded);
-            if (penumbraData == null)
-            {
-                Svc.Log.Warning($"Failed to load penumbra data from {penumbraDataEndcodedPath}");
-                return null;
-            }
-
-            var glamourerDataEndcodedPath = Path.Combine(dataPack.DataPath, GlamourerData.Filename);
-            if (!File.Exists(glamourerDataEndcodedPath))
-            {
-                Svc.Log.Warning($"Glamourer data file not found at {glamourerDataEndcodedPath}");
-                return null;
-            }
-
-            var glamourerDataEncoded = File.ReadAllText(glamourerDataEndcodedPath);
-            var glamourerData = Base64Util.FromBase64<GlamourerData>(glamourerDataEncoded);
-            if (glamourerData == null)
-            {
-                Svc.Log.Warning($"Failed to load glamourer data from {glamourerDataEndcodedPath}");
-                return null;
-            }
-
-            return new PlayerData
-            {
-                Data = basicData,
-                PenumbraData = penumbraData,
-                GlamourerData = glamourerData
-            };
+            // Save Glamourer data
+            var glamourerLoc = GlamourerData.GetPath(myDataPack.DataPath);
+            var encodedGlamourer = Base64Util.ToBase64(GlamourerData);
+            await File.WriteAllTextAsync(glamourerLoc, encodedGlamourer);
+            Svc.Log.Debug("Updated glamourer data on disk.");
         }
-        catch (Exception e)
+        catch (Exception ex)
         {
-            Svc.Log.Error(e, "Failed to load player data");
-            return null;
+            Svc.Log.Error($"Error saving player data to disk: {ex}");
         }
     }
-    
-    [JsonRequired]
-    public BasicData Data { get; init; }
 
-    [JsonRequired]
-    public PenumbraData PenumbraData { get; set; }
+    public async Task PopulateFromDiskAsync()
+    {
+        var dataPack = StarPackReference.GetDataPack();
+        if (dataPack == null)
+        {
+            Svc.Log.Warning($"Failed to load data pack {StarPackReference.DataPackId}");
+            return;
+        }
 
-    [JsonRequired]
-    public GlamourerData GlamourerData { get; set; }
+        var data = BasicData.LoadFromDisk(dataPack.FilesPath);
+        if (data == null)
+        {
+            Svc.Log.Warning($"Failed to load data from disk for {StarPackReference.StarId}");
+            return;
+        }
 
-    [JsonIgnore]
-    public StarPack StarPackReference { get; set; }
+        var penumbraData = PenumbraData.LoadFromDisk(dataPack.FilesPath);
+        if (penumbraData == null)
+        {
+            Svc.Log.Warning($"Failed to load penumbra data from disk for {StarPackReference.StarId}");
+            return;
+        }
+
+        var glamData = GlamourerData.LoadFromDisk(dataPack.FilesPath);
+        if (glamData == null)
+        {
+            Svc.Log.Warning($"Failed to load glamourer data from disk for {StarPackReference.StarId}");
+            return;
+        }
+
+        Data = data;
+        PenumbraData = penumbraData;
+        GlamourerData = glamData;
+    }
+
+    public BasicData Data { get; private set; }
+
+    public PenumbraData PenumbraData { get; private set; }
+
+    public GlamourerData GlamourerData { get; private set; }
+
+    public StarPack StarPackReference { get; private set; }
+
+    public PlayerData(StarPack starPack)
+    {
+        StarPackReference = starPack;
+    }
 }

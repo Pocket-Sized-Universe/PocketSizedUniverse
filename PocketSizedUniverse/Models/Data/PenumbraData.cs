@@ -6,12 +6,22 @@ namespace PocketSizedUniverse.Models.Data;
 
 public class PenumbraData : IDataFile
 {
+    public static PenumbraData? LoadFromDisk(string basePath)
+    {
+        var path = Path.Combine(basePath, Filename);
+        if (!File.Exists(path))
+        {
+            return new PenumbraData();
+        }
+
+        var data = File.ReadAllText(path);
+        return Base64Util.FromBase64<PenumbraData>(data);
+    }
     public int Version { get; set; } = 1;
     public static string Filename { get; } = "Penumbra.dat";
-    [JsonIgnore]
-    public Guid? CollectionId { get; set; }
 
-    public List<CustomRedirect> CustomFiles { get; set; } = new();
+    public List<SyncedMod> Mods { get; set; } = new();
+
     public List<AssetSwap> AssetSwaps { get; set; } = new();
 
     public bool Equals(IWriteableData? x, IWriteableData? y)

@@ -10,8 +10,9 @@ public interface IAssetSwap
 
 public record AssetSwap(string? GamePath, string RealPath): IAssetSwap;
 
-public record CustomRedirect(string? GamePath, byte[] Hash): IWriteableData, IAssetSwap
+public record CustomRedirect(byte[] Hash): IWriteableData
 {
+    public List<string> ApplicableGamePaths { get; set; } = new();
     [JsonIgnore]
     public string FileName => $"{Convert.ToBase64String(Hash).Replace("/", "_").Replace("+", "-")}.psu_mod";
     public bool Equals(IWriteableData? x, IWriteableData? y)

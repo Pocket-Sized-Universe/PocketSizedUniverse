@@ -6,6 +6,17 @@ namespace PocketSizedUniverse.Models.Data;
 
 public class BasicData : IDataFile
 {
+    public static BasicData? LoadFromDisk(string basePath)
+    {
+        var path = Path.Combine(basePath, Filename);
+        if (!File.Exists(path))
+        {
+            return new BasicData();
+        }
+
+        var data = File.ReadAllText(path);
+        return Base64Util.FromBase64<BasicData>(data);
+    }
     public int Version { get; set; } = 1;
     public static string Filename { get; } = "Basic.dat";
     
