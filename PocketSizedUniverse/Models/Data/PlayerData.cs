@@ -52,6 +52,11 @@ public class PlayerData
 
             foreach (var activeMod in settings.Item2)
             {
+                if (!activeMod.Value.Item1)
+                {
+                    Svc.Log.Debug($"Skipping disabled mod {activeMod.Key}");
+                    continue;
+                }
                 var modDir = Path.Combine(penumbraDir, activeMod.Key);
                 var mod = activeMod.Value;
                 if (!Directory.Exists(modDir))
