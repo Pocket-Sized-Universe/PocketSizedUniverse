@@ -10,4 +10,5 @@ public class SyncedMod
     public bool Inherited { get; set; } = false;
     public bool Temporary { get; set; } = false;
     public List<CustomRedirect> CustomFiles { get; set; } = new();
+    public List<AssetSwap> AssetSwaps { get; set; } = new();
 }

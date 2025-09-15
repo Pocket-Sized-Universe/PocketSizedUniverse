@@ -101,14 +101,14 @@ public class PlayerData
                 // Process files in the background but wait for completion before continuing
                 var customFiles = await ProcessModFilesAsync(modDir, packPath, fileToGamePaths);
                 syncMod.CustomFiles = customFiles;
+                foreach (var directSwap in resourceTree.Value.Nodes.Where(n => !File.Exists(n.ActualPath)))
+                {
+                    if (directSwap.GamePath == null || directSwap.ActualPath.EndsWith("imc") || directSwap.GamePath.EndsWith("imc")) continue;
+                    var swap = new AssetSwap(directSwap.GamePath, directSwap.ActualPath);
+                    syncMod.AssetSwaps.Add(swap);
+                }
                 mods.Add(syncMod);
-            }
 
-            foreach (var directSwap in resourceTree.Value.Nodes.Where(n => !File.Exists(n.ActualPath)))
-            {
-                if (directSwap.GamePath == null || directSwap.ActualPath.EndsWith("imc") || directSwap.GamePath.EndsWith("imc")) continue;
-                var swap = new AssetSwap(directSwap.GamePath, directSwap.ActualPath);
-                penumbra.AssetSwaps.Add(swap);
             }
         }
 
@@ -153,7 +153,7 @@ public class PlayerData
                 {
                     if (!fileToGamePaths.TryGetValue(file, out var gamePaths) || gamePaths.Count == 0)
                     {
-                        Svc.Log.Debug("No gamepaths found for mod.");
+                        //Svc.Log.Debug("No gamepaths found for mod.");
                         continue;
                     }
                     Svc.Log.Debug($"Found {gamePaths.Count} game paths for file {file}");

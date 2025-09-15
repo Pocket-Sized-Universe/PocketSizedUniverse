@@ -148,6 +148,7 @@ public class PlayerDataService : IUpdatable
                         int modIndex = 0;
                         foreach (var mod in remoteData.PlayerData.PenumbraData.Mods)
                         {
+                            var paths = new Dictionary<string, string>();
                             foreach (var customFile in mod.CustomFiles)
                             {
                                 var localFilePath = customFile.GetPath(remotePack.FilesPath);
@@ -160,34 +161,29 @@ public class PlayerDataService : IUpdatable
                                 }
                                 
                                 // Create one mod per CustomFile (like the working prototype)
-                                var paths = new Dictionary<string, string>();
                                 foreach (var gamePath in customFile.ApplicableGamePaths)
                                 {
                                     paths[gamePath] = localFilePath;
                                 }
 
-                                if (paths.Count > 0)
-                                {
-                                    var fileModName = $"PSU_File_{remoteData.PlayerData.PenumbraData.Id}_{mod.Priority}_{modIndex}";
-                                    Svc.Log.Debug($"Removing existing file mod {fileModName} from collection {remoteData.CollectionId}");
-                                    PsuPlugin.PenumbraService.RemoveTemporaryMod.Invoke(fileModName, remoteData.CollectionId.Value, mod.Priority);
-                                    
-                                    Svc.Log.Debug($"Adding file mod {fileModName} to collection {remoteData.CollectionId} with {paths.Count} game path mappings to {localFilePath}");
-                                    PsuPlugin.PenumbraService.AddTemporaryMod.Invoke(
-                                        fileModName, remoteData.CollectionId.Value, paths, string.Empty, mod.Priority);
-                                }
+
                                 modIndex++;
                             }
-                        }
-
-                        foreach (var swap in remoteData.PlayerData.PenumbraData.AssetSwaps)
-                        {
-                            var paths = new Dictionary<string, string>();
-                            if (swap.GamePath != null)
-                                paths.Add(swap.RealPath, swap.GamePath);
-                            PsuPlugin.PenumbraService.AddTemporaryMod.Invoke(
-                                remoteData.PlayerData.PenumbraData.Id.ToString(), remoteData.CollectionId.Value, paths,
-                                remoteData.PlayerData.PenumbraData.MetaManipulations, 1);
+                            foreach (var assetSwap in mod.AssetSwaps)
+                            {
+                                if (assetSwap.GamePath != null)
+                                    paths.Add(assetSwap.RealPath, assetSwap.GamePath);
+                                PsuPlugin.PenumbraService.AddTemporaryMod.Invoke(
+                                    $"PSU_AssetSwap_{remoteData.PlayerData.PenumbraData.Id}_{mod.Priority}_{modIndex}", remoteData.CollectionId.Value, paths,
+                                    string.Empty, mod.Priority);
+                            }
+                            if (paths.Count > 0)
+                            {
+                                var fileModName = $"PSU_File_{remoteData.PlayerData.PenumbraData.Id}_{mod.Priority}_{modIndex}";
+                                PsuPlugin.PenumbraService.RemoveTemporaryMod.Invoke(fileModName, remoteData.CollectionId.Value, mod.Priority);
+                                PsuPlugin.PenumbraService.AddTemporaryMod.Invoke(
+                                    fileModName, remoteData.CollectionId.Value, paths, string.Empty, mod.Priority);
+                            }
                         }
 
                         PsuPlugin.PenumbraService.AssignTemporaryCollection.Invoke(remoteData.CollectionId.Value,

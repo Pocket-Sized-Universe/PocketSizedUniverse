@@ -21,9 +21,6 @@ public class PenumbraData : IDataFile
     public static string Filename { get; } = "Penumbra.dat";
 
     public List<SyncedMod> Mods { get; set; } = new();
-
-    public List<AssetSwap> AssetSwaps { get; set; } = new();
-
     public bool Equals(IWriteableData? x, IWriteableData? y)
     {
         if (ReferenceEquals(x, y)) return true;
