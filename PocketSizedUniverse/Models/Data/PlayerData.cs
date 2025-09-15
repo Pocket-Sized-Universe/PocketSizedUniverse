@@ -151,11 +151,18 @@ public class PlayerData
             {
                 try
                 {
+                    if (!fileToGamePaths.TryGetValue(file, out var gamePaths) || gamePaths.Count == 0)
+                    {
+                        Svc.Log.Debug("No gamepaths found for mod.");
+                        continue;
+                    }
+                    Svc.Log.Debug($"Found {gamePaths.Count} game paths for file {file}");
                     //Svc.Log.Debug($"Processing file: {file}");
                     var data = await File.ReadAllBytesAsync(file);
                     using var sha256 = SHA256.Create();
                     var hash = sha256.ComputeHash(data);
                     var redirectedFile = new CustomRedirect(hash);
+                    redirectedFile.ApplicableGamePaths = gamePaths;
 
                     var redirectPath = redirectedFile.GetPath(packPath);
                     if (File.Exists(redirectPath))
@@ -168,11 +175,6 @@ public class PlayerData
                         // Ensure directory exists
                         Directory.CreateDirectory(Path.GetDirectoryName(redirectPath)!);
                         await File.WriteAllBytesAsync(redirectPath, data);
-                    }
-                    if (fileToGamePaths.TryGetValue(file, out var gamePaths))
-                    {
-                        redirectedFile.ApplicableGamePaths = gamePaths;
-                        Svc.Log.Debug($"Found {gamePaths.Count} game paths for file {file}");
                     }
 
                     customFiles.Add(redirectedFile);
