@@ -11,7 +11,7 @@ public class BasicData : IDataFile
         var path = Path.Combine(basePath, Filename);
         if (!File.Exists(path))
         {
-            return new BasicData();
+            return null;
         }
 
         var data = File.ReadAllText(path);

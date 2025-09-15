@@ -11,7 +11,7 @@ public class PenumbraData : IDataFile
         var path = Path.Combine(basePath, Filename);
         if (!File.Exists(path))
         {
-            return new PenumbraData();
+            return null;
         }
 
         var data = File.ReadAllText(path);

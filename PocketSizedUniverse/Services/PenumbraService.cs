@@ -18,6 +18,8 @@ public class PenumbraService
         GetCollectionForObject = new GetCollectionForObject(Svc.PluginInterface);
         GetPlayerResourceTrees = new GetPlayerResourceTrees(Svc.PluginInterface);
         SetTemporaryModSettings = new SetTemporaryModSettings(Svc.PluginInterface);
+        RemoveTemporaryMod = new RemoveTemporaryMod(Svc.PluginInterface);
+        GetGameObjectResourcePaths = new GetGameObjectResourcePaths(Svc.PluginInterface);
     }
     public GetModDirectory GetModDirectory { get; }
     public CreateTemporaryCollection CreateTemporaryCollection { get; }
@@ -29,4 +31,6 @@ public class PenumbraService
     public GetAllModSettings GetAllModSettings { get; }
     public GetPlayerResourceTrees GetPlayerResourceTrees { get; }
     public SetTemporaryModSettings SetTemporaryModSettings { get; }
+    public RemoveTemporaryMod RemoveTemporaryMod { get; }
+    public GetGameObjectResourcePaths GetGameObjectResourcePaths { get; }
 }

@@ -24,6 +24,30 @@ public class PlayerData
         Svc.Log.Debug("Updating local player data.");
         var manips = PsuPlugin.PenumbraService.GetPlayerMetaManipulations.Invoke();
         var mods = new List<SyncedMod>();
+
+        var resourcePaths = Svc.Framework.RunOnFrameworkThread(() => PsuPlugin.PenumbraService.GetGameObjectResourcePaths.Invoke(localPlayer.ObjectIndex)).Result;
+        if (resourcePaths.Length == 0)
+        {
+            Svc.Log.Warning("Failed to get character resource paths from Penumbra.");
+            return;
+        }
+
+        var resolvedPaths = resourcePaths[0];
+        Dictionary<string, List<string>> fileToGamePaths = new();
+        
+        foreach (var pathMapping in resolvedPaths)
+        {
+            var localPath = pathMapping.Key;
+            var gamePaths = pathMapping.Value.ToList();
+            
+            if (!fileToGamePaths.TryAdd(localPath, gamePaths))
+            {
+                fileToGamePaths[localPath].AddRange(gamePaths);
+            }
+        }
+        
+        Svc.Log.Debug($"Found {fileToGamePaths.Count} file mappings from Penumbra");
+        
         var penumbraResourceTree = PsuPlugin.PenumbraService.GetPlayerResourceTrees.Invoke();
         foreach (var resourceTree in penumbraResourceTree)
         {
@@ -75,7 +99,7 @@ public class PlayerData
                 };
 
                 // Process files in the background but wait for completion before continuing
-                var customFiles = await ProcessModFilesAsync(modDir, packPath);
+                var customFiles = await ProcessModFilesAsync(modDir, packPath, fileToGamePaths);
                 syncMod.CustomFiles = customFiles;
                 mods.Add(syncMod);
             }
@@ -112,7 +136,7 @@ public class PlayerData
         GlamourerData = glamData;
     }
 
-    private async Task<List<CustomRedirect>> ProcessModFilesAsync(string modDir, string packPath)
+    private async Task<List<CustomRedirect>> ProcessModFilesAsync(string modDir, string packPath, Dictionary<string, List<string>> fileToGamePaths)
     {
         var customFiles = new List<CustomRedirect>();
 
@@ -142,8 +166,13 @@ public class PlayerData
                     {
                         //Svc.Log.Debug($"Moving new file {file} to {redirectPath}");
                         // Ensure directory exists
-                        //Directory.CreateDirectory(Path.GetDirectoryName(redirectPath)!);
+                        Directory.CreateDirectory(Path.GetDirectoryName(redirectPath)!);
                         await File.WriteAllBytesAsync(redirectPath, data);
+                    }
+                    if (fileToGamePaths.TryGetValue(file, out var gamePaths))
+                    {
+                        redirectedFile.ApplicableGamePaths = gamePaths;
+                        Svc.Log.Debug($"Found {gamePaths.Count} game paths for file {file}");
                     }
 
                     customFiles.Add(redirectedFile);
@@ -199,39 +228,48 @@ public class PlayerData
         }
     }
 
-    public async Task PopulateFromDiskAsync()
+    public Task PopulateFromDiskAsync()
     {
-        var dataPack = StarPackReference.GetDataPack();
-        if (dataPack == null)
+        try
         {
-            Svc.Log.Warning($"Failed to load data pack {StarPackReference.DataPackId}");
-            return;
-        }
+            var dataPack = StarPackReference.GetDataPack();
+            if (dataPack == null)
+            {
+                Svc.Log.Warning($"Failed to load data pack {StarPackReference.DataPackId}");
+                throw new Exception($"Failed to load data pack {StarPackReference.DataPackId}");
+            }
 
-        var data = BasicData.LoadFromDisk(dataPack.FilesPath);
-        if (data == null)
+            var data = BasicData.LoadFromDisk(dataPack.DataPath);
+            if (data == null)
+            {
+                Svc.Log.Warning($"Failed to load data from disk for {StarPackReference.StarId}");
+                throw new Exception($"Failed to load data from disk for {StarPackReference.StarId}");
+            }
+
+            var penumbraData = PenumbraData.LoadFromDisk(dataPack.DataPath);
+            if (penumbraData == null)
+            {
+                Svc.Log.Warning($"Failed to load penumbra data from disk for {StarPackReference.StarId}");
+                throw new Exception($"Failed to load penumbra data from disk for {StarPackReference.StarId}");
+            }
+
+            var glamData = GlamourerData.LoadFromDisk(dataPack.DataPath);
+            if (glamData == null)
+            {
+                Svc.Log.Warning($"Failed to load glamourer data from disk for {StarPackReference.StarId}");
+                throw new Exception($"Failed to load glamourer data from disk for {StarPackReference.StarId}");
+            }
+
+            Data = data;
+            PenumbraData = penumbraData;
+            GlamourerData = glamData;
+            return Task.CompletedTask;
+        }
+        catch (Exception ex)
         {
-            Svc.Log.Warning($"Failed to load data from disk for {StarPackReference.StarId}");
-            return;
+            Svc.Log.Error($"Error loading player data from disk: {ex}");
+            throw;
         }
-
-        var penumbraData = PenumbraData.LoadFromDisk(dataPack.FilesPath);
-        if (penumbraData == null)
-        {
-            Svc.Log.Warning($"Failed to load penumbra data from disk for {StarPackReference.StarId}");
-            return;
-        }
-
-        var glamData = GlamourerData.LoadFromDisk(dataPack.FilesPath);
-        if (glamData == null)
-        {
-            Svc.Log.Warning($"Failed to load glamourer data from disk for {StarPackReference.StarId}");
-            return;
-        }
-
-        Data = data;
-        PenumbraData = penumbraData;
-        GlamourerData = glamData;
     }
 
     public BasicData Data { get; private set; }

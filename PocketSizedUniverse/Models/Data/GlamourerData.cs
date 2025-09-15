@@ -10,7 +10,7 @@ public class GlamourerData : IDataFile
         var path = Path.Combine(basePath, Filename);
         if (!File.Exists(path))
         {
-            return new GlamourerData();
+            return null;
         }
 
         var data = File.ReadAllText(path);

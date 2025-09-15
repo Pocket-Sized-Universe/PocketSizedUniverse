@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Collections.ObjectModel;
 using System.Security.Cryptography;
 using Dalamud.Plugin.Services;
 using ECommons.DalamudServices;
@@ -22,7 +23,7 @@ public class PlayerDataService : IUpdatable
     public TimeSpan UpdateInterval { get; set; } = TimeSpan.FromSeconds(30);
     public DateTime LastUpdated { get; set; } = DateTime.MinValue;
     public PlayerData? LocalPlayerData { get; private set; }
-    public ConcurrentDictionary<StarPack, (Guid CollectionId, PlayerData PlayerData)> RemotePlayerData { get; } = new();
+    public ConcurrentDictionary<StarPack, (Guid? CollectionId, PlayerData PlayerData)> RemotePlayerData { get; } = new();
 
     public void Update(IFramework framework)
     {
@@ -91,12 +92,10 @@ public class PlayerDataService : IUpdatable
                     {
                         try
                         {
-                            PsuPlugin.PenumbraService.CreateTemporaryCollection.Invoke(remoteStar.StarId,
-                                remoteStar.Name, out var collectionId);
                             var playerData = new PlayerData(pair);
-                            RemotePlayerData.TryAdd(pair, (collectionId, playerData));
+                            RemotePlayerData.TryAdd(pair, (null, playerData));
                             Svc.Log.Debug(
-                                $"Created new remote player data for {remoteStar.StarId} | CollectionId: {collectionId}");
+                                $"Created new remote player data for {remoteStar.StarId}");
                         }
                         catch (Exception ex)
                         {
@@ -106,47 +105,100 @@ public class PlayerDataService : IUpdatable
                     continue;
                 }
 
-                await remoteData.PlayerData.PopulateFromDiskAsync();
-                await Svc.Framework.RunOnFrameworkThread(() =>
-                {
-                    var remotePlayer = Svc.Objects.PlayerObjects.FirstOrDefault(p => p.Name.TextValue == remoteData.PlayerData.Data.PlayerName);
-                    if (remotePlayer == null)
-                    {
-                        Svc.Log.Debug($"{remoteData.PlayerData.StarPackReference.StarId} is not nearby.");
-                        return;
-                    }
+                // Validate collection still exists before proceeding
+                Svc.Log.Debug($"Using existing collection {remoteData.CollectionId} for {remoteStar.StarId}");
 
-                    PsuPlugin.GlamourerService.ApplyState.Invoke(remoteData.PlayerData.GlamourerData.GlamState,
-                        remotePlayer.ObjectIndex);
-                    foreach (var mod in remoteData.PlayerData.PenumbraData.Mods)
+                try
+                {
+                    await remoteData.PlayerData.PopulateFromDiskAsync();
+                    await Svc.Framework.RunOnFrameworkThread(() =>
                     {
-                        var paths = new Dictionary<string, string>();
-                        foreach (var customFile in mod.CustomFiles)
+                        var remotePlayer = Svc.Objects.PlayerObjects.FirstOrDefault(p =>
+                            p.Name.TextValue == remoteData.PlayerData.Data.PlayerName);
+                        if (remotePlayer == null)
                         {
-                            foreach (var realPath in customFile.ApplicableGamePaths)
-                                paths.Add(realPath, customFile.GetPath(remotePack.FilesPath));
+                            Svc.Log.Debug($"{remoteData.PlayerData.Data.PlayerName} is not nearby.");
+                            return;
                         }
 
-                        PsuPlugin.PenumbraService.AddTemporaryMod.Invoke(
-                            remoteData.PlayerData.PenumbraData.Id.ToString(), remoteData.CollectionId, paths,
-                            remoteData.PlayerData.PenumbraData.MetaManipulations, mod.Priority);
-                        IReadOnlyDictionary<string, IReadOnlyList<string>> settings = mod.Settings.ToDictionary<KeyValuePair<string, List<string>>, string, IReadOnlyList<string>>(s => s.Key, s => s.Value);
-                        PsuPlugin.PenumbraService.SetTemporaryModSettings.Invoke(remoteData.CollectionId,
-                            remotePack.FilesPath, mod.Inherited, mod.Enabled, mod.Priority, settings, "PSU");
-                    }
+                        if (remoteData.CollectionId == null)
+                        {
+                            Svc.Log.Debug("Creating new collection for {remoteStar.StarId}");
+                            PsuPlugin.PenumbraService.CreateTemporaryCollection.Invoke("PocketSizedUniverse", remoteData.PlayerData.Data.Id.ToString(), out var newCollectionId);
+                            remoteData.CollectionId = newCollectionId;
+                        }
 
-                    foreach (var swap in remoteData.PlayerData.PenumbraData.AssetSwaps)
-                    {
-                        var paths = new Dictionary<string, string>();
-                        if (swap.GamePath != null)
-                            paths.Add(swap.RealPath, swap.GamePath);
-                        PsuPlugin.PenumbraService.AddTemporaryMod.Invoke(
-                            remoteData.PlayerData.PenumbraData.Id.ToString(), remoteData.CollectionId, paths,
-                            remoteData.PlayerData.PenumbraData.MetaManipulations, 1);
-                    }
-                    PsuPlugin.PenumbraService.AssignTemporaryCollection.Invoke(remoteData.CollectionId, remotePlayer.ObjectIndex);
-                    PsuPlugin.PenumbraService.RedrawObject.Invoke(remotePlayer.ObjectIndex);
-                });
+                        PsuPlugin.GlamourerService.ApplyState.Invoke(remoteData.PlayerData.GlamourerData.GlamState,
+                            remotePlayer.ObjectIndex);
+
+                        // Apply meta manipulations first
+                        var metaModName = $"PSU_Meta_{remoteData.PlayerData.PenumbraData.Id}";
+                        Svc.Log.Debug($"Removing existing meta mod {metaModName} from collection {remoteData.CollectionId}");
+                        PsuPlugin.PenumbraService.RemoveTemporaryMod.Invoke(metaModName, remoteData.CollectionId.Value, 0);
+                        
+                        if (!string.IsNullOrEmpty(remoteData.PlayerData.PenumbraData.MetaManipulations))
+                        {
+                            Svc.Log.Debug($"Adding meta mod {metaModName} to collection {remoteData.CollectionId}");
+                            PsuPlugin.PenumbraService.AddTemporaryMod.Invoke(
+                                metaModName, remoteData.CollectionId.Value, new Dictionary<string, string>(),
+                                remoteData.PlayerData.PenumbraData.MetaManipulations, 0);
+                        }
+
+                        // Apply file mods (like the working prototype) - each CustomFile becomes a separate mod
+                        int modIndex = 0;
+                        foreach (var mod in remoteData.PlayerData.PenumbraData.Mods)
+                        {
+                            foreach (var customFile in mod.CustomFiles)
+                            {
+                                var localFilePath = customFile.GetPath(remotePack.FilesPath);
+                                
+                                // Check if the file actually exists
+                                if (!File.Exists(localFilePath))
+                                {
+                                    Svc.Log.Warning($"Custom file does not exist: {localFilePath}");
+                                    continue;
+                                }
+                                
+                                // Create one mod per CustomFile (like the working prototype)
+                                var paths = new Dictionary<string, string>();
+                                foreach (var gamePath in customFile.ApplicableGamePaths)
+                                {
+                                    paths[gamePath] = localFilePath;
+                                }
+
+                                if (paths.Count > 0)
+                                {
+                                    var fileModName = $"PSU_File_{remoteData.PlayerData.PenumbraData.Id}_{mod.Priority}_{modIndex}";
+                                    Svc.Log.Debug($"Removing existing file mod {fileModName} from collection {remoteData.CollectionId}");
+                                    PsuPlugin.PenumbraService.RemoveTemporaryMod.Invoke(fileModName, remoteData.CollectionId.Value, mod.Priority);
+                                    
+                                    Svc.Log.Debug($"Adding file mod {fileModName} to collection {remoteData.CollectionId} with {paths.Count} game path mappings to {localFilePath}");
+                                    PsuPlugin.PenumbraService.AddTemporaryMod.Invoke(
+                                        fileModName, remoteData.CollectionId.Value, paths, string.Empty, mod.Priority);
+                                }
+                                modIndex++;
+                            }
+                        }
+
+                        foreach (var swap in remoteData.PlayerData.PenumbraData.AssetSwaps)
+                        {
+                            var paths = new Dictionary<string, string>();
+                            if (swap.GamePath != null)
+                                paths.Add(swap.RealPath, swap.GamePath);
+                            PsuPlugin.PenumbraService.AddTemporaryMod.Invoke(
+                                remoteData.PlayerData.PenumbraData.Id.ToString(), remoteData.CollectionId.Value, paths,
+                                remoteData.PlayerData.PenumbraData.MetaManipulations, 1);
+                        }
+
+                        PsuPlugin.PenumbraService.AssignTemporaryCollection.Invoke(remoteData.CollectionId.Value,
+                            remotePlayer.ObjectIndex);
+                        PsuPlugin.PenumbraService.RedrawObject.Invoke(remotePlayer.ObjectIndex);
+                    });
+                }
+                catch (Exception ex)
+                {
+                    Svc.Log.Error($"Failed to update remote player data for {remoteStar.StarId}: {ex}");
+                }
             }
 
             Svc.Log.Debug("Updated remote player data.");
