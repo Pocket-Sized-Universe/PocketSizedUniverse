@@ -173,7 +173,17 @@ public class PlayerData
                     var data = await File.ReadAllBytesAsync(file);
                     using var sha256 = SHA256.Create();
                     var hash = sha256.ComputeHash(data);
-                    var redirectedFile = new CustomRedirect(hash);
+                    var redirectedFile = new CustomRedirect(hash)
+                    {
+                        // Prefer original file extension to ensure proper loader selection on the receiver
+                        FileExtension = Path.GetExtension(file)
+                    };
+                    if (string.IsNullOrWhiteSpace(redirectedFile.FileExtension))
+                    {
+                        // Fallback to the first game path's extension if the source file had none
+                        redirectedFile.FileExtension = Path.GetExtension(gamePaths.FirstOrDefault() ?? string.Empty);
+                    }
+
                     redirectedFile.ApplicableGamePaths = gamePaths;
 
                     var redirectPath = redirectedFile.GetPath(packPath);
