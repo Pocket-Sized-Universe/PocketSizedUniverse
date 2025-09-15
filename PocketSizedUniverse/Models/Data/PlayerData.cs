@@ -260,29 +260,26 @@ public class PlayerData
             if (dataPack == null)
             {
                 Svc.Log.Warning($"Failed to load data pack {StarPackReference.DataPackId}");
-                throw new Exception($"Failed to load data pack {StarPackReference.DataPackId}");
             }
 
             var data = BasicData.LoadFromDisk(dataPack.DataPath);
             if (data == null)
             {
                 Svc.Log.Warning($"Failed to load data from disk for {StarPackReference.StarId}");
-                throw new Exception($"Failed to load data from disk for {StarPackReference.StarId}");
             }
 
             var penumbraData = PenumbraData.LoadFromDisk(dataPack.DataPath);
             if (penumbraData == null)
             {
                 Svc.Log.Warning($"Failed to load penumbra data from disk for {StarPackReference.StarId}");
-                throw new Exception($"Failed to load penumbra data from disk for {StarPackReference.StarId}");
             }
 
             var glamData = GlamourerData.LoadFromDisk(dataPack.DataPath);
             if (glamData == null)
             {
                 Svc.Log.Warning($"Failed to load glamourer data from disk for {StarPackReference.StarId}");
-                throw new Exception($"Failed to load glamourer data from disk for {StarPackReference.StarId}");
             }
+            if (data == null || penumbraData == null || glamData == null) return Task.CompletedTask;
 
             Data = data;
             PenumbraData = penumbraData;
