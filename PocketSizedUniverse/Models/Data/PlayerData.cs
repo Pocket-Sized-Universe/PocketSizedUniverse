@@ -54,7 +54,7 @@ public class PlayerData
             {
                 if (!activeMod.Value.Item1)
                 {
-                    Svc.Log.Debug($"Skipping disabled mod {activeMod.Key}");
+                    //Svc.Log.Debug($"Skipping disabled mod {activeMod.Key}");
                     continue;
                 }
                 var modDir = Path.Combine(penumbraDir, activeMod.Key);
