@@ -11,6 +11,17 @@ namespace PocketSizedUniverse.Models.Data;
 
 public class PlayerData
 {
+    /// <summary>
+    /// Normalizes Penumbra paths to use forward slashes for cross-platform consistency.
+    /// Penumbra GamePaths use forward slashes while ActualPaths may use backslashes on Windows.
+    /// </summary>
+    /// <param name="path">The path to normalize</param>
+    /// <returns>A normalized path using forward slashes, or null if input was null</returns>
+    private static string? NormalizePenumbraPath(string? path)
+    {
+        if (path == null) return null;
+        return string.Intern(path.Replace('\\', '/'));
+    }
     public async Task PopulateFromLocalAsync(IPlayerCharacter player)
     {
         var localPlayer = Svc.Framework.RunOnFrameworkThread(() => Player.Object).Result;
@@ -104,11 +115,12 @@ public class PlayerData
                 foreach (var directSwap in resourceTree.Value.Nodes.Where(n => !File.Exists(n.ActualPath)))
                 {
                     if (directSwap.GamePath == null || directSwap.ActualPath.EndsWith("imc") || directSwap.GamePath.EndsWith("imc")) continue;
-                    var swap = new AssetSwap(directSwap.GamePath, directSwap.ActualPath);
+                    var swap = new AssetSwap(
+                        NormalizePenumbraPath(directSwap.GamePath), 
+                        NormalizePenumbraPath(directSwap.ActualPath)!);
                     syncMod.AssetSwaps.Add(swap);
                 }
                 mods.Add(syncMod);
-
             }
         }
 
