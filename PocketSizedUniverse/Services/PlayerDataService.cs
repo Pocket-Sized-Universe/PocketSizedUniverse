@@ -172,10 +172,7 @@ public class PlayerDataService : IUpdatable
                             foreach (var assetSwap in mod.AssetSwaps)
                             {
                                 if (assetSwap.GamePath != null)
-                                    paths.Add(assetSwap.RealPath, assetSwap.GamePath);
-                                PsuPlugin.PenumbraService.AddTemporaryMod.Invoke(
-                                    $"PSU_AssetSwap_{remoteData.PlayerData.PenumbraData.Id}_{mod.Priority}_{modIndex}", remoteData.CollectionId.Value, paths,
-                                    string.Empty, mod.Priority);
+                                    paths[assetSwap.GamePath] = assetSwap.RealPath;
                             }
                             if (paths.Count > 0)
                             {
