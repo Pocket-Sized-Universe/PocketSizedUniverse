@@ -138,28 +138,24 @@ public class PlayerDataService : IUpdatable
                                 remoteData.PlayerData.PenumbraData.MetaManipulations, 0);
                         }
                         var paths = new Dictionary<string, string>();
-                        foreach (var mod in remoteData.PlayerData.PenumbraData.Mods)
+                        foreach (var customFile in remoteData.PlayerData.PenumbraData.Files)
                         {
-                            foreach (var customFile in mod.CustomFiles)
+                            var localFilePath = customFile.GetPath(remotePack.FilesPath);
+                            // Check if the file actually exists
+                            if (!File.Exists(localFilePath))
                             {
-                                var localFilePath = customFile.GetPath(remotePack.FilesPath);
-                                
-                                // Check if the file actually exists
-                                if (!File.Exists(localFilePath))
-                                {
-                                    Svc.Log.Warning($"Custom file does not exist: {localFilePath}");
-                                    continue;
-                                }
-                                foreach (var gamePath in customFile.ApplicableGamePaths)
-                                {
-                                    paths[gamePath] = localFilePath;
-                                }
+                                Svc.Log.Debug($"Custom file missing: {localFilePath}");
+                                continue;
                             }
-                            foreach (var assetSwap in mod.AssetSwaps)
+                            foreach (var gamePath in customFile.ApplicableGamePaths)
                             {
-                                if (assetSwap.GamePath != null)
-                                    paths[assetSwap.GamePath] = assetSwap.RealPath;
+                                paths[gamePath] = localFilePath;
                             }
+                        }
+                        foreach (var assetSwap in remoteData.PlayerData.PenumbraData.FileSwaps)
+                        {
+                            if (assetSwap.GamePath != null)
+                                paths[assetSwap.GamePath] = assetSwap.RealPath;
                         }
                         if (paths.Count > 0)
                         {
@@ -167,7 +163,7 @@ public class PlayerDataService : IUpdatable
                             Svc.Log.Debug($"Removing existing mod {fileModName} from collection {remoteData.CollectionId}");
                             PsuPlugin.PenumbraService.RemoveTemporaryMod.Invoke(fileModName, remoteData.CollectionId, 0);
                             PsuPlugin.PenumbraService.AddTemporaryMod.Invoke(
-                                fileModName, remoteData.CollectionId, paths, remoteData.PlayerData.PenumbraData.MetaManipulations, 0);
+                                fileModName, remoteData.CollectionId, paths, string.Empty, 0);
                             Svc.Log.Debug($"Added mod {fileModName} to collection {remoteData.CollectionId} with paths: {string.Join(", ", paths.Keys)}");
 
                         }

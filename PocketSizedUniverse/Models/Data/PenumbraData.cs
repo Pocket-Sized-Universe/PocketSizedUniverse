@@ -17,10 +17,15 @@ public class PenumbraData : IDataFile
         var data = File.ReadAllText(path);
         return Base64Util.FromBase64<PenumbraData>(data);
     }
-    public int Version { get; set; } = 1;
+
+    public int Version { get; set; } = 2;
     public static string Filename { get; } = "Penumbra.dat";
 
-    public List<SyncedMod> Mods { get; set; } = new();
+    // Aggregated, per-character Penumbra state (matching Mare's model)
+    public List<CustomRedirect> Files { get; set; } = new();
+    public List<AssetSwap> FileSwaps { get; set; } = new();
+    public string MetaManipulations { get; set; } = string.Empty;
+
     public bool Equals(IWriteableData? x, IWriteableData? y)
     {
         if (ReferenceEquals(x, y)) return true;
@@ -34,7 +39,7 @@ public class PenumbraData : IDataFile
     {
         return obj.Id.GetHashCode();
     }
-    public string MetaManipulations { get; set; } = string.Empty;
+
     public Guid Id { get; set; } = Guid.NewGuid();
     public string GetPath(string basePath) => Path.Combine(basePath, Filename);
 }

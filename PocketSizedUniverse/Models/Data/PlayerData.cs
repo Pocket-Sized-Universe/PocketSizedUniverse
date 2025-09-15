@@ -31,102 +31,94 @@ public class PlayerData
             return;
         }
 
-        var penumbra = new PenumbraData();
         Svc.Log.Debug("Updating local player data.");
-        var manips = PsuPlugin.PenumbraService.GetPlayerMetaManipulations.Invoke();
-        var mods = new List<SyncedMod>();
 
+        var penumbra = new PenumbraData();
+        var manips = PsuPlugin.PenumbraService.GetPlayerMetaManipulations.Invoke();
+
+        // Resolve current character resource paths (local file -> game paths)
         var resourcePaths = Svc.Framework.RunOnFrameworkThread(() => PsuPlugin.PenumbraService.GetGameObjectResourcePaths.Invoke(localPlayer.ObjectIndex)).Result;
         if (resourcePaths.Length == 0)
         {
             Svc.Log.Warning("Failed to get character resource paths from Penumbra.");
             return;
         }
-
         var resolvedPaths = resourcePaths[0];
-        Dictionary<string, List<string>> fileToGamePaths = new();
-        
+
+        string? packPath = PsuPlugin.Configuration.MyStarPack?.GetDataPack()?.FilesPath;
+        if (packPath == null)
+        {
+            Svc.Log.Warning("My star pack data pack path is null.");
+            return;
+        }
+
+        // Build file list directly from resolved paths, filtering like Mare
+        var files = new List<CustomRedirect>();
         foreach (var pathMapping in resolvedPaths)
         {
             var localPath = pathMapping.Key;
             var gamePaths = pathMapping.Value.ToList();
-            
-            if (!fileToGamePaths.TryAdd(localPath, gamePaths))
+            if (!File.Exists(localPath))
+                continue; // swaps are handled below
+
+            var ext = Path.GetExtension(localPath);
+            var allowedGamePaths = gamePaths.Where(gp => AllowedFileExtensions.IsAllowed(gp, ext)).ToList();
+            if (allowedGamePaths.Count == 0)
+                continue;
+
+            try
             {
-                fileToGamePaths[localPath].AddRange(gamePaths);
+                var data = await File.ReadAllBytesAsync(localPath);
+                using var sha256 = SHA256.Create();
+                var hash = sha256.ComputeHash(data);
+                var redirectedFile = new CustomRedirect(hash)
+                {
+                    // Prefer original file extension; fallback to first game path's extension if missing
+                    FileExtension = string.IsNullOrWhiteSpace(Path.GetExtension(localPath))
+                        ? Path.GetExtension(allowedGamePaths.FirstOrDefault() ?? string.Empty)
+                        : Path.GetExtension(localPath)
+                };
+
+                redirectedFile.ApplicableGamePaths = allowedGamePaths;
+
+                var redirectPath = redirectedFile.GetPath(packPath);
+                if (!File.Exists(redirectPath))
+                {
+                    Directory.CreateDirectory(Path.GetDirectoryName(redirectPath)!);
+                    await File.WriteAllBytesAsync(redirectPath, data);
+                }
+
+                files.Add(redirectedFile);
+            }
+            catch (Exception ex)
+            {
+                Svc.Log.Error($"Error processing file {localPath}: {ex.Message}");
             }
         }
-        
-        Svc.Log.Debug($"Found {fileToGamePaths.Count} file mappings from Penumbra");
-        
+
+        // Build file swaps from resource tree where the actual path is not a local file
+        var fileSwaps = new List<AssetSwap>();
         var penumbraResourceTree = PsuPlugin.PenumbraService.GetPlayerResourceTrees.Invoke();
         foreach (var resourceTree in penumbraResourceTree)
         {
-            var effectiveCollectionId = PsuPlugin.PenumbraService.GetCollectionForObject.Invoke(resourceTree.Key);
-            if (!effectiveCollectionId.ObjectValid)
+            foreach (var directSwap in resourceTree.Value.Nodes.Where(n => !File.Exists(n.ActualPath)))
             {
-                Svc.Log.Warning("Local player object not valid");
-                return;
-            }
+                if (directSwap.GamePath == null) continue;
+                var ext = Path.GetExtension(directSwap.ActualPath);
+                if (!AllowedFileExtensions.IsAllowed(directSwap.GamePath, ext)) continue;
 
-            var settings =
-                PsuPlugin.PenumbraService.GetAllModSettings.Invoke(effectiveCollectionId.EffectiveCollection.Id);
-            if (settings.Item1 != PenumbraApiEc.Success || settings.Item2 == null)
-            {
-                Svc.Log.Warning("Failed to get mod settings.");
-                return;
-            }
-
-            var penumbraDir = PsuPlugin.PenumbraService.GetModDirectory.Invoke();
-            string? packPath = PsuPlugin.Configuration.MyStarPack?.GetDataPack()?.FilesPath;
-            if (packPath == null)
-            {
-                Svc.Log.Warning("My star pack data pack path is null.");
-                return;
-            }
-
-            foreach (var activeMod in settings.Item2)
-            {
-                if (!activeMod.Value.Item1)
-                {
-                    //Svc.Log.Debug($"Skipping disabled mod {activeMod.Key}");
-                    continue;
-                }
-                var modDir = Path.Combine(penumbraDir, activeMod.Key);
-                var mod = activeMod.Value;
-                if (!Directory.Exists(modDir))
-                {
-                    Svc.Log.Warning($"Mod directory {modDir} does not exist.");
-                    continue;
-                }
-
-                var syncMod = new SyncedMod()
-                {
-                    Enabled = mod.Item1,
-                    Priority = mod.Item2,
-                    Settings = mod.Item3,
-                    Inherited = mod.Item4,
-                    Temporary = mod.Item5,
-                };
-
-                // Process files in the background but wait for completion before continuing
-                var customFiles = await ProcessModFilesAsync(modDir, packPath, fileToGamePaths);
-                syncMod.CustomFiles = customFiles;
-                foreach (var directSwap in resourceTree.Value.Nodes.Where(n => !File.Exists(n.ActualPath)))
-                {
-                    if (directSwap.GamePath == null || directSwap.ActualPath.EndsWith("imc") || directSwap.GamePath.EndsWith("imc")) continue;
-                    var swap = new AssetSwap(
-                        NormalizePenumbraPath(directSwap.GamePath), 
-                        NormalizePenumbraPath(directSwap.ActualPath)!);
-                    syncMod.AssetSwaps.Add(swap);
-                }
-                mods.Add(syncMod);
+                var swap = new AssetSwap(
+                    NormalizePenumbraPath(directSwap.GamePath),
+                    NormalizePenumbraPath(directSwap.ActualPath)!);
+                fileSwaps.Add(swap);
             }
         }
 
-        penumbra.Mods = mods;
+        penumbra.Files = files;
+        penumbra.FileSwaps = fileSwaps;
         penumbra.MetaManipulations = manips;
 
+        // Glamourer
         var glamState = PsuPlugin.GlamourerService.GetStateBase64.Invoke(localPlayer.ObjectIndex);
         if (glamState.Item2 == null)
         {

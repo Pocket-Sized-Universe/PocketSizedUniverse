@@ -2,6 +2,7 @@ using Syncthing.Models.Response;
 using System.Numerics;
 using Dalamud.Bindings.ImGui;
 using Dalamud.Interface;
+using Dalamud.Interface.Style;
 using Dalamud.Interface.Utility.Raii;
 using ImRaii = OtterGui.Raii.ImRaii;
 
@@ -15,7 +16,16 @@ public static class UIHelpers
         var apiColor = PsuPlugin.SyncThingService.IsHealthy ? new Vector4(0.0f, 0.8f, 0.0f, 1.0f) : new Vector4(0.8f, 0.0f, 0.0f, 1.0f);
         var apiText = PsuPlugin.SyncThingService.IsHealthy ? "Connected" : "Disconnected";
 
-        ImGui.TextColored(apiColor, $"API: {apiText}");
+        ImGui.PushStyleColor(ImGuiCol.Text, apiColor);
+        ImGui.Text($"API: {apiText}");
+        if (PsuPlugin.Configuration.UseBuiltInSyncThing && (PsuPlugin.ServerProcess?.HasExited ?? true))
+        {
+            ImGui.Text(
+                "WARNING: Easy Mode is enabled but Pocket Sized Universe is not controlling the SyncThing server it's connected to.");
+            ImGui.Text("This may cause issues with syncing or it may be perfectly fine.");
+            ImGui.Text("If you experience issues, please restart your computer at your earliest convenience.");
+        }
+        ImGui.PopStyleColor();
     }
 
     public static string GetStatusText(this Star star)
