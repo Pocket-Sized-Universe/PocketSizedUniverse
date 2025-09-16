@@ -11,7 +11,7 @@ namespace PocketSizedUniverse.Windows;
 
 public partial class MainWindow : Window
 {
-    public MainWindow() : base("Pocket Sized Universe " + Assembly.GetExecutingAssembly().GetName().Version)
+    public MainWindow() : base("Pocket Sized Universe " + Assembly.GetExecutingAssembly().GetName().Version!.ToString(3))
     {
         SizeConstraints = new WindowSizeConstraints
         {
