@@ -48,11 +48,7 @@ public class PsuPlugin : IDalamudPlugin
         WindowSystem.AddWindow(MainWindow);
         WindowSystem.AddWindow(SetupWindow);
         
-        if (Configuration.SetupComplete)
-        {
-            MainWindow.IsOpen = true;
-        }
-        else
+        if (!Configuration.SetupComplete)
         {
             SetupWindow.IsOpen = true;
         }
