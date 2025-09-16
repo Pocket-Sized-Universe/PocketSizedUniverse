@@ -9,6 +9,7 @@ using PocketSizedUniverse.Windows.ViewModels;
 using Syncthing.Models.Response;
 using OtterGui;
 using System.Threading.Tasks;
+using OtterGui.Text;
 
 namespace PocketSizedUniverse.Windows;
 
@@ -286,6 +287,11 @@ public class SetupWindow : Window
         ImGui.Spacing();
 
         ImGui.InputText("Star Name", ref _tempStarName, 128);
+        ImGui.SameLine();
+        if (ImUtf8.IconButton(FontAwesomeIcon.Recycle))
+        {
+            _tempStarName = Adjectives.GetRandom() + " " + Nouns.GetRandom();
+        }
 
         ImGui.Spacing();
         ImGui.Text("Bandwidth Limits (0 = unlimited):");
@@ -380,6 +386,12 @@ public class SetupWindow : Window
         ImGui.Spacing();
 
         ImGui.InputText("DataPack Name", ref _tempDataPackName, 128);
+        ImGui.SameLine();
+        if (ImUtf8.IconButton(FontAwesomeIcon.Recycle))
+        {
+            _tempDataPackName = Adjectives.GetRandom() + " " + Nouns.GetRandom();
+        }
+
         ImGui.Spacing();
 
         // Set up default directory if not set

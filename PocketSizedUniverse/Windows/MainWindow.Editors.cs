@@ -4,6 +4,7 @@ using Dalamud.Interface;
 using Dalamud.Interface.Utility.Raii;
 using Syncthing.Models.Response;
 using OtterGui;
+using OtterGui.Text;
 using PocketSizedUniverse.Windows.ViewModels;
 
 namespace PocketSizedUniverse.Windows;
@@ -12,12 +13,12 @@ public partial class MainWindow
 {
     private bool _starEditorChanged = false;
     private bool _dataPackEditorChanged = false;
-    
+
     private static void SetInputWidth(int width) => ImGui.SetNextItemWidth(width);
 
     private bool DrawStarEditor(Star? star)
     {
-        if (star == null) 
+        if (star == null)
         {
             ImGui.TextColored(new Vector4(0.8f, 0.4f, 0.4f, 1.0f), "Star not found");
             return false;
@@ -34,6 +35,14 @@ public partial class MainWindow
             changed = true;
         }
 
+        ImGui.SameLine();
+        if (ImUtf8.IconButton(FontAwesomeIcon.Recycle))
+        {
+            var newName = Adjectives.GetRandom() + " " + Nouns.GetRandom();
+            star.Name = newName;
+            changed = true;
+        }
+
         // Show Star ID (read-only)
         ImGui.TextColored(new Vector4(0.6f, 0.6f, 0.6f, 1.0f), $"Star ID: {star.StarId}");
 
@@ -43,10 +52,10 @@ public partial class MainWindow
         ImGui.TextColored(statusColor, $"Status: {statusText}");
 
         ImGui.Spacing();
-        
+
         // Bandwidth limits
         ImGui.Text("Bandwidth Limits (0 = unlimited):");
-        
+
         var tempMaxSend = star.MaxSendKbps;
         SetInputWidth(120);
         if (ImGui.SliderInt("Max Upload (KB/s)", ref tempMaxSend, 0, 10000))
@@ -54,7 +63,7 @@ public partial class MainWindow
             star.MaxSendKbps = tempMaxSend;
             changed = true;
         }
-        
+
         var tempMaxRecv = star.MaxRecvKbps;
         SetInputWidth(120);
         if (ImGui.SliderInt("Max Download (KB/s)", ref tempMaxRecv, 0, 10000))
@@ -110,6 +119,14 @@ public partial class MainWindow
         if (ImGui.InputText("DataPack Name", ref tempName, 128))
         {
             dataPack.Name = tempName;
+            changed = true;
+        }
+
+        ImGui.SameLine();
+        if (ImUtf8.IconButton(FontAwesomeIcon.Recycle))
+        {
+            var newName = Adjectives.GetRandom() + " " + Nouns.GetRandom();
+            dataPack.Name = newName;
             changed = true;
         }
 
@@ -180,7 +197,7 @@ public partial class MainWindow
         {
             // Save changes through the SyncThingService
             var service = PsuPlugin.SyncThingService;
-            
+
             if (_starEditorChanged)
             {
                 // Post updated stars to the API
@@ -188,9 +205,10 @@ public partial class MainWindow
                 {
                     _ = service.PostNewStar(star);
                 }
+
                 _starEditorChanged = false;
             }
-            
+
             if (_dataPackEditorChanged)
             {
                 // Post updated datapacks to the API
@@ -198,6 +216,7 @@ public partial class MainWindow
                 {
                     service.PostNewDataPack(dataPack);
                 }
+
                 _dataPackEditorChanged = false;
             }
         }

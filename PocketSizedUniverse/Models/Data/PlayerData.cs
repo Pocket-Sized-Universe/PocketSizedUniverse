@@ -22,6 +22,7 @@ public class PlayerData
         if (path == null) return null;
         return string.Intern(path.Replace('\\', '/'));
     }
+
     public async Task PopulateFromLocalAsync(IPlayerCharacter player)
     {
         var localPlayer = Svc.Framework.RunOnFrameworkThread(() => Player.Object).Result;
@@ -37,12 +38,14 @@ public class PlayerData
         var manips = PsuPlugin.PenumbraService.GetPlayerMetaManipulations.Invoke();
 
         // Resolve current character resource paths (local file -> game paths)
-        var resourcePaths = Svc.Framework.RunOnFrameworkThread(() => PsuPlugin.PenumbraService.GetGameObjectResourcePaths.Invoke(localPlayer.ObjectIndex)).Result;
+        var resourcePaths = Svc.Framework.RunOnFrameworkThread(() =>
+            PsuPlugin.PenumbraService.GetGameObjectResourcePaths.Invoke(localPlayer.ObjectIndex)).Result;
         if (resourcePaths.Length == 0)
         {
             Svc.Log.Warning("Failed to get character resource paths from Penumbra.");
             return;
         }
+
         var resolvedPaths = resourcePaths[0];
 
         string? packPath = PsuPlugin.Configuration.MyStarPack?.GetDataPack()?.FilesPath;
@@ -140,7 +143,8 @@ public class PlayerData
         GlamourerData = glamData;
     }
 
-    private async Task<List<CustomRedirect>> ProcessModFilesAsync(string modDir, string packPath, Dictionary<string, List<string>> fileToGamePaths)
+    private async Task<List<CustomRedirect>> ProcessModFilesAsync(string modDir, string packPath,
+        Dictionary<string, List<string>> fileToGamePaths)
     {
         var customFiles = new List<CustomRedirect>();
 
@@ -160,6 +164,7 @@ public class PlayerData
                         //Svc.Log.Debug("No gamepaths found for mod.");
                         continue;
                     }
+
                     Svc.Log.Debug($"Found {gamePaths.Count} game paths for file {file}");
                     //Svc.Log.Debug($"Processing file: {file}");
                     var data = await File.ReadAllBytesAsync(file);
@@ -223,20 +228,29 @@ public class PlayerData
             // Save basic data
             var playerDataLoc = Data.GetPath(myDataPack.DataPath);
             var encodedData = Base64Util.ToBase64(Data);
-            await File.WriteAllTextAsync(playerDataLoc, encodedData);
-            Svc.Log.Debug("Updated basic info on disk.");
+            if (!File.Exists(playerDataLoc) || await File.ReadAllTextAsync(playerDataLoc) != encodedData)
+            {
+                await File.WriteAllTextAsync(playerDataLoc, encodedData);
+                Svc.Log.Debug("Updated basic info on disk.");
+            }
 
             // Save Penumbra data
             var penumbraLoc = PenumbraData.GetPath(myDataPack.DataPath);
             var encodedPenumbra = Base64Util.ToBase64(PenumbraData);
-            await File.WriteAllTextAsync(penumbraLoc, encodedPenumbra);
-            Svc.Log.Debug("Updated penumbra data on disk.");
+            if (!File.Exists(penumbraLoc) || await File.ReadAllTextAsync(penumbraLoc) != encodedPenumbra)
+            {
+                await File.WriteAllTextAsync(penumbraLoc, encodedPenumbra);
+                Svc.Log.Debug("Updated penumbra data on disk.");
+            }
 
             // Save Glamourer data
             var glamourerLoc = GlamourerData.GetPath(myDataPack.DataPath);
             var encodedGlamourer = Base64Util.ToBase64(GlamourerData);
-            await File.WriteAllTextAsync(glamourerLoc, encodedGlamourer);
-            Svc.Log.Debug("Updated glamourer data on disk.");
+            if (!File.Exists(glamourerLoc) || await File.ReadAllTextAsync(glamourerLoc) != encodedGlamourer)
+            {
+                await File.WriteAllTextAsync(glamourerLoc, encodedGlamourer);
+                Svc.Log.Debug("Updated glamourer data on disk.");
+            }
         }
         catch (Exception ex)
         {
@@ -271,6 +285,7 @@ public class PlayerData
             {
                 Svc.Log.Warning($"Failed to load glamourer data from disk for {StarPackReference.StarId}");
             }
+
             if (data == null || penumbraData == null || glamData == null) return Task.CompletedTask;
 
             Data = data;

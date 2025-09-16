@@ -1,6 +1,8 @@
 using System.Numerics;
 using Dalamud.Bindings.ImGui;
 using Dalamud.Interface;
+using Dalamud.Interface.Colors;
+using Dalamud.Interface.Style;
 using ECommons.ImGuiMethods;
 using PocketSizedUniverse.Windows.ViewModels;
 using OtterGui;
@@ -16,7 +18,7 @@ public partial class MainWindow
 
         // API Connection Status
         UIHelpers.DrawAPIStatus();
-        
+
         ImGui.SameLine();
         ImGui.Spacing();
         ImGui.SameLine();
@@ -25,20 +27,20 @@ public partial class MainWindow
         ImGuiUtil.PrintIcon(FontAwesomeIcon.Star);
         ImGui.SameLine();
         ImGui.Text($"Stars: {service.Stars.Count}");
-        
+
         ImGui.SameLine();
         ImGui.Spacing();
         ImGui.SameLine();
-        
+
         // DataPack Count  
         ImGuiUtil.PrintIcon(FontAwesomeIcon.FolderOpen);
         ImGui.SameLine();
         ImGui.Text($"DataPacks: {service.DataPacks.Count}");
-        
+
         ImGui.SameLine();
         ImGui.Spacing();
         ImGui.SameLine();
-        
+
         // Last Refresh Time
         if (service.LastRefresh != DateTime.MinValue)
         {
@@ -48,15 +50,15 @@ public partial class MainWindow
         {
             ImGui.TextColored(new Vector4(0.6f, 0.6f, 0.6f, 1.0f), "Never refreshed");
         }
-        
+
         ImGui.SameLine();
-        
+
         // Refresh Button
         if (ImGui.Button("Refresh Now") && service.IsHealthy)
         {
             service.InvalidateCaches();
         }
-        
+
         if (!service.IsHealthy)
         {
             ImGui.SameLine();
@@ -77,6 +79,16 @@ public partial class MainWindow
                     Notify.Info("Copied Star Code to clipboard.");
                 }
             }
+        }
+
+        if (PsuPlugin.Configuration.UseBuiltInSyncThing && (PsuPlugin.ServerProcess?.HasExited ?? true))
+        {
+            ImGui.PushStyleColor(ImGuiCol.Text, ImGuiColors.DalamudYellow);
+            ImGui.Text(
+                "WARNING: Easy Mode is enabled but Pocket Sized Universe is not controlling the SyncThing server it's connected to.");
+            ImGui.Text("This may cause issues with syncing or it may be perfectly fine.");
+            ImGui.Text("If you experience issues, please restart your computer at your earliest convenience.");
+            ImGui.PopStyleColor();
         }
     }
 }

@@ -13,4 +13,5 @@ public class Configuration
     public Uri? ApiUri { get; set; }
     public StarPack? MyStarPack { get; set; }
     public List<StarPack> StarPacks { get; set; } = new();
+    public List<StarPack> Blocklist { get; set; } = new();
 }

@@ -15,6 +15,8 @@ namespace PocketSizedUniverse.Services;
 
 public class PlayerDataService : IUpdatable
 {
+    private readonly ConcurrentDictionary<StarPack, DateTime> _remoteLastSeen = new();
+
     public PlayerDataService()
     {
         Svc.Framework.Update += Update;
@@ -96,7 +98,8 @@ public class PlayerDataService : IUpdatable
                         {
                             Svc.Log.Debug($"Creating new collection for {remoteStar.StarId}");
 
-                            PsuPlugin.PenumbraService.CreateTemporaryCollection.Invoke("PocketSizedUniverse", playerData.StarPackReference.DataPackId.ToString(), out var newCollectionId);
+                            PsuPlugin.PenumbraService.CreateTemporaryCollection.Invoke("PocketSizedUniverse",
+                                playerData.StarPackReference.DataPackId.ToString(), out var newCollectionId);
                             RemotePlayerData.TryAdd(pair, (newCollectionId, playerData));
                             Svc.Log.Debug(
                                 $"Created new remote player data for {remoteStar.StarId}");
@@ -108,6 +111,40 @@ public class PlayerDataService : IUpdatable
                     });
                     continue;
                 }
+
+// Check if on-disk data changed since last time
+                DateTime latestWrite = DateTime.MinValue;
+                try
+                {
+                    var basePath = remotePack.DataPath;
+                    var files = new[]
+                    {
+                        Path.Combine(basePath, Models.Data.BasicData.Filename),
+                        Path.Combine(basePath, Models.Data.PenumbraData.Filename),
+                        Path.Combine(basePath, Models.Data.GlamourerData.Filename),
+                    };
+                    foreach (var f in files)
+                    {
+                        if (File.Exists(f))
+                        {
+                            var t = File.GetLastWriteTimeUtc(f);
+                            if (t > latestWrite) latestWrite = t;
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Svc.Log.Warning($"Failed to stat remote files for {pair.StarId}: {ex.Message}");
+                }
+
+                var lastSeen = _remoteLastSeen.GetOrAdd(pair, DateTime.MinValue);
+                if (latestWrite <= lastSeen)
+                {
+                    // No changes on disk - skip heavy refresh
+                    continue;
+                }
+
+                _remoteLastSeen[pair] = latestWrite;
 
                 // Validate collection still exists before proceeding
                 Svc.Log.Debug($"Using existing collection {remoteData.CollectionId} for {remoteStar.StarId}");
@@ -127,9 +164,10 @@ public class PlayerDataService : IUpdatable
 
                         // Apply meta manipulations first
                         var metaModName = $"PSU_Meta_{remoteData.PlayerData.PenumbraData.Id}";
-                        Svc.Log.Debug($"Removing existing meta mod {metaModName} from collection {remoteData.CollectionId}");
+                        Svc.Log.Debug(
+                            $"Removing existing meta mod {metaModName} from collection {remoteData.CollectionId}");
                         PsuPlugin.PenumbraService.RemoveTemporaryMod.Invoke(metaModName, remoteData.CollectionId, 0);
-                        
+
                         if (!string.IsNullOrEmpty(remoteData.PlayerData.PenumbraData.MetaManipulations))
                         {
                             Svc.Log.Debug($"Adding meta mod {metaModName} to collection {remoteData.CollectionId}");
@@ -137,6 +175,7 @@ public class PlayerDataService : IUpdatable
                                 metaModName, remoteData.CollectionId, new Dictionary<string, string>(),
                                 remoteData.PlayerData.PenumbraData.MetaManipulations, 0);
                         }
+
                         var paths = new Dictionary<string, string>();
                         foreach (var customFile in remoteData.PlayerData.PenumbraData.Files)
                         {
@@ -147,25 +186,30 @@ public class PlayerDataService : IUpdatable
                                 Svc.Log.Debug($"Custom file missing: {localFilePath}");
                                 continue;
                             }
+
                             foreach (var gamePath in customFile.ApplicableGamePaths)
                             {
                                 paths[gamePath] = localFilePath;
                             }
                         }
+
                         foreach (var assetSwap in remoteData.PlayerData.PenumbraData.FileSwaps)
                         {
                             if (assetSwap.GamePath != null)
                                 paths[assetSwap.GamePath] = assetSwap.RealPath;
                         }
+
                         if (paths.Count > 0)
                         {
                             var fileModName = $"PSU_File_{remoteData.PlayerData.PenumbraData.Id}";
-                            Svc.Log.Debug($"Removing existing mod {fileModName} from collection {remoteData.CollectionId}");
-                            PsuPlugin.PenumbraService.RemoveTemporaryMod.Invoke(fileModName, remoteData.CollectionId, 0);
+                            Svc.Log.Debug(
+                                $"Removing existing mod {fileModName} from collection {remoteData.CollectionId}");
+                            PsuPlugin.PenumbraService.RemoveTemporaryMod.Invoke(fileModName, remoteData.CollectionId,
+                                0);
                             PsuPlugin.PenumbraService.AddTemporaryMod.Invoke(
                                 fileModName, remoteData.CollectionId, paths, string.Empty, 0);
-                            Svc.Log.Debug($"Added mod {fileModName} to collection {remoteData.CollectionId} with paths: {string.Join(", ", paths.Keys)}");
-
+                            Svc.Log.Debug(
+                                $"Added mod {fileModName} to collection {remoteData.CollectionId} with paths: {string.Join(", ", paths.Keys)}");
                         }
 
                         PsuPlugin.GlamourerService.ApplyState.Invoke(remoteData.PlayerData.GlamourerData.GlamState,
