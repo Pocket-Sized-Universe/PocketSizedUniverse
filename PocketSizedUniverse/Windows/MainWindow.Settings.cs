@@ -1,7 +1,9 @@
+using System.Diagnostics;
 using System.Numerics;
 using Dalamud.Bindings.ImGui;
 using Dalamud.Interface.ImGuiFileDialog;
 using ECommons.Configuration;
+using ECommons.DalamudServices;
 using PocketSizedUniverse.Models;
 using PocketSizedUniverse.Models.Data;
 
@@ -65,6 +67,24 @@ public partial class MainWindow
                 ImGui.Spacing();
 
                 DrawAdvancedSyncThingSettings();
+            }
+
+            if (ImGui.Button("Open SyncThing Interface"))
+            {
+                try
+                {
+                    // Use ProcessStartInfo with the URL directly
+                    var psi = new ProcessStartInfo
+                    {
+                        FileName = PsuPlugin.Configuration.ApiUri!.ToString(),
+                        UseShellExecute = true
+                    };
+                    Process.Start(psi);
+                }
+                catch (Exception ex)
+                {
+                    Svc.Log.Error($"Failed to open SyncThing interface: {ex}");
+                }
             }
         }
     }
