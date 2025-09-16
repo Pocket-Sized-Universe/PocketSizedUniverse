@@ -112,39 +112,31 @@ public class PlayerDataService : IUpdatable
                     continue;
                 }
 
-// Check if on-disk data changed since last time
-                DateTime latestWrite = DateTime.MinValue;
+// Check if content changed since last time based on LastUpdatedUtc
+                DateTime latestUpdate = DateTime.MinValue;
                 try
                 {
-                    var basePath = remotePack.DataPath;
-                    var files = new[]
-                    {
-                        Path.Combine(basePath, Models.Data.BasicData.Filename),
-                        Path.Combine(basePath, Models.Data.PenumbraData.Filename),
-                        Path.Combine(basePath, Models.Data.GlamourerData.Filename),
-                    };
-                    foreach (var f in files)
-                    {
-                        if (File.Exists(f))
-                        {
-                            var t = File.GetLastWriteTimeUtc(f);
-                            if (t > latestWrite) latestWrite = t;
-                        }
-                    }
+                    var basic = Models.Data.BasicData.LoadFromDisk(remotePack.DataPath);
+                    var pen = Models.Data.PenumbraData.LoadFromDisk(remotePack.DataPath);
+                    var glam = Models.Data.GlamourerData.LoadFromDisk(remotePack.DataPath);
+
+                    if (basic != null && basic.LastUpdatedUtc > latestUpdate) latestUpdate = basic.LastUpdatedUtc;
+                    if (pen != null && pen.LastUpdatedUtc > latestUpdate) latestUpdate = pen.LastUpdatedUtc;
+                    if (glam != null && glam.LastUpdatedUtc > latestUpdate) latestUpdate = glam.LastUpdatedUtc;
                 }
                 catch (Exception ex)
                 {
-                    Svc.Log.Warning($"Failed to stat remote files for {pair.StarId}: {ex.Message}");
+                    Svc.Log.Warning($"Failed to read remote data timestamps for {pair.StarId}: {ex.Message}");
                 }
 
                 var lastSeen = _remoteLastSeen.GetOrAdd(pair, DateTime.MinValue);
-                if (latestWrite <= lastSeen)
+                if (latestUpdate <= lastSeen)
                 {
-                    // No changes on disk - skip heavy refresh
+                    // No changes signaled - skip heavy refresh
                     continue;
                 }
 
-                _remoteLastSeen[pair] = latestWrite;
+                _remoteLastSeen[pair] = latestUpdate;
 
                 // Validate collection still exists before proceeding
                 Svc.Log.Debug($"Using existing collection {remoteData.CollectionId} for {remoteStar.StarId}");

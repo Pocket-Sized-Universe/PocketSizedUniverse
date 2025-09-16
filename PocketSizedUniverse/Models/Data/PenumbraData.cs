@@ -25,6 +25,7 @@ public class PenumbraData : IDataFile
     public List<CustomRedirect> Files { get; set; } = new();
     public List<AssetSwap> FileSwaps { get; set; } = new();
     public string MetaManipulations { get; set; } = string.Empty;
+    public DateTime LastUpdatedUtc { get; set; } = DateTime.MinValue;
 
     public bool Equals(IWriteableData? x, IWriteableData? y)
     {

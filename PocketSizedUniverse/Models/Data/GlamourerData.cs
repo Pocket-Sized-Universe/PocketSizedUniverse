@@ -16,8 +16,10 @@ public class GlamourerData : IDataFile
         var data = File.ReadAllText(path);
         return Base64Util.FromBase64<GlamourerData>(data);
     }
+
     public int Version { get; set; } = 1;
     public static string Filename { get; } = "Glamourer.dat";
+
     public bool Equals(IWriteableData? x, IWriteableData? y)
     {
         if (ReferenceEquals(x, y)) return true;
@@ -33,6 +35,7 @@ public class GlamourerData : IDataFile
     }
 
     public string GlamState { get; init; }
+    public DateTime LastUpdatedUtc { get; set; } = DateTime.MinValue;
 
     public Guid Id { get; set; } = Guid.NewGuid();
     public string GetPath(string basePath) => Path.Combine(basePath, Filename);

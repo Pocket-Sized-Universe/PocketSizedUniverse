@@ -17,12 +17,14 @@ public class BasicData : IDataFile
         var data = File.ReadAllText(path);
         return Base64Util.FromBase64<BasicData>(data);
     }
+
     public int Version { get; set; } = 1;
     public static string Filename { get; } = "Basic.dat";
-    
-    [JsonRequired]
-    public string PlayerName { get; set; } = string.Empty;
+
+    [JsonRequired] public string PlayerName { get; set; } = string.Empty;
     public uint WorldId { get; set; }
+    public DateTime LastUpdatedUtc { get; set; } = DateTime.MinValue;
+
     public bool Equals(IWriteableData? x, IWriteableData? y)
     {
         return ReferenceEquals(x, y);

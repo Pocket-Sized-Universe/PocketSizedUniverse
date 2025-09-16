@@ -225,29 +225,54 @@ public class PlayerData
                 return;
             }
 
-            // Save basic data
-            var playerDataLoc = Data.GetPath(myDataPack.DataPath);
-            var encodedData = Base64Util.ToBase64(Data);
-            if (!File.Exists(playerDataLoc) || await File.ReadAllTextAsync(playerDataLoc) != encodedData)
+            // Load previous data for comparison
+            var prevBasic = BasicData.LoadFromDisk(myDataPack.DataPath);
+            var prevPenumbra = PenumbraData.LoadFromDisk(myDataPack.DataPath);
+            var prevGlamourer = GlamourerData.LoadFromDisk(myDataPack.DataPath);
+
+            // Decide if content changed and update LastUpdatedUtc accordingly
+            bool basicChanged = prevBasic == null ||
+                                prevBasic.PlayerName != Data.PlayerName ||
+                                prevBasic.WorldId != Data.WorldId;
+            if (basicChanged)
+                Data.LastUpdatedUtc = DateTime.UtcNow;
+
+            bool penumbraChanged = prevPenumbra == null ||
+                                   prevPenumbra.MetaManipulations != PenumbraData.MetaManipulations ||
+                                   prevPenumbra.Files.Count != PenumbraData.Files.Count ||
+                                   prevPenumbra.FileSwaps.Count != PenumbraData.FileSwaps.Count ||
+                                   !prevPenumbra.Files.SequenceEqual(PenumbraData.Files) ||
+                                   !prevPenumbra.FileSwaps.SequenceEqual(PenumbraData.FileSwaps);
+            if (penumbraChanged)
+                PenumbraData.LastUpdatedUtc = DateTime.UtcNow;
+
+            bool glamChanged = prevGlamourer == null || prevGlamourer.GlamState != GlamourerData.GlamState;
+            if (glamChanged)
+                GlamourerData.LastUpdatedUtc = DateTime.UtcNow;
+
+            // Save basic data if changed
+            if (basicChanged)
             {
+                var playerDataLoc = Data.GetPath(myDataPack.DataPath);
+                var encodedData = Base64Util.ToBase64(Data);
                 await File.WriteAllTextAsync(playerDataLoc, encodedData);
                 Svc.Log.Debug("Updated basic info on disk.");
             }
 
-            // Save Penumbra data
-            var penumbraLoc = PenumbraData.GetPath(myDataPack.DataPath);
-            var encodedPenumbra = Base64Util.ToBase64(PenumbraData);
-            if (!File.Exists(penumbraLoc) || await File.ReadAllTextAsync(penumbraLoc) != encodedPenumbra)
+            // Save Penumbra data if changed
+            if (penumbraChanged)
             {
+                var penumbraLoc = PenumbraData.GetPath(myDataPack.DataPath);
+                var encodedPenumbra = Base64Util.ToBase64(PenumbraData);
                 await File.WriteAllTextAsync(penumbraLoc, encodedPenumbra);
                 Svc.Log.Debug("Updated penumbra data on disk.");
             }
 
-            // Save Glamourer data
-            var glamourerLoc = GlamourerData.GetPath(myDataPack.DataPath);
-            var encodedGlamourer = Base64Util.ToBase64(GlamourerData);
-            if (!File.Exists(glamourerLoc) || await File.ReadAllTextAsync(glamourerLoc) != encodedGlamourer)
+            // Save Glamourer data if changed
+            if (glamChanged)
             {
+                var glamourerLoc = GlamourerData.GetPath(myDataPack.DataPath);
+                var encodedGlamourer = Base64Util.ToBase64(GlamourerData);
                 await File.WriteAllTextAsync(glamourerLoc, encodedGlamourer);
                 Svc.Log.Debug("Updated glamourer data on disk.");
             }
