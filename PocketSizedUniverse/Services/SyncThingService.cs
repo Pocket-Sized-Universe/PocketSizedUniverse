@@ -301,6 +301,10 @@ public class SyncThingService : ICache
                     Svc.Log.Information($"Found matching pending folder from paired star: {folderId}");
                     await AcceptPendingFolder(folderId, pendingFolder);
                 }
+                else
+                {
+                    Svc.Log.Debug($"Ignoring pending folder '{folderId}': No matching StarPack configuration found");
+                }
             }
         }
         catch (Exception ex)
@@ -313,9 +317,26 @@ public class SyncThingService : ICache
     {
         try
         {
-            // To accept a pending folder, we create a new DataPack with the same ID
-            // SyncThing will automatically link it to the pending invitation
-            var folderGuid = Guid.Parse(folderId);
+            // Only accept folders with GUID-based IDs (our plugin's format)
+            if (!Guid.TryParse(folderId, out var folderGuid))
+            {
+                Svc.Log.Information($"Skipping pending folder '{folderId}': Not a GUID-based ID, likely from external SyncThing instance");
+                return;
+            }
+            
+            // Validate base directory for remote DataPacks
+            var baseDir = PsuPlugin.Configuration.DefaultDataPackDirectory;
+            if (string.IsNullOrWhiteSpace(baseDir))
+            {
+                Svc.Log.Warning($"Cannot accept pending folder {folderId}: DefaultDataPackDirectory is not set.");
+                return;
+            }
+
+            // Ensure base directory exists
+            Directory.CreateDirectory(baseDir);
+
+            var canonicalId = folderGuid.ToString("D");
+
             var matchingStars = PsuPlugin.Configuration.StarPacks
                 .Where(sp => sp.DataPackId == folderGuid || pendingFolder.OfferedBy.ContainsKey(sp.StarId)).ToList()
                 .Select(p => p.GetStar()!);
@@ -324,7 +345,7 @@ public class SyncThingService : ICache
             var dataPack = new DataPack(folderGuid)
             {
                 Name = pendingFolder.OfferedBy.Values.First().Label,
-                Path = Path.Combine(PsuPlugin.Configuration.DefaultDataPackDirectory!, folderId),
+                Path = Path.Combine(baseDir, canonicalId),
                 Type = FolderType.ReceiveOnly,
                 Stars = [.. matchingStars, PsuPlugin.Configuration.MyStarPack!.GetStar()],
             };
@@ -401,6 +422,56 @@ public class SyncThingService : ICache
         }
     }
 
+    public async Task PutDataPackMerged(DataPack local)
+    {
+        try
+        {
+            if (_client?.Config?.Folders == null)
+            {
+                Svc.Log.Warning("Cannot update DataPack: SyncThing client not available");
+                return;
+            }
+
+            DataPack server;
+            try
+            {
+                server = await _client.Config.Folders.Get(local.Id.ToString()).ConfigureAwait(false);
+                if (server == null)
+                {
+                    Svc.Log.Warning($"Server DataPack {local.Id} not found; creating it.");
+                    await _client.Config.Folders.Post(local).ConfigureAwait(false);
+                    DataPacks.AddOrUpdate(local.Id, local, (_, _) => local);
+                    return;
+                }
+            }
+            catch (Exception ex)
+            {
+                Svc.Log.Warning($"Failed to fetch DataPack {local.Id} from server, will attempt POST: {ex.Message}");
+                await _client.Config.Folders.Post(local).ConfigureAwait(false);
+                DataPacks.AddOrUpdate(local.Id, local, (_, _) => local);
+                return;
+            }
+
+            // Merge editable fields only; preserve server Path and other unmanaged fields
+            server.Name = local.Name;
+            server.RescanIntervalS = local.RescanIntervalS;
+            server.FsWatcherEnabled = local.FsWatcherEnabled;
+            server.FsWatcherDelayS = local.FsWatcherDelayS;
+            server.IgnorePerms = local.IgnorePerms;
+            server.AutoNormalize = local.AutoNormalize;
+
+            await _client.Config.Folders.Put(server).ConfigureAwait(false);
+
+            DataPacks.AddOrUpdate(server.Id, server, (_, _) => server);
+
+            Svc.Log.Information($"Successfully updated DataPack (merged): {server.Id}");
+        }
+        catch (Exception e)
+        {
+            Svc.Log.Error($"Failed to update DataPack {local.Id} with merge: {e}");
+        }
+    }
+
     public void RefreshCaches()
     {
         _ = Task.Run(async () =>
@@ -450,13 +521,21 @@ public class SyncThingService : ICache
                     }
                 }
 
-                // Folders
+                // Folders - Only process folders with GUID-based IDs (PSU folders)
                 if (_client?.Config.Folders != null)
                 {
-                    var constellations = _client.Config.Folders.Get().ConfigureAwait(false).GetAwaiter().GetResult();
-                    foreach (var galaxy in constellations)
+                    var allFolders = _client.Config.Folders.Get().ConfigureAwait(false).GetAwaiter().GetResult();
+                    foreach (var folder in allFolders)
                     {
-                        DataPacks.AddOrUpdate(galaxy.Id, galaxy, (_, _) => galaxy);
+                        // Only process folders with GUID-based IDs - ignore external SyncThing folders
+                        if (Guid.TryParse(folder.IdString, out var guid))
+                        {
+                            DataPacks.AddOrUpdate(guid, folder, (_, _) => folder);
+                        }
+                        else
+                        {
+                            Svc.Log.Debug($"Ignoring non-GUID folder from external SyncThing instance: {folder.IdString}");
+                        }
                     }
                 }
 

@@ -240,9 +240,9 @@ public class PlayerData
             bool penumbraChanged = prevPenumbra == null ||
                                    prevPenumbra.MetaManipulations != PenumbraData.MetaManipulations ||
                                    prevPenumbra.Files.Count != PenumbraData.Files.Count ||
-                                   prevPenumbra.FileSwaps.Count != PenumbraData.FileSwaps.Count ||
-                                   !prevPenumbra.Files.SequenceEqual(PenumbraData.Files) ||
-                                   !prevPenumbra.FileSwaps.SequenceEqual(PenumbraData.FileSwaps);
+                                   prevPenumbra.FileSwaps.Count != PenumbraData.FileSwaps.Count;
+                                   //!prevPenumbra.Files.SequenceEqual(PenumbraData.Files) ||
+                                   //!prevPenumbra.FileSwaps.SequenceEqual(PenumbraData.FileSwaps)
             if (penumbraChanged)
                 PenumbraData.LastUpdatedUtc = DateTime.UtcNow;
 

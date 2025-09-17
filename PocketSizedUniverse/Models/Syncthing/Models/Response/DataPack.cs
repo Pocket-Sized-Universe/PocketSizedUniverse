@@ -1,8 +1,51 @@
 ﻿using System.Collections.Generic;
+using ECommons.DalamudServices;
 using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 
 namespace Syncthing.Models.Response
 {
+    public class DataPackListConverter : JsonConverter<List<DataPack>>
+    {
+        public override List<DataPack> ReadJson(JsonReader reader, Type objectType, List<DataPack>? existingValue, bool hasExistingValue, JsonSerializer serializer)
+        {
+            var result = new List<DataPack>();
+            var array = JArray.Load(reader);
+            
+            foreach (var item in array)
+            {
+                var idToken = item["id"];
+                if (idToken != null)
+                {
+                    var idValue = idToken.Value<string>();
+                    if (!string.IsNullOrEmpty(idValue) && Guid.TryParse(idValue, out _))
+                    {
+                        try
+                        {
+                            var dataPack = item.ToObject<DataPack>(serializer);
+                            if (dataPack != null)
+                            {
+                                result.Add(dataPack);
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            Svc.Log.Debug($"Failed to deserialize DataPack with ID {idValue}: {ex.Message}");
+                        }
+                    }
+                }
+            }
+            
+            return result;
+        }
+        
+        public override void WriteJson(JsonWriter writer, List<DataPack> value, JsonSerializer serializer)
+        {
+            // Use default serialization for writing
+            serializer.Serialize(writer, value);
+        }
+    }
+    
     public class DataPack
     {
         public DataPack(Guid id)
@@ -29,7 +72,7 @@ namespace Syncthing.Models.Response
         /// The folder ID, must be unique. (mandatory)
         /// </summary>
         [JsonProperty("id")]
-        private string IdString { get; set; }
+        internal string IdString { get; set; }
 
         /// <summary>
         /// The label of a folder is a human readable and descriptive local name.  May be different on each star,

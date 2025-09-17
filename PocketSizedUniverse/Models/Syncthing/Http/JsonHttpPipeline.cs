@@ -11,8 +11,11 @@ namespace Syncthing.Http
 {
     public class JsonHttpPipeline
     {
+        public JsonSerializerSettings SerializerSettings { get; set; } = new JsonSerializerSettings();
         public JsonHttpPipeline()
         {
+            SerializerSettings.NullValueHandling = NullValueHandling.Ignore;
+            SerializerSettings.Converters.Add(new DataPackListConverter());
         }
 
         public void SerializeRequest(IRequest request)
@@ -27,7 +30,7 @@ namespace Syncthing.Http
             if (request.Method == HttpMethod.Get || request.Body == null) return;
             if (request.Body is string || request.Body is Stream || request.Body is HttpContent) return;
 
-            request.Body = JsonConvert.SerializeObject(request.Body);
+            request.Body = JsonConvert.SerializeObject(request.Body, SerializerSettings);
         }
 
         public IApiResponse<T> DeserializeResponse<T>(IResponse response)
@@ -50,7 +53,7 @@ namespace Syncthing.Http
                     {
                         body = "[" + body + "]";
                     }
-                    var json = JsonConvert.DeserializeObject<T>(body);
+                    var json = JsonConvert.DeserializeObject<T>(body, SerializerSettings);
                     return new ApiResponse<T>(response, json);
                 }
             }

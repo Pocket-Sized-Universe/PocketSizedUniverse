@@ -1,5 +1,6 @@
 ﻿using System.Collections.Generic;
 using System.Threading.Tasks;
+using Newtonsoft.Json;
 using Syncthing.Exceptions;
 using Syncthing.Helpers;
 using Syncthing.Http;
@@ -25,7 +26,8 @@ namespace Syncthing.Clients
         /// <returns>A list of <see cref="DataPack" />.</returns>
         public async Task<List<DataPack>> Get()
         {
-            return await ApiConnection.Get<List<DataPack>>(ApiUrls.Folders());
+            var response = await ApiConnection.Get<List<DataPack>>(ApiUrls.Folders()).ConfigureAwait(false);
+            return response;
         }
 
         /// <summary>

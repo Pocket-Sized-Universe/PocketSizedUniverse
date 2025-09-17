@@ -211,10 +211,10 @@ public partial class MainWindow
 
             if (_dataPackEditorChanged)
             {
-                // Post updated datapacks to the API
+                // Update DataPacks by merging editable fields (preserve server Path and membership)
                 foreach (var dataPack in service.DataPacks.Values)
                 {
-                    service.PostNewDataPack(dataPack);
+                    _ = service.PutDataPackMerged(dataPack);
                 }
 
                 _dataPackEditorChanged = false;
