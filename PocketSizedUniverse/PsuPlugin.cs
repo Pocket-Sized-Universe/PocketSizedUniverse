@@ -85,7 +85,7 @@ public class PsuPlugin : IDalamudPlugin
         try
         {
             var homePath = Path.Combine(Svc.PluginInterface.GetPluginConfigDirectory(), "engine-home");
-            var stopArgs = $"{SyncThingProcessStartType.Stop.ToArgument()}--home=\"{homePath}\" --gui-address=127.0.0.1:42069 --gui-apikey={Configuration.ApiKey}";
+            var stopArgs = $"{SyncThingProcessStartType.Stop.ToArgument()}--home=\"{homePath}\" --gui-address=127.0.0.1:62490 --gui-apikey={Configuration.ApiKey}";
             var stopProcess = new SyncThingProcess(stopArgs);
             stopProcess.Start();
             stopProcess.BeginOutputReadLine();
