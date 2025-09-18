@@ -1,15 +1,14 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Security.Cryptography;
 using Dalamud.Game.ClientState.Objects.SubKinds;
 using ECommons.DalamudServices;
-using ECommons.GameHelpers;
-using Newtonsoft.Json;
-using Penumbra.Api.Enums;
 using PocketSizedUniverse.Models.Mods;
-using Syncthing.Models.Response;
 
 namespace PocketSizedUniverse.Models.Data;
 
-public class PlayerData
+public abstract class PlayerData(StarPack starPack)
 {
     /// <summary>
     /// Normalizes Penumbra paths to use forward slashes for cross-platform consistency.
@@ -17,324 +16,53 @@ public class PlayerData
     /// </summary>
     /// <param name="path">The path to normalize</param>
     /// <returns>A normalized path using forward slashes, or null if input was null</returns>
-    private static string? NormalizePenumbraPath(string? path)
+    protected static string? NormalizePenumbraPath(string? path)
     {
         if (path == null) return null;
         return string.Intern(path.Replace('\\', '/'));
     }
 
-    public async Task PopulateFromLocalAsync(IPlayerCharacter player)
+    // Helpers for canonical, order-insensitive comparisons used by Local/Remote variants
+    protected static readonly StringComparer PathComparer = StringComparer.OrdinalIgnoreCase;
+
+    protected static string CanonicalPath(string? path)
     {
-        var localPlayer = Svc.Framework.RunOnFrameworkThread(() => Player.Object).Result;
-        if (localPlayer == null)
-        {
-            Svc.Log.Warning("Local player object is null.");
-            return;
-        }
-
-        Svc.Log.Debug("Updating local player data.");
-
-        var penumbra = new PenumbraData();
-        var manips = PsuPlugin.PenumbraService.GetPlayerMetaManipulations.Invoke();
-
-        // Resolve current character resource paths (local file -> game paths)
-        var resourcePaths = Svc.Framework.RunOnFrameworkThread(() =>
-            PsuPlugin.PenumbraService.GetGameObjectResourcePaths.Invoke(localPlayer.ObjectIndex)).Result;
-        if (resourcePaths.Length == 0)
-        {
-            Svc.Log.Warning("Failed to get character resource paths from Penumbra.");
-            return;
-        }
-
-        var resolvedPaths = resourcePaths[0];
-
-        string? packPath = PsuPlugin.Configuration.MyStarPack?.GetDataPack()?.FilesPath;
-        if (packPath == null)
-        {
-            Svc.Log.Warning("My star pack data pack path is null.");
-            return;
-        }
-
-        // Build file list directly from resolved paths, filtering like Mare
-        var files = new List<CustomRedirect>();
-        foreach (var pathMapping in resolvedPaths)
-        {
-            var localPath = pathMapping.Key;
-            var gamePaths = pathMapping.Value.ToList();
-            if (!File.Exists(localPath))
-                continue; // swaps are handled below
-
-            var ext = Path.GetExtension(localPath);
-            var allowedGamePaths = gamePaths.Where(gp => AllowedFileExtensions.IsAllowed(gp, ext)).ToList();
-            if (allowedGamePaths.Count == 0)
-                continue;
-
-            try
-            {
-                var data = await File.ReadAllBytesAsync(localPath);
-                using var sha256 = SHA256.Create();
-                var hash = sha256.ComputeHash(data);
-                var redirectedFile = new CustomRedirect(hash)
-                {
-                    // Prefer original file extension; fallback to first game path's extension if missing
-                    FileExtension = string.IsNullOrWhiteSpace(Path.GetExtension(localPath))
-                        ? Path.GetExtension(allowedGamePaths.FirstOrDefault() ?? string.Empty)
-                        : Path.GetExtension(localPath)
-                };
-
-                redirectedFile.ApplicableGamePaths = allowedGamePaths;
-
-                var redirectPath = redirectedFile.GetPath(packPath);
-                if (!File.Exists(redirectPath))
-                {
-                    Directory.CreateDirectory(Path.GetDirectoryName(redirectPath)!);
-                    await File.WriteAllBytesAsync(redirectPath, data);
-                }
-
-                files.Add(redirectedFile);
-            }
-            catch (Exception ex)
-            {
-                Svc.Log.Error($"Error processing file {localPath}: {ex.Message}");
-            }
-        }
-
-        // Build file swaps from resource tree where the actual path is not a local file
-        var fileSwaps = new List<AssetSwap>();
-        var penumbraResourceTree = PsuPlugin.PenumbraService.GetPlayerResourceTrees.Invoke();
-        foreach (var resourceTree in penumbraResourceTree)
-        {
-            foreach (var directSwap in resourceTree.Value.Nodes.Where(n => !File.Exists(n.ActualPath)))
-            {
-                if (directSwap.GamePath == null) continue;
-                var ext = Path.GetExtension(directSwap.ActualPath);
-                if (!AllowedFileExtensions.IsAllowed(directSwap.GamePath, ext)) continue;
-
-                var swap = new AssetSwap(
-                    NormalizePenumbraPath(directSwap.GamePath),
-                    NormalizePenumbraPath(directSwap.ActualPath)!);
-                fileSwaps.Add(swap);
-            }
-        }
-
-        penumbra.Files = files;
-        penumbra.FileSwaps = fileSwaps;
-        penumbra.MetaManipulations = manips;
-
-        // Glamourer
-        var glamState = PsuPlugin.GlamourerService.GetStateBase64.Invoke(localPlayer.ObjectIndex);
-        if (glamState.Item2 == null)
-        {
-            Svc.Log.Warning("Failed to get glamourer state.");
-            return;
-        }
-
-        var glamData = new GlamourerData()
-        {
-            GlamState = glamState.Item2
-        };
-
-        Data = new BasicData()
-        {
-            PlayerName = localPlayer.Name.TextValue,
-            WorldId = localPlayer.HomeWorld.RowId,
-        };
-        PenumbraData = penumbra;
-        GlamourerData = glamData;
+        return (NormalizePenumbraPath(path) ?? string.Empty).Trim();
     }
 
-    private async Task<List<CustomRedirect>> ProcessModFilesAsync(string modDir, string packPath,
-        Dictionary<string, List<string>> fileToGamePaths)
+    protected static string FileKey(CustomRedirect f)
     {
-        var customFiles = new List<CustomRedirect>();
-
-        try
-        {
-            // Get files to process
-            var filesToProcess = Directory.GetFiles(modDir, "*", SearchOption.AllDirectories)
-                .Where(f => !f.EndsWith(".json"))
-                .ToList();
-
-            foreach (var file in filesToProcess)
-            {
-                try
-                {
-                    if (!fileToGamePaths.TryGetValue(file, out var gamePaths) || gamePaths.Count == 0)
-                    {
-                        //Svc.Log.Debug("No gamepaths found for mod.");
-                        continue;
-                    }
-
-                    Svc.Log.Debug($"Found {gamePaths.Count} game paths for file {file}");
-                    //Svc.Log.Debug($"Processing file: {file}");
-                    var data = await File.ReadAllBytesAsync(file);
-                    using var sha256 = SHA256.Create();
-                    var hash = sha256.ComputeHash(data);
-                    var redirectedFile = new CustomRedirect(hash)
-                    {
-                        // Prefer original file extension to ensure proper loader selection on the receiver
-                        FileExtension = Path.GetExtension(file)
-                    };
-                    if (string.IsNullOrWhiteSpace(redirectedFile.FileExtension))
-                    {
-                        // Fallback to the first game path's extension if the source file had none
-                        redirectedFile.FileExtension = Path.GetExtension(gamePaths.FirstOrDefault() ?? string.Empty);
-                    }
-
-                    redirectedFile.ApplicableGamePaths = gamePaths;
-
-                    var redirectPath = redirectedFile.GetPath(packPath);
-                    if (File.Exists(redirectPath))
-                    {
-                        //Svc.Log.Debug($"Found redirected file: {redirectPath}");
-                    }
-                    else
-                    {
-                        //Svc.Log.Debug($"Moving new file {file} to {redirectPath}");
-                        // Ensure directory exists
-                        Directory.CreateDirectory(Path.GetDirectoryName(redirectPath)!);
-                        await File.WriteAllBytesAsync(redirectPath, data);
-                    }
-
-                    customFiles.Add(redirectedFile);
-                }
-                catch (Exception ex)
-                {
-                    Svc.Log.Error($"Error processing file {file}: {ex.Message}");
-                }
-            }
-        }
-        catch (Exception ex)
-        {
-            Svc.Log.Error($"Error processing mod directory {modDir}: {ex.Message}");
-        }
-
-        return customFiles;
+        var b64 = Convert.ToBase64String(f.Hash);
+        var ext = (f.FileExtension ?? string.Empty).Trim().ToLowerInvariant();
+        var paths = (f.ApplicableGamePaths ?? new List<string>())
+            .Where(p => !string.IsNullOrWhiteSpace(p))
+            .Select(CanonicalPath)
+            .Distinct(PathComparer)
+            .OrderBy(p => p, PathComparer);
+        return $"{b64}|{ext}|{string.Join(",", paths)}";
     }
 
-    public async Task SavePlayerDataToDiskAsync()
+    protected static string SwapKey(AssetSwap s)
     {
-        try
-        {
-            Svc.Log.Debug("Updating local player data on disk.");
-
-            var myDataPack = PsuPlugin.Configuration.MyStarPack?.GetDataPack();
-            if (myDataPack == null)
-            {
-                Svc.Log.Warning("My star pack data pack is null.");
-                return;
-            }
-
-            // Load previous data for comparison
-            var prevBasic = BasicData.LoadFromDisk(myDataPack.DataPath);
-            var prevPenumbra = PenumbraData.LoadFromDisk(myDataPack.DataPath);
-            var prevGlamourer = GlamourerData.LoadFromDisk(myDataPack.DataPath);
-
-            // Decide if content changed and update LastUpdatedUtc accordingly
-            bool basicChanged = prevBasic == null ||
-                                prevBasic.PlayerName != Data.PlayerName ||
-                                prevBasic.WorldId != Data.WorldId;
-            if (basicChanged)
-                Data.LastUpdatedUtc = DateTime.UtcNow;
-
-            bool penumbraChanged = prevPenumbra == null ||
-                                   prevPenumbra.MetaManipulations != PenumbraData.MetaManipulations ||
-                                   prevPenumbra.Files.Count != PenumbraData.Files.Count ||
-                                   prevPenumbra.FileSwaps.Count != PenumbraData.FileSwaps.Count;
-                                   //!prevPenumbra.Files.SequenceEqual(PenumbraData.Files) ||
-                                   //!prevPenumbra.FileSwaps.SequenceEqual(PenumbraData.FileSwaps)
-            if (penumbraChanged)
-                PenumbraData.LastUpdatedUtc = DateTime.UtcNow;
-
-            bool glamChanged = prevGlamourer == null || prevGlamourer.GlamState != GlamourerData.GlamState;
-            if (glamChanged)
-                GlamourerData.LastUpdatedUtc = DateTime.UtcNow;
-
-            // Save basic data if changed
-            if (basicChanged)
-            {
-                var playerDataLoc = Data.GetPath(myDataPack.DataPath);
-                var encodedData = Base64Util.ToBase64(Data);
-                await File.WriteAllTextAsync(playerDataLoc, encodedData);
-                Svc.Log.Debug("Updated basic info on disk.");
-            }
-
-            // Save Penumbra data if changed
-            if (penumbraChanged)
-            {
-                var penumbraLoc = PenumbraData.GetPath(myDataPack.DataPath);
-                var encodedPenumbra = Base64Util.ToBase64(PenumbraData);
-                await File.WriteAllTextAsync(penumbraLoc, encodedPenumbra);
-                Svc.Log.Debug("Updated penumbra data on disk.");
-            }
-
-            // Save Glamourer data if changed
-            if (glamChanged)
-            {
-                var glamourerLoc = GlamourerData.GetPath(myDataPack.DataPath);
-                var encodedGlamourer = Base64Util.ToBase64(GlamourerData);
-                await File.WriteAllTextAsync(glamourerLoc, encodedGlamourer);
-                Svc.Log.Debug("Updated glamourer data on disk.");
-            }
-        }
-        catch (Exception ex)
-        {
-            Svc.Log.Error($"Error saving player data to disk: {ex}");
-        }
+        var gp = CanonicalPath(s.GamePath).ToLowerInvariant();
+        var rp = CanonicalPath(s.RealPath).ToLowerInvariant();
+        return $"{gp}|{rp}";
     }
 
-    public Task PopulateFromDiskAsync()
+    protected static bool UnorderedEqualByKey<T>(IEnumerable<T> a, IEnumerable<T> b, Func<T, string> keySelector)
     {
-        try
-        {
-            var dataPack = StarPackReference.GetDataPack();
-            if (dataPack == null)
-            {
-                Svc.Log.Warning($"Failed to load data pack {StarPackReference.DataPackId}");
-            }
-
-            var data = BasicData.LoadFromDisk(dataPack.DataPath);
-            if (data == null)
-            {
-                Svc.Log.Warning($"Failed to load data from disk for {StarPackReference.StarId}");
-            }
-
-            var penumbraData = PenumbraData.LoadFromDisk(dataPack.DataPath);
-            if (penumbraData == null)
-            {
-                Svc.Log.Warning($"Failed to load penumbra data from disk for {StarPackReference.StarId}");
-            }
-
-            var glamData = GlamourerData.LoadFromDisk(dataPack.DataPath);
-            if (glamData == null)
-            {
-                Svc.Log.Warning($"Failed to load glamourer data from disk for {StarPackReference.StarId}");
-            }
-
-            if (data == null || penumbraData == null || glamData == null) return Task.CompletedTask;
-
-            Data = data;
-            PenumbraData = penumbraData;
-            GlamourerData = glamData;
-            return Task.CompletedTask;
-        }
-        catch (Exception ex)
-        {
-            Svc.Log.Error($"Error loading player data from disk: {ex}");
-            throw;
-        }
+        var ak = a.Select(keySelector).OrderBy(x => x, StringComparer.Ordinal);
+        var bk = b.Select(keySelector).OrderBy(x => x, StringComparer.Ordinal);
+        return ak.SequenceEqual(bk, StringComparer.Ordinal);
     }
 
-    public BasicData Data { get; private set; }
+    public abstract IPlayerCharacter? Player { get; set; }
 
-    public PenumbraData PenumbraData { get; private set; }
+    public BasicData? Data { get; protected set; }
 
-    public GlamourerData GlamourerData { get; private set; }
+    public PenumbraData? PenumbraData { get; protected set; }
 
-    public StarPack StarPackReference { get; private set; }
+    public GlamourerData? GlamourerData { get; protected set; }
 
-    public PlayerData(StarPack starPack)
-    {
-        StarPackReference = starPack;
-    }
+    public StarPack StarPackReference { get; private set; } = starPack;
 }

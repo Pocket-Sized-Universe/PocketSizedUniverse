@@ -1,11 +1,14 @@
 using System.Collections.Concurrent;
 using System.Collections.ObjectModel;
 using System.Security.Cryptography;
+using Dalamud.Game.ClientState.Objects.SubKinds;
 using Dalamud.Plugin.Services;
 using ECommons.DalamudServices;
 using ECommons.GameHelpers;
 using Glamourer.Api.Enums;
+using Glamourer.Api.IpcSubscribers;
 using Penumbra.Api.Enums;
+using Penumbra.Api.IpcSubscribers;
 using PocketSizedUniverse.Interfaces;
 using PocketSizedUniverse.Models;
 using PocketSizedUniverse.Models.Data;
@@ -20,208 +23,153 @@ public class PlayerDataService : IUpdatable
     public PlayerDataService()
     {
         Svc.Framework.Update += Update;
+        Svc.ClientState.Login += OnLogin;
+        StateChanged.Subscriber(Svc.PluginInterface, OnGlamourerStateChanged).Enable();
+        //GameObjectRedrawn.Subscriber(Svc.PluginInterface, OnRedraw).Enable();
+        GameObjectResourcePathResolved.Subscriber(Svc.PluginInterface, OnObjectPathResolved).Enable();
+        if (Svc.ClientState.IsLoggedIn)
+            OnLogin();
     }
 
-    public TimeSpan UpdateInterval { get; set; } = TimeSpan.FromSeconds(30);
+    public TimeSpan UpdateInterval { get; set; } = TimeSpan.FromSeconds(5);
     public DateTime LastUpdated { get; set; } = DateTime.MinValue;
-    public PlayerData? LocalPlayerData { get; private set; }
-    public ConcurrentDictionary<StarPack, (Guid CollectionId, PlayerData PlayerData)> RemotePlayerData { get; } = new();
+    public LocalPlayerData? LocalPlayerData { get; private set; }
+    public ConcurrentBag<RemotePlayerData> RemotePlayerData { get; } = new();
 
     public void Update(IFramework framework)
     {
         if (DateTime.Now - LastUpdated < UpdateInterval) return;
         LastUpdated = DateTime.Now;
 
-        // Run the data push in the background
-        Task.Run(PushLocalPlayerDataAsync);
-        Task.Run(UpdateRemotePlayerDataAsync);
+        foreach (var star in PsuPlugin.Configuration.StarPacks)
+        {
+            if (RemotePlayerData.Any(x => x.StarPackReference.StarId == star.StarId))
+                continue;
+            RemotePlayerData.Add(new RemotePlayerData(star));
+        }
+
+        // Periodically sync remote player data from disk and apply if changed
+        foreach (var remote in RemotePlayerData)
+        {
+            try
+            {
+                var dataPack = remote.StarPackReference.GetDataPack();
+                if (dataPack == null)
+                    continue;
+
+                var newBasic = BasicData.LoadFromDisk(dataPack.DataPath);
+                var newPenumbra = PenumbraData.LoadFromDisk(dataPack.DataPath);
+                var newGlamourer = GlamourerData.LoadFromDisk(dataPack.DataPath);
+                if (newBasic == null || newPenumbra == null || newGlamourer == null)
+                {
+                    Svc.Log.Debug($"Data incomplete for {remote.StarPackReference.StarId}");
+                    continue;
+                }
+
+                if (remote.Player == null)
+                {
+                    var players = Svc.Objects.PlayerObjects.Cast<IPlayerCharacter>();
+                    var remotePlayer = players.FirstOrDefault(p =>
+                        p.HomeWorld.RowId == newBasic.WorldId && p.Name.TextValue == newBasic.PlayerName);
+                    if (remotePlayer != null)
+                        remote.Player = remotePlayer;
+                    else
+                    {
+                        Svc.Log.Debug($"Player not found for {remote.StarPackReference.StarId}");
+                        continue;
+                    }
+                }
+
+                remote.ApplyBasicIfChanged(newBasic);
+                remote.ApplyGlamourerIfChanged(newGlamourer);
+                remote.ApplyPenumbraIfChanged(newPenumbra);
+            }
+            catch (Exception ex)
+            {
+                Svc.Log.Error($"Error updating remote player data: {ex}");
+            }
+        }
     }
 
-    private async Task PushLocalPlayerDataAsync()
+    private DateTime _lastResolve = DateTime.MinValue;
+
+    private void OnObjectPathResolved(nint gameObject, string gamePath, string localPath)
     {
-        try
+        if (DateTime.Now - _lastResolve < TimeSpan.FromSeconds(1)) return;
+        _lastResolve = DateTime.Now;
+
+        if (!PsuPlugin.Configuration.SetupComplete)
         {
-            if (!PsuPlugin.Configuration.SetupComplete)
-                return;
-
-
-            var pc = Svc.Framework.RunOnFrameworkThread(() => Player.Object).Result;
-            if (pc == null)
-            {
-                Svc.Log.Warning("Local player object is null.");
-                return;
-            }
-
-            LocalPlayerData ??= new PlayerData(PsuPlugin.Configuration.MyStarPack!);
-            await LocalPlayerData.PopulateFromLocalAsync(pc);
-            await LocalPlayerData.SavePlayerDataToDiskAsync();
-
-            Svc.Log.Debug("Completed local player data update cycle.");
+            Svc.Log.Warning("Resolved path before setup complete.");
+            return;
         }
-        catch (Exception ex)
-        {
-            Svc.Log.Error($"Error in PushLocalPlayerDataAsync: {ex}");
-        }
+
+        LocalPlayerData ??= new LocalPlayerData(PsuPlugin.Configuration.MyStarPack!);
+        Task.Run(LocalPlayerData.UpdatePenumbraData);
     }
 
-    private async Task UpdateRemotePlayerDataAsync()
+    private void OnLogin()
     {
-        try
+        if (!PsuPlugin.Configuration.SetupComplete)
         {
-            foreach (var pair in PsuPlugin.Configuration.StarPacks)
-            {
-                var remoteStar = PsuPlugin.SyncThingService.Stars.Values.FirstOrDefault(s => s.StarId == pair.StarId);
-                if (remoteStar == null)
-                {
-                    Svc.Log.Warning($"Remote star {pair.StarId} was null while updating remote player data.");
-                    continue;
-                }
-
-                var remotePack = PsuPlugin.SyncThingService.DataPacks
-                    .FirstOrDefault(dp => dp.Value.Id == pair.DataPackId)
-                    .Value;
-                if (remotePack == null)
-                {
-                    Svc.Log.Warning($"Remote data pack {pair.DataPackId} was null while updating remote player data.");
-                    continue;
-                }
-
-                Svc.Log.Debug($"Updating remote player data for {remoteStar.StarId}");
-                if (!RemotePlayerData.TryGetValue(pair, out var remoteData))
-                {
-                    Svc.Log.Debug($"Creating new remote player data for {remoteStar.StarId}");
-                    var playerData = new PlayerData(pair);
-                    await Task.Run(playerData.PopulateFromDiskAsync);
-                    await Svc.Framework.RunOnFrameworkThread(() =>
-                    {
-                        try
-                        {
-                            Svc.Log.Debug($"Creating new collection for {remoteStar.StarId}");
-
-                            PsuPlugin.PenumbraService.CreateTemporaryCollection.Invoke("PocketSizedUniverse",
-                                playerData.StarPackReference.DataPackId.ToString(), out var newCollectionId);
-                            RemotePlayerData.TryAdd(pair, (newCollectionId, playerData));
-                            Svc.Log.Debug(
-                                $"Created new remote player data for {remoteStar.StarId}");
-                        }
-                        catch (Exception ex)
-                        {
-                            Svc.Log.Error($"Failed to create remote player data for {remoteStar.StarId}: {ex}");
-                        }
-                    });
-                    continue;
-                }
-
-// Check if content changed since last time based on LastUpdatedUtc
-                DateTime latestUpdate = DateTime.MinValue;
-                try
-                {
-                    var basic = Models.Data.BasicData.LoadFromDisk(remotePack.DataPath);
-                    var pen = Models.Data.PenumbraData.LoadFromDisk(remotePack.DataPath);
-                    var glam = Models.Data.GlamourerData.LoadFromDisk(remotePack.DataPath);
-
-                    if (basic != null && basic.LastUpdatedUtc > latestUpdate) latestUpdate = basic.LastUpdatedUtc;
-                    if (pen != null && pen.LastUpdatedUtc > latestUpdate) latestUpdate = pen.LastUpdatedUtc;
-                    if (glam != null && glam.LastUpdatedUtc > latestUpdate) latestUpdate = glam.LastUpdatedUtc;
-                }
-                catch (Exception ex)
-                {
-                    Svc.Log.Warning($"Failed to read remote data timestamps for {pair.StarId}: {ex.Message}");
-                }
-
-                var lastSeen = _remoteLastSeen.GetOrAdd(pair, DateTime.MinValue);
-                if (latestUpdate <= lastSeen)
-                {
-                    // No changes signaled - skip heavy refresh
-                    continue;
-                }
-
-                _remoteLastSeen[pair] = latestUpdate;
-
-                // Validate collection still exists before proceeding
-                Svc.Log.Debug($"Using existing collection {remoteData.CollectionId} for {remoteStar.StarId}");
-
-                try
-                {
-                    await remoteData.PlayerData.PopulateFromDiskAsync();
-                    await Svc.Framework.RunOnFrameworkThread(() =>
-                    {
-                        var remotePlayer = Svc.Objects.PlayerObjects.FirstOrDefault(p =>
-                            p.Name.TextValue == remoteData.PlayerData.Data.PlayerName);
-                        if (remotePlayer == null)
-                        {
-                            Svc.Log.Debug($"{remoteData.PlayerData.Data.PlayerName} is not nearby.");
-                            return;
-                        }
-
-                        // Apply meta manipulations first
-                        var metaModName = $"PSU_Meta_{remoteData.PlayerData.PenumbraData.Id}";
-                        Svc.Log.Debug(
-                            $"Removing existing meta mod {metaModName} from collection {remoteData.CollectionId}");
-                        PsuPlugin.PenumbraService.RemoveTemporaryMod.Invoke(metaModName, remoteData.CollectionId, 0);
-
-                        if (!string.IsNullOrEmpty(remoteData.PlayerData.PenumbraData.MetaManipulations))
-                        {
-                            Svc.Log.Debug($"Adding meta mod {metaModName} to collection {remoteData.CollectionId}");
-                            PsuPlugin.PenumbraService.AddTemporaryMod.Invoke(
-                                metaModName, remoteData.CollectionId, new Dictionary<string, string>(),
-                                remoteData.PlayerData.PenumbraData.MetaManipulations, 0);
-                        }
-
-                        var paths = new Dictionary<string, string>();
-                        foreach (var customFile in remoteData.PlayerData.PenumbraData.Files)
-                        {
-                            var localFilePath = customFile.GetPath(remotePack.FilesPath);
-                            // Check if the file actually exists
-                            if (!File.Exists(localFilePath))
-                            {
-                                Svc.Log.Debug($"Custom file missing: {localFilePath}");
-                                continue;
-                            }
-
-                            foreach (var gamePath in customFile.ApplicableGamePaths)
-                            {
-                                paths[gamePath] = localFilePath;
-                            }
-                        }
-
-                        foreach (var assetSwap in remoteData.PlayerData.PenumbraData.FileSwaps)
-                        {
-                            if (assetSwap.GamePath != null)
-                                paths[assetSwap.GamePath] = assetSwap.RealPath;
-                        }
-
-                        if (paths.Count > 0)
-                        {
-                            var fileModName = $"PSU_File_{remoteData.PlayerData.PenumbraData.Id}";
-                            Svc.Log.Debug(
-                                $"Removing existing mod {fileModName} from collection {remoteData.CollectionId}");
-                            PsuPlugin.PenumbraService.RemoveTemporaryMod.Invoke(fileModName, remoteData.CollectionId,
-                                0);
-                            PsuPlugin.PenumbraService.AddTemporaryMod.Invoke(
-                                fileModName, remoteData.CollectionId, paths, string.Empty, 0);
-                            Svc.Log.Debug(
-                                $"Added mod {fileModName} to collection {remoteData.CollectionId} with paths: {string.Join(", ", paths.Keys)}");
-                        }
-
-                        PsuPlugin.GlamourerService.ApplyState.Invoke(remoteData.PlayerData.GlamourerData.GlamState,
-                            remotePlayer.ObjectIndex);
-                        PsuPlugin.PenumbraService.AssignTemporaryCollection.Invoke(remoteData.CollectionId,
-                            remotePlayer.ObjectIndex);
-                        PsuPlugin.PenumbraService.RedrawObject.Invoke(remotePlayer.ObjectIndex);
-                    });
-                }
-                catch (Exception ex)
-                {
-                    Svc.Log.Error($"Failed to update remote player data for {remoteStar.StarId}: {ex}");
-                }
-            }
-
-            Svc.Log.Debug("Updated remote player data.");
+            Svc.Log.Warning("Login triggered before setup complete.");
+            return;
         }
-        catch (Exception ex)
+
+        LocalPlayerData ??= new LocalPlayerData(PsuPlugin.Configuration.MyStarPack!);
+        Task.Run(LocalPlayerData.UpdateBasicData);
+        Task.Run(LocalPlayerData.UpdateGlamData);
+        Task.Run(LocalPlayerData.UpdatePenumbraData);
+    }
+
+    private void OnRedraw(IntPtr objPointer, int index)
+    {
+        var obj = Svc.Objects.CreateObjectReference(objPointer);
+        if (obj == null)
         {
-            Svc.Log.Error($"Error updating remote player data: {ex}");
+            Svc.Log.Debug("Glamourer changed object not in object table");
+            return;
         }
+
+        if (Player.Object.Address != obj.Address)
+        {
+            Svc.Log.Debug("Glamourer changed object not for local player");
+            return;
+        }
+
+        Svc.Log.Debug("Glamourer state changed");
+        if (LocalPlayerData is null)
+        {
+            Svc.Log.Warning("Glamourer state trigger with no local player data.");
+            return;
+        }
+
+        Task.Run(LocalPlayerData.UpdatePenumbraData);
+    }
+
+    private void OnGlamourerStateChanged(IntPtr objPointer)
+    {
+        var obj = Svc.Objects.CreateObjectReference(objPointer);
+        if (obj == null)
+        {
+            Svc.Log.Debug("Glamourer changed object not in object table");
+            return;
+        }
+
+        if (Player.Object.Address != obj.Address)
+        {
+            Svc.Log.Debug("Glamourer changed object not for local player");
+            return;
+        }
+
+        Svc.Log.Debug("Glamourer state changed");
+        if (LocalPlayerData is null)
+        {
+            Svc.Log.Warning("Glamourer state trigger with no local player data.");
+            return;
+        }
+
+        Task.Run(LocalPlayerData.UpdateGlamData);
+        //Task.Run(LocalPlayerData.UpdatePenumbraData);
     }
 }
