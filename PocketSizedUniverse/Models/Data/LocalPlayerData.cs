@@ -118,7 +118,7 @@ public class LocalPlayerData : PlayerData
 
             try
             {
-                await _customizeWriteLock.WaitAsync();
+                await _honorificWriteLock.WaitAsync();
                 var changed = HonorificData == null ||
                               !string.Equals(HonorificData.Title, honorificData.Title, StringComparison.Ordinal);
                 if (changed)
@@ -136,7 +136,7 @@ public class LocalPlayerData : PlayerData
             }
             finally
             {
-                _customizeWriteLock.Release();
+                _honorificWriteLock.Release();
             }
         }
         finally
