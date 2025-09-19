@@ -27,12 +27,16 @@ public class LocalPlayerData : PlayerData
     private readonly SemaphoreSlim _basicWriteLock = new(1, 1);
     private readonly SemaphoreSlim _glamWriteLock = new(1, 1);
     private readonly SemaphoreSlim _penumbraWriteLock = new(1, 1);
+    private readonly SemaphoreSlim _customizeWriteLock = new(1, 1);
+    private readonly SemaphoreSlim _honorificWriteLock = new(1, 1);
 
     // Debounce to coalesce rapid triggers per data type
     private const int DebounceMs = 150;
     private int _basicScheduled;
     private int _glamScheduled;
     private int _penumbraScheduled;
+    private int _customizeScheduled;
+    private int _honorificScheduled;
 
     private static async Task AtomicWriteTextAsync(string path, string content, int maxAttempts = 8,
         int initialDelayMs = 25)
@@ -92,6 +96,117 @@ public class LocalPlayerData : PlayerData
             {
                 /* ignore */
             }
+        }
+    }
+
+    public async Task UpdateHonorificData()
+    {
+        if (Interlocked.Exchange(ref _honorificScheduled, 1) == 1)
+            return;
+        try
+        {
+            await Task.Delay(DebounceMs);
+
+            if (Player == null)
+                return;
+            var honorific = Svc.Framework.RunOnFrameworkThread(() => PsuPlugin.HonorificService.GetLocalCharacterTitle()).Result ?? string.Empty;
+            var honorificData = new HonorificData()
+            {
+                LastUpdatedUtc = DateTime.UtcNow,
+                Title = honorific
+            };
+
+            try
+            {
+                await _customizeWriteLock.WaitAsync();
+                var changed = HonorificData == null ||
+                              !string.Equals(HonorificData.Title, honorificData.Title, StringComparison.Ordinal);
+                if (changed)
+                {
+                    HonorificData = honorificData;
+                    var cLoc = HonorificData.GetPath(StarPackReference.GetDataPack()!.DataPath);
+                    var encodedHonorific = Base64Util.ToBase64(HonorificData);
+                    await AtomicWriteTextAsync(cLoc, encodedHonorific);
+                    Svc.Log.Debug("Updated Honorific data on disk.");
+                }
+            }
+            catch (Exception ex)
+            {
+                Svc.Log.Error($"Error writing Honorific data to disk: {ex}");
+            }
+            finally
+            {
+                _customizeWriteLock.Release();
+            }
+        }
+        finally
+        {
+            Volatile.Write(ref _honorificScheduled, 0);
+        }
+    }
+
+    public async Task UpdateCustomizeData()
+    {
+        if (Interlocked.Exchange(ref _customizeScheduled, 1) == 1)
+            return;
+        try
+        {
+            await Task.Delay(DebounceMs);
+
+            if (Player == null)
+                return;
+            string data = string.Empty;
+            var activeProfileId = PsuPlugin.CustomizeService.GetActiveProfileOnCharacter(Player.ObjectIndex);
+            if (activeProfileId.Item1 > 0 || activeProfileId.Item2 == null || activeProfileId.Item2 == Guid.Empty)
+            {
+                Svc.Log.Debug("Failed to get active C+ profile.");
+            }
+            else
+            {
+                var customizeData = PsuPlugin.CustomizeService.GetCustomizeProfileByUniqueId(activeProfileId.Item2.Value);
+                if (customizeData.Item1 > 0 || string.IsNullOrEmpty(customizeData.Item2))
+                {
+                    Svc.Log.Warning("Failed to get customize data.");
+                }
+                else
+                {
+                    data = customizeData.Item2;
+                }
+            }
+
+
+            var cData = new CustomizeData()
+            {
+                CustomizeState = data,
+                LastUpdatedUtc = DateTime.UtcNow
+            };
+
+            try
+            {
+                await _customizeWriteLock.WaitAsync();
+                var changed = CustomizeData == null ||
+                              !string.Equals(CustomizeData.CustomizeState, cData.CustomizeState, StringComparison.Ordinal);
+                if (changed)
+                {
+                    CustomizeData = cData;
+                    var cLoc = CustomizeData.GetPath(StarPackReference.GetDataPack()!.DataPath);
+                    var encodedCustomize = Base64Util.ToBase64(CustomizeData);
+                    await AtomicWriteTextAsync(cLoc, encodedCustomize);
+                    Svc.Log.Debug("Updated Customize+ data on disk.");
+                }
+            }
+            catch (Exception ex)
+            {
+                Svc.Log.Error($"Error writing Customize+ data to disk: {ex}");
+            }
+            finally
+            {
+                _customizeWriteLock.Release();
+            }
+        }
+        finally
+        {
+            Volatile.Write(ref _customizeScheduled, 0);
         }
     }
 

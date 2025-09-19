@@ -18,6 +18,8 @@ public class PsuPlugin : IDalamudPlugin
     public static Configuration Configuration;
     public static PenumbraService PenumbraService;
     public static GlamourerService GlamourerService;
+    public static CustomizeService CustomizeService;
+    public static HonorificService HonorificService;
     public static WindowSystem WindowSystem;
     public static MainWindow MainWindow;
     public static SetupWindow SetupWindow;
@@ -37,6 +39,8 @@ public class PsuPlugin : IDalamudPlugin
 
         PenumbraService = new PenumbraService();
         GlamourerService = new GlamourerService();
+        CustomizeService = new CustomizeService();
+        HonorificService = new HonorificService();
 
         SyncThingService = new SyncThingService();
 

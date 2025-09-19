@@ -4,6 +4,7 @@ using System.Security.Cryptography;
 using Dalamud.Game.ClientState.Objects.SubKinds;
 using Dalamud.Plugin.Services;
 using ECommons.DalamudServices;
+using ECommons.EzIpcManager;
 using ECommons.GameHelpers;
 using Glamourer.Api.Enums;
 using Glamourer.Api.IpcSubscribers;
@@ -41,6 +42,13 @@ public class PlayerDataService : IUpdatable
         if (DateTime.Now - LastUpdated < UpdateInterval) return;
         LastUpdated = DateTime.Now;
 
+        if (!PsuPlugin.Configuration.SetupComplete)
+            return;
+        LocalPlayerData ??= new LocalPlayerData(PsuPlugin.Configuration.MyStarPack!);
+        Svc.Log.Debug("Updating local player data");
+        Task.Run(LocalPlayerData.UpdateCustomizeData);
+        Task.Run(LocalPlayerData.UpdateHonorificData);
+
         foreach (var star in PsuPlugin.Configuration.StarPacks)
         {
             if (RemotePlayerData.Any(x => x.StarPackReference.StarId == star.StarId))
@@ -60,7 +68,9 @@ public class PlayerDataService : IUpdatable
                 var newBasic = BasicData.LoadFromDisk(dataPack.DataPath);
                 var newPenumbra = PenumbraData.LoadFromDisk(dataPack.DataPath);
                 var newGlamourer = GlamourerData.LoadFromDisk(dataPack.DataPath);
-                if (newBasic == null || newPenumbra == null || newGlamourer == null)
+                var newCustomize = CustomizeData.LoadFromDisk(dataPack.DataPath);
+                var newHonorific = HonorificData.LoadFromDisk(dataPack.DataPath);
+                if (newBasic == null || newPenumbra == null || newGlamourer == null || newCustomize == null || newHonorific == null)
                 {
                     Svc.Log.Debug($"Data incomplete for {remote.StarPackReference.StarId}");
                     continue;
@@ -83,6 +93,8 @@ public class PlayerDataService : IUpdatable
                 remote.ApplyBasicIfChanged(newBasic);
                 remote.ApplyGlamourerIfChanged(newGlamourer);
                 remote.ApplyPenumbraIfChanged(newPenumbra);
+                remote.ApplyCustomzieIfChanged(newCustomize);
+                remote.ApplyHonorificIfChanged(newHonorific);
             }
             catch (Exception ex)
             {
@@ -120,6 +132,7 @@ public class PlayerDataService : IUpdatable
         Task.Run(LocalPlayerData.UpdateBasicData);
         Task.Run(LocalPlayerData.UpdateGlamData);
         Task.Run(LocalPlayerData.UpdatePenumbraData);
+        Task.Run(LocalPlayerData.UpdateCustomizeData);
     }
 
     private void OnRedraw(IntPtr objPointer, int index)

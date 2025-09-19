@@ -13,6 +13,8 @@ public class RemotePlayerData(StarPack starPack) : PlayerData(starPack)
 
     public Guid? AssignedCollectionId { get; set; }
 
+    public Guid? AssignedCustomizeProfileId { get; set; }
+
     public bool ApplyBasicIfChanged(BasicData newBasic)
     {
         var changed = Data == null
@@ -48,6 +50,73 @@ public class RemotePlayerData(StarPack starPack) : PlayerData(starPack)
         PsuPlugin.GlamourerService.ApplyState.Invoke(GlamourerData.GlamState, Player.ObjectIndex, LockKey);
         Svc.Log.Debug("[Remote] Applied Glamourer state.");
         return true;
+    }
+
+    public bool ApplyHonorificIfChanged(HonorificData newHonorific)
+    {
+        var changed = HonorificData == null || !string.Equals(HonorificData.Title, newHonorific.Title, StringComparison.Ordinal);
+
+        if (!changed)
+            return false;
+
+        if (Player == null)
+        {
+            // Keep the new state but do not attempt to apply when player is not available
+            HonorificData = newHonorific;
+            Svc.Log.Debug("[Remote] Honorific changed but player not nearby; will apply when available.");
+            return false;
+        }
+        HonorificData = newHonorific;
+        var existingTitle = PsuPlugin.HonorificService.GetCharacterTitle(Player.ObjectIndex);
+        if (!string.IsNullOrEmpty(HonorificData.Title) && !string.Equals(existingTitle, HonorificData.Title, StringComparison.Ordinal))
+        {
+            PsuPlugin.HonorificService.SetCharacterTitle(Player.ObjectIndex, HonorificData.Title);
+            Svc.Log.Debug("[Remote] Applied Honorific title.");
+        }
+        return false;
+    }
+
+    public bool ApplyCustomzieIfChanged(CustomizeData newCustomize)
+    {
+        var changed = CustomizeData == null
+            || !string.Equals(CustomizeData.CustomizeState, newCustomize.CustomizeState, StringComparison.Ordinal);
+
+        if (!changed)
+            return false;
+
+        if (Player == null)
+        {
+            // Keep the new state but do not attempt to apply when player is not available
+            CustomizeData = newCustomize;
+            Svc.Log.Debug("[Remote] Customize changed but player not nearby; will apply when available.");
+            return false;
+        }
+        CustomizeData = newCustomize;
+        if (AssignedCustomizeProfileId == null && !string.IsNullOrEmpty(CustomizeData.CustomizeState))
+        {
+            var apply = PsuPlugin.CustomizeService.ApplyTemporaryCustomizeProfileOnCharacter(Player.ObjectIndex, CustomizeData.CustomizeState);
+            if (apply.Item1 > 0)
+            {
+                Svc.Log.Warning($"Failed to apply temporary customize profile. Error {apply.Item1}");
+                return false;
+            }
+            Svc.Log.Debug("[Remote] Applied Customize state.");
+            AssignedCustomizeProfileId = apply.Item2;
+            return true;
+        }
+        if (string.IsNullOrEmpty(CustomizeData.CustomizeState))
+        {
+            var remove = PsuPlugin.CustomizeService.DeleteTemporaryCustomizeProfileOnCharacter(Player.ObjectIndex);
+            if (remove > 0)
+            {
+                Svc.Log.Warning($"Failed to delete temporary customize profile. Error {remove}");
+                return false;
+            }
+
+            return true;
+        }
+
+        return false;
     }
 
     public bool ApplyPenumbraIfChanged(PenumbraData newPenumbra)

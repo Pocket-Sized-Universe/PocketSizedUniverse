@@ -64,5 +64,9 @@ public abstract class PlayerData(StarPack starPack)
 
     public GlamourerData? GlamourerData { get; protected set; }
 
+    public CustomizeData? CustomizeData { get; protected set; }
+
+    public HonorificData? HonorificData { get; protected set; }
+
     public StarPack StarPackReference { get; private set; } = starPack;
 }
