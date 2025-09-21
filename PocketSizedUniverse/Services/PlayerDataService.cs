@@ -48,7 +48,7 @@ public class PlayerDataService : IUpdatable, IDisposable
         Svc.ClientState.Logout += OnLogout;
         StateChanged.Subscriber(Svc.PluginInterface, OnGlamourerStateChanged).Enable();
         //GameObjectRedrawn.Subscriber(Svc.PluginInterface, OnRedraw).Enable();
-        GameObjectResourcePathResolved.Subscriber(Svc.PluginInterface, OnObjectPathResolved).Enable();
+        //GameObjectResourcePathResolved.Subscriber(Svc.PluginInterface, OnObjectPathResolved).Enable();
         if (Svc.ClientState.IsLoggedIn)
             OnLogin();
     }
@@ -96,7 +96,7 @@ public class PlayerDataService : IUpdatable, IDisposable
         // Fire-and-forget local writes (disk IO off-thread)
         LocalPlayerData.UpdateBasicData();
         LocalPlayerData.UpdateGlamData();
-        // Task.Run(LocalPlayerData.UpdatePenumbraData);
+        LocalPlayerData.UpdatePenumbraData();
         LocalPlayerData.UpdateCustomizeData();
         LocalPlayerData.UpdateHonorificData();
         LocalPlayerData.UpdateMoodlesData();
@@ -309,29 +309,6 @@ public class PlayerDataService : IUpdatable, IDisposable
 
             applied++;
         }
-    }
-
-    private DateTime _lastResolve = DateTime.MinValue;
-
-    private void OnObjectPathResolved(nint gameObject, string gamePath, string localPath)
-    {
-        if (DateTime.Now - _lastResolve < TimeSpan.FromSeconds(1)) return;
-        _lastResolve = DateTime.Now;
-
-        if (!PsuPlugin.Configuration.SetupComplete)
-        {
-            Svc.Log.Warning("Resolved path before setup complete.");
-            return;
-        }
-
-        var localPlayer = Svc.Framework.RunOnFrameworkThread(() => Svc.ClientState.LocalPlayer).Result;
-        if (!Svc.ClientState.IsLoggedIn || localPlayer == null ||
-            localPlayer.Address == IntPtr.Zero || PsuPlugin.Configuration.MyStarPack == null)
-            return;
-        LocalPlayerData ??= new LocalPlayerData(PsuPlugin.Configuration.MyStarPack);
-        LocalPlayerData.Player = Svc.Framework.RunOnFrameworkThread(() => Svc.ClientState.LocalPlayer).Result;
-        // Run on framework thread; UpdatePenumbraData offloads heavy work internally
-        LocalPlayerData.UpdatePenumbraData();
     }
 
     private void OnGlamourerStateChanged(IntPtr objPointer)
