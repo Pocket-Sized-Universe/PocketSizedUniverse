@@ -16,7 +16,7 @@ namespace PocketSizedUniverse.Windows;
 public class SetupWindow : Window
 {
     // Temporary UI state (not persisted)
-    private string _tempServerUri = "http://127.0.0.1:62490";
+    private string _tempServerUri = "http://127.0.0.1:" + Random.Shared.Next(10000, 60000);
     private string _tempApiKey = "";
     private string _tempDataPackName = Adjectives.GetRandom() + " " + Nouns.GetRandom();
     private readonly FileDialogManager _fileDialogManager = new();
@@ -213,7 +213,7 @@ public class SetupWindow : Window
         {
             PsuPlugin.Configuration.UseBuiltInSyncThing = true;
             PsuPlugin.Configuration.ApiKey = Guid.NewGuid().ToString().Replace("-", "");
-            PsuPlugin.Configuration.ApiUri = new Uri("http://127.0.0.1:62490");
+            PsuPlugin.Configuration.ApiUri = new Uri(_tempServerUri);
 
             // Start built-in server
             try
