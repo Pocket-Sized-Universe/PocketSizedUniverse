@@ -24,6 +24,7 @@ public class PsuPlugin : IDalamudPlugin
     public static MainWindow MainWindow;
     public static SetupWindow SetupWindow;
     public static SyncThingService SyncThingService;
+    public static MoodlesService MoodlesService;
     public static PlayerDataService PlayerDataService;
     public static SyncThingProcess? ServerProcess;
     private Task _serverRunTask;
@@ -41,6 +42,7 @@ public class PsuPlugin : IDalamudPlugin
         GlamourerService = new GlamourerService();
         CustomizeService = new CustomizeService();
         HonorificService = new HonorificService();
+        MoodlesService = new MoodlesService();
 
         SyncThingService = new SyncThingService();
 

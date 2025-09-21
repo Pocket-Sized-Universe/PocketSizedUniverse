@@ -37,4 +37,18 @@ public class BasicData : IDataFile
 
     public Guid Id { get; set; } = Guid.NewGuid();
     public string GetPath(string basePath) => Path.Combine(basePath, Filename);
+
+    public bool ApplyData(RemotePlayerData ctx)
+    {
+        var changed = ctx.Data == null
+                      || !string.Equals(ctx.Data.PlayerName, PlayerName, StringComparison.Ordinal)
+                      || ctx.Data.WorldId != WorldId;
+
+        if (changed)
+        {
+            ctx.Data = this;
+        }
+
+        return changed;
+    }
 }

@@ -2,9 +2,9 @@ using PocketSizedUniverse.Interfaces;
 
 namespace PocketSizedUniverse.Models.Data;
 
-public class HonorificData : IDataFile
+public class MoodlesData : IDataFile
 {
-    public static HonorificData? LoadFromDisk(string basePath)
+    public static MoodlesData? LoadFromDisk(string basePath)
     {
         var path = Path.Combine(basePath, Filename);
         if (!File.Exists(path))
@@ -13,8 +13,9 @@ public class HonorificData : IDataFile
         }
 
         var data = File.ReadAllText(path);
-        return Base64Util.FromBase64<HonorificData>(data);
+        return Base64Util.FromBase64<MoodlesData>(data);
     }
+    public static string Filename { get; } = "Moodles.dat";
     public bool Equals(IWriteableData? x, IWriteableData? y)
     {
         if (ReferenceEquals(x, y)) return true;
@@ -30,31 +31,30 @@ public class HonorificData : IDataFile
     }
 
     public Guid Id { get; set; } = Guid.NewGuid();
-    public static string Filename { get; } = "Honorific.dat";
     public string GetPath(string basePath) => Path.Combine(basePath, Filename);
-    public string Title { get; init; } = string.Empty;
     public int Version { get; set; } = 1;
     public DateTime LastUpdatedUtc { get; set; } = DateTime.MinValue;
+    public string MoodlesState { get; init; } = string.Empty;
 
     public bool ApplyData(RemotePlayerData ctx)
     {
         // Always cache
-        var existing = ctx.HonorificData;
-        ctx.HonorificData = this;
+        var existing = ctx.MoodlesData;
+        ctx.MoodlesData = this;
 
         if (ctx.Player == null)
-            return false;
+            return false; // do not log
 
-        var current = PsuPlugin.HonorificService.GetCharacterTitle(ctx.Player.ObjectIndex);
+        var current = PsuPlugin.MoodlesService.GetStatusManager(ctx.Player.Address);
         var changed = existing == null
-                      || !string.Equals(existing.Title, Title, StringComparison.Ordinal)
-                      || !string.Equals(current, Title, StringComparison.Ordinal);
+                      || !string.Equals(existing.MoodlesState, MoodlesState, StringComparison.Ordinal)
+                      || !string.Equals(current, MoodlesState, StringComparison.Ordinal);
         if (!changed)
             return false;
 
-        if (!string.IsNullOrEmpty(Title) && !string.Equals(current, Title, StringComparison.Ordinal))
+        if (!string.IsNullOrEmpty(MoodlesState) && !string.Equals(current, MoodlesState, StringComparison.Ordinal))
         {
-            PsuPlugin.HonorificService.SetCharacterTitle(ctx.Player.ObjectIndex, Title);
+            PsuPlugin.MoodlesService.SetStatusManager(ctx.Player.Address, MoodlesState);
             return true;
         }
 

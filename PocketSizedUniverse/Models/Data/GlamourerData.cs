@@ -1,4 +1,3 @@
-using Newtonsoft.Json.Linq;
 using PocketSizedUniverse.Interfaces;
 
 namespace PocketSizedUniverse.Models.Data;
@@ -34,9 +33,28 @@ public class GlamourerData : IDataFile
         return obj.Id.GetHashCode();
     }
 
-    public string GlamState { get; init; }
+    public string GlamState { get; init; } = string.Empty;
     public DateTime LastUpdatedUtc { get; set; } = DateTime.MinValue;
 
     public Guid Id { get; set; } = Guid.NewGuid();
     public string GetPath(string basePath) => Path.Combine(basePath, Filename);
+
+    public bool ApplyData(RemotePlayerData ctx)
+    {
+        if (ctx.Player == null)
+            return false; // no logging to avoid spam
+        var current = PsuPlugin.GlamourerService.GetStateBase64.Invoke(ctx.Player.ObjectIndex, ctx.LockKey).Item2;
+        var changed = ctx.GlamourerData == null
+                      || !string.Equals(ctx.GlamourerData.GlamState, GlamState, StringComparison.Ordinal)
+                      || !string.Equals(current, GlamState, StringComparison.Ordinal);
+        if (!changed)
+            return false;
+
+        // Cache new state always
+        ctx.GlamourerData = this;
+
+
+        PsuPlugin.GlamourerService.ApplyState.Invoke(GlamState, ctx.Player.ObjectIndex, ctx.LockKey);
+        return true;
+    }
 }

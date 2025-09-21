@@ -58,15 +58,17 @@ public abstract class PlayerData(StarPack starPack)
 
     public abstract IPlayerCharacter? Player { get; set; }
 
-    public BasicData? Data { get; protected set; }
+    public BasicData? Data { get; set; }
 
-    public PenumbraData? PenumbraData { get; protected set; }
+    public PenumbraData? PenumbraData { get; set; }
 
-    public GlamourerData? GlamourerData { get; protected set; }
+    public GlamourerData? GlamourerData { get; set; }
 
-    public CustomizeData? CustomizeData { get; protected set; }
+    public CustomizeData? CustomizeData { get; set; }
 
-    public HonorificData? HonorificData { get; protected set; }
+    public HonorificData? HonorificData { get; set; }
+
+    public MoodlesData? MoodlesData { get; set; }
 
     public StarPack StarPackReference { get; private set; } = starPack;
 }

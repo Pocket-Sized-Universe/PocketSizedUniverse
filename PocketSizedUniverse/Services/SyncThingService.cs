@@ -12,7 +12,7 @@ using Connection = Syncthing.Http.Connection;
 
 namespace PocketSizedUniverse.Services;
 
-public class SyncThingService : ICache
+public class SyncThingService : ICache, IDisposable
 {
     public ConcurrentDictionary<string, Star> Stars { get; } = new();
     public ConcurrentDictionary<Guid, DataPack> DataPacks { get; } = new();
@@ -106,23 +106,23 @@ public class SyncThingService : ICache
     {
         if (!Stars.TryGetValue(starId, out var existingStar))
         {
-            Svc.Log.Information($"[DEBUG] Creating new Star: {starId}");
+            Svc.Log.Debug($"[DEBUG] Creating new Star: {starId}");
             var star = new Star()
             {
                 StarId = starId,
                 AutoAcceptFolders = false,
             };
 
-            Svc.Log.Information(
+            Svc.Log.Debug(
                 $"[DEBUG] Star object created - StarId: {star.StarId}, Name: {star.Name}, AutoAcceptFolders: {star.AutoAcceptFolders}");
 
             Stars.AddOrUpdate(starId, star, (_, _) => star);
-            Svc.Log.Information($"[DEBUG] Star added to cache. Cache now contains {Stars.Count} stars");
+            Svc.Log.Debug($"[DEBUG] Star added to cache. Cache now contains {Stars.Count} stars");
 
             try
             {
                 await PostNewStar(star);
-                Svc.Log.Information($"[DEBUG] Successfully posted Star to SyncThing API: {starId}");
+                Svc.Log.Debug($"[DEBUG] Successfully posted Star to SyncThing API: {starId}");
             }
             catch (Exception ex)
             {
@@ -133,7 +133,7 @@ public class SyncThingService : ICache
             return star;
         }
 
-        Svc.Log.Information($"[DEBUG] Star already exists in cache: {starId}");
+        Svc.Log.Debug($"[DEBUG] Star already exists in cache: {starId}");
         return existingStar;
     }
 
@@ -148,23 +148,23 @@ public class SyncThingService : ICache
     private async Task EnsurePairedStarsExist()
     {
         var effectivePairs = GetEffectivePairs().ToList();
-        Svc.Log.Information($"[DEBUG] Checking {effectivePairs.Count} configured StarPacks for missing Stars...");
-        Svc.Log.Information($"[DEBUG] Current Stars in cache: {Stars.Count} - [{string.Join(", ", Stars.Keys)}]");
+        Svc.Log.Debug($"[DEBUG] Checking {effectivePairs.Count} configured StarPacks for missing Stars...");
+        Svc.Log.Debug($"[DEBUG] Current Stars in cache: {Stars.Count} - [{string.Join(", ", Stars.Keys)}]");
 
         foreach (var starPack in PsuPlugin.Configuration.StarPacks)
         {
-            Svc.Log.Information(
+            Svc.Log.Debug(
                 $"[DEBUG] Checking StarPack - StarId: {starPack.StarId}, DataPackId: {starPack.DataPackId}");
 
             if (!Stars.ContainsKey(starPack.StarId))
             {
-                Svc.Log.Information($"[DEBUG] Star {starPack.StarId} not found in cache - adding to SyncThing");
+                Svc.Log.Debug($"[DEBUG] Star {starPack.StarId} not found in cache - adding to SyncThing");
                 await EnsureStarInCache(starPack.StarId);
-                Svc.Log.Information($"[DEBUG] After adding: Stars in cache: {Stars.Count}");
+                Svc.Log.Debug($"[DEBUG] After adding: Stars in cache: {Stars.Count}");
             }
             else
             {
-                Svc.Log.Information($"[DEBUG] Star {starPack.StarId} already exists in cache");
+                Svc.Log.Debug($"[DEBUG] Star {starPack.StarId} already exists in cache");
             }
         }
     }
@@ -177,7 +177,7 @@ public class SyncThingService : ICache
             return;
         }
 
-        Svc.Log.Information(
+        Svc.Log.Debug(
             $"[DEBUG] MyStarPack - StarId: {PsuPlugin.Configuration.MyStarPack.StarId}, DataPackId: {PsuPlugin.Configuration.MyStarPack.DataPackId}");
 
         var myDataPack = PsuPlugin.Configuration.MyStarPack.GetDataPack();
@@ -187,15 +187,15 @@ public class SyncThingService : ICache
             return;
         }
 
-        Svc.Log.Information(
+        Svc.Log.Debug(
             $"[DEBUG] MyDataPack - Id: {myDataPack.Id}, Type: {myDataPack.Type}, Path: {myDataPack.Path}");
-        Svc.Log.Information($"[DEBUG] MyDataPack current Stars count: {myDataPack.Stars?.Count ?? 0}");
+        Svc.Log.Debug($"[DEBUG] MyDataPack current Stars count: {myDataPack.Stars?.Count ?? 0}");
 
         if (myDataPack.Stars != null)
         {
             foreach (var existingStar in myDataPack.Stars)
             {
-                Svc.Log.Information($"[DEBUG] MyDataPack existing Star: {existingStar.StarId}");
+                Svc.Log.Debug($"[DEBUG] MyDataPack existing Star: {existingStar.StarId}");
             }
         }
 
@@ -203,57 +203,57 @@ public class SyncThingService : ICache
         myDataPack.Stars ??= new List<Star>();
 
         var effectivePairs = GetEffectivePairs().ToList();
-        Svc.Log.Information($"[DEBUG] Processing {effectivePairs.Count} configured StarPacks...");
+        Svc.Log.Debug($"[DEBUG] Processing {effectivePairs.Count} configured StarPacks...");
 
 // Add all paired stars that exist in the API to the local DataPack
         foreach (var starPack in effectivePairs)
         {
-            Svc.Log.Information(
+            Svc.Log.Debug(
                 $"[DEBUG] Processing StarPack - StarId: {starPack.StarId}, DataPackId: {starPack.DataPackId}");
 
             if (Stars.TryGetValue(starPack.StarId, out var star))
             {
-                Svc.Log.Information(
+                Svc.Log.Debug(
                     $"[DEBUG] Found Star in cache - StarId: {star.StarId}, Name: {star.Name ?? "<null>"}, AutoAcceptFolders: {star.AutoAcceptFolders}");
 
                 if (myDataPack.Stars.All(s => s.StarId != star.StarId))
                 {
                     myDataPack.Stars.Add(star);
                     modified = true;
-                    Svc.Log.Information($"[DEBUG] Added Star to MyDataPack: {star.StarId}");
+                    Svc.Log.Debug($"[DEBUG] Added Star to MyDataPack: {star.StarId}");
                 }
                 else
                 {
-                    Svc.Log.Information($"[DEBUG] Star already in MyDataPack: {star.StarId}");
+                    Svc.Log.Debug($"[DEBUG] Star already in MyDataPack: {star.StarId}");
                 }
             }
             else
             {
                 Svc.Log.Warning($"[DEBUG] Star NOT found in cache: {starPack.StarId}");
-                Svc.Log.Information($"[DEBUG] Available Stars in cache: {string.Join(", ", Stars.Keys)}");
+                Svc.Log.Debug($"[DEBUG] Available Stars in cache: {string.Join(", ", Stars.Keys)}");
             }
         }
 
         if (modified)
         {
-            Svc.Log.Information($"[DEBUG] Sending PUT request to SyncThing API for DataPack: {myDataPack.Id}");
-            Svc.Log.Information(
+            Svc.Log.Debug($"[DEBUG] Sending PUT request to SyncThing API for DataPack: {myDataPack.Id}");
+            Svc.Log.Debug(
                 $"[DEBUG] Final Stars list for MyDataPack: [{string.Join(", ", myDataPack.Stars.Select(s => s.StarId))}]");
 
             await _client!.Config.Folders.Put(myDataPack).ConfigureAwait(false);
-            Svc.Log.Information($"Updated local DataPack sharing with {myDataPack.Stars.Count} stars");
+            Svc.Log.Debug($"Updated local DataPack sharing with {myDataPack.Stars.Count} stars");
 
             // Let's also verify the update took effect by reading it back
             try
             {
                 var updatedDataPack = await _client.Config.Folders.Get(myDataPack.Id.ToString()).ConfigureAwait(false);
-                Svc.Log.Information(
+                Svc.Log.Debug(
                     $"[DEBUG] Verified - Updated DataPack has {updatedDataPack.Stars?.Count ?? 0} stars after PUT");
                 if (updatedDataPack.Stars != null)
                 {
                     foreach (var verifiedStar in updatedDataPack.Stars)
                     {
-                        Svc.Log.Information($"[DEBUG] Verified Star in DataPack: {verifiedStar.StarId}");
+                        Svc.Log.Debug($"[DEBUG] Verified Star in DataPack: {verifiedStar.StarId}");
                     }
                 }
             }
@@ -264,7 +264,7 @@ public class SyncThingService : ICache
         }
         else
         {
-            Svc.Log.Information("[DEBUG] No modifications needed - DataPack already up to date");
+            Svc.Log.Debug("[DEBUG] No modifications needed - DataPack already up to date");
         }
     }
 
@@ -298,7 +298,7 @@ public class SyncThingService : ICache
                 var matchingStarPack = effectivePairs.FirstOrDefault(sp => sp.DataPackId.ToString() == folderId);
                 if (matchingStarPack != null)
                 {
-                    Svc.Log.Information($"Found matching pending folder from paired star: {folderId}");
+                    Svc.Log.Debug($"Found matching pending folder from paired star: {folderId}");
                     await AcceptPendingFolder(folderId, pendingFolder);
                 }
                 else
@@ -320,10 +320,11 @@ public class SyncThingService : ICache
             // Only accept folders with GUID-based IDs (our plugin's format)
             if (!Guid.TryParse(folderId, out var folderGuid))
             {
-                Svc.Log.Information($"Skipping pending folder '{folderId}': Not a GUID-based ID, likely from external SyncThing instance");
+                Svc.Log.Debug(
+                    $"Skipping pending folder '{folderId}': Not a GUID-based ID, likely from external SyncThing instance");
                 return;
             }
-            
+
             // Validate base directory for remote DataPacks
             var baseDir = PsuPlugin.Configuration.DefaultDataPackDirectory;
             if (string.IsNullOrWhiteSpace(baseDir))
@@ -368,7 +369,7 @@ public class SyncThingService : ICache
         {
             try
             {
-                Svc.Log.Information("Starting HealSyncThing...");
+                Svc.Log.Debug("Starting HealSyncThing...");
 
                 // Step 1: Add all paired stars that don't exist in the API to the API
                 await EnsurePairedStarsExist();
@@ -379,7 +380,7 @@ public class SyncThingService : ICache
                 // Step 3: Accept any PendingFolder requests if their IDs match a paired star's DataPack ID
                 await AcceptMatchingPendingFolders();
 
-                Svc.Log.Information("HealSyncThing completed successfully");
+                Svc.Log.Debug("HealSyncThing completed successfully");
             }
             catch (Exception ex)
             {
@@ -393,7 +394,7 @@ public class SyncThingService : ICache
         try
         {
             await _client.Config.Stars.Post(star).ConfigureAwait(false);
-            Svc.Log.Information($"Successfully posted new star: {star.StarId}");
+            Svc.Log.Debug($"Successfully posted new star: {star.StarId}");
         }
         catch (Exception e)
         {
@@ -408,7 +409,7 @@ public class SyncThingService : ICache
             if (_client?.Config?.Folders != null)
             {
                 await _client.Config.Folders.Post(dataPack).ConfigureAwait(false);
-                Svc.Log.Information($"Successfully posted DataPack: {dataPack.Id}");
+                Svc.Log.Debug($"Successfully posted DataPack: {dataPack.Id}");
             }
             else
             {
@@ -464,7 +465,7 @@ public class SyncThingService : ICache
 
             DataPacks.AddOrUpdate(server.Id, server, (_, _) => server);
 
-            Svc.Log.Information($"Successfully updated DataPack (merged): {server.Id}");
+            Svc.Log.Debug($"Successfully updated DataPack (merged): {server.Id}");
         }
         catch (Exception e)
         {
@@ -534,7 +535,8 @@ public class SyncThingService : ICache
                         }
                         else
                         {
-                            Svc.Log.Debug($"Ignoring non-GUID folder from external SyncThing instance: {folder.IdString}");
+                            Svc.Log.Debug(
+                                $"Ignoring non-GUID folder from external SyncThing instance: {folder.IdString}");
                         }
                     }
                 }
@@ -574,5 +576,10 @@ public class SyncThingService : ICache
     public TransferRates? GetTransferRates(string starId)
     {
         return _currentRates.TryGetValue(starId, out var v) ? v : null;
+    }
+
+    public void Dispose()
+    {
+        Svc.Framework.Update -= Update;
     }
 }

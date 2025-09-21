@@ -27,6 +27,10 @@ public class PenumbraData : IDataFile
     public string MetaManipulations { get; set; } = string.Empty;
     public DateTime LastUpdatedUtc { get; set; } = DateTime.MinValue;
 
+    // Runtime-only, precomputed mapping prepared on a background thread.
+    [JsonIgnore]
+    public Dictionary<string, string>? PreparedPaths { get; set; }
+
     public bool Equals(IWriteableData? x, IWriteableData? y)
     {
         if (ReferenceEquals(x, y)) return true;
@@ -43,4 +47,88 @@ public class PenumbraData : IDataFile
 
     public Guid Id { get; set; } = Guid.NewGuid();
     public string GetPath(string basePath) => Path.Combine(basePath, Filename);
+
+    private static string CanonicalPath(string? path)
+        => (path ?? string.Empty).Replace('\\', '/').Trim();
+
+    private static bool UnorderedEqualByKey<T>(IEnumerable<T> a, IEnumerable<T> b, Func<T, string> keySelector)
+    {
+        var ak = a.Select(keySelector).OrderBy(x => x, StringComparer.Ordinal);
+        var bk = b.Select(keySelector).OrderBy(x => x, StringComparer.Ordinal);
+        return ak.SequenceEqual(bk, StringComparer.Ordinal);
+    }
+
+    public bool ApplyData(RemotePlayerData ctx)
+    {
+        // Compute change
+        bool filesEq = true;
+        bool swapsEq = true;
+        if (ctx.PenumbraData != null)
+        {
+            filesEq = UnorderedEqualByKey(ctx.PenumbraData.Files, Files, f =>
+            {
+                var b64 = Convert.ToBase64String(f.Hash);
+                var ext = (f.FileExtension ?? string.Empty).Trim().ToLowerInvariant();
+                var paths = f.ApplicableGamePaths
+                    .Where(p => !string.IsNullOrWhiteSpace(p))
+                    .Select(CanonicalPath)
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .OrderBy(p => p, StringComparer.OrdinalIgnoreCase);
+                return $"{b64}|{ext}|{string.Join(",", paths)}";
+            });
+            swapsEq = UnorderedEqualByKey(ctx.PenumbraData.FileSwaps, FileSwaps, s =>
+            {
+                var gp = CanonicalPath(s.GamePath).ToLowerInvariant();
+                var rp = CanonicalPath(s.RealPath).ToLowerInvariant();
+                return $"{gp}|{rp}";
+            });
+        }
+
+        var changed = ctx.PenumbraData == null
+                      || !string.Equals(ctx.PenumbraData.MetaManipulations, MetaManipulations, StringComparison.Ordinal)
+                      || !filesEq
+                      || !swapsEq
+                      || ctx.AssignedCollectionId == null;
+        if (!changed)
+            return false;
+
+        // Cache new state always
+        ctx.PenumbraData = this;
+        if (ctx.Player == null)
+            return false; // stash only
+
+        // Ensure collection
+        if (ctx.AssignedCollectionId == null)
+        {
+            PsuPlugin.PenumbraService.CreateTemporaryCollection.Invoke(
+                "PocketSizedUniverse", "PSU_" + Id, out var newColl);
+            ctx.AssignedCollectionId = newColl;
+        }
+
+        var collectionId = ctx.AssignedCollectionId!.Value;
+
+        // Meta manipulations
+        var metaModName = $"PSU_Meta_{Id}";
+        PsuPlugin.PenumbraService.RemoveTemporaryMod.Invoke(metaModName, collectionId, 0);
+        if (!string.IsNullOrEmpty(MetaManipulations))
+        {
+            PsuPlugin.PenumbraService.AddTemporaryMod.Invoke(
+                metaModName, collectionId, new Dictionary<string, string>(), MetaManipulations, 0);
+        }
+
+        // File redirects and swaps (precomputed; no disk IO on main thread)
+        var paths = PreparedPaths ?? new Dictionary<string, string>();
+
+        var fileModName = $"PSU_File_{Id}";
+        PsuPlugin.PenumbraService.RemoveTemporaryMod.Invoke(fileModName, collectionId, 0);
+        if (paths.Count > 0)
+        {
+            PsuPlugin.PenumbraService.AddTemporaryMod.Invoke(fileModName, collectionId, paths,
+                string.Empty, 0);
+        }
+
+        PsuPlugin.PenumbraService.AssignTemporaryCollection.Invoke(collectionId, ctx.Player.ObjectIndex);
+        PsuPlugin.PenumbraService.RedrawObject.Invoke(ctx.Player.ObjectIndex);
+        return true;
+    }
 }

@@ -20,6 +20,7 @@ public class PenumbraService
         SetTemporaryModSettings = new SetTemporaryModSettings(Svc.PluginInterface);
         RemoveTemporaryMod = new RemoveTemporaryMod(Svc.PluginInterface);
         GetGameObjectResourcePaths = new GetGameObjectResourcePaths(Svc.PluginInterface);
+        DeleteTemporaryCollection = new DeleteTemporaryCollection(Svc.PluginInterface);
     }
     public GetModDirectory GetModDirectory { get; }
     public CreateTemporaryCollection CreateTemporaryCollection { get; }
@@ -33,4 +34,5 @@ public class PenumbraService
     public SetTemporaryModSettings SetTemporaryModSettings { get; }
     public RemoveTemporaryMod RemoveTemporaryMod { get; }
     public GetGameObjectResourcePaths GetGameObjectResourcePaths { get; }
+    public DeleteTemporaryCollection DeleteTemporaryCollection { get; }
 }
