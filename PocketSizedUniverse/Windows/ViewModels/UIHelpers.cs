@@ -23,6 +23,9 @@ public static class UIHelpers
         ImGui.PopStyleColor();
     }
 
+    public static uint Color(byte r, byte g, byte b, byte a)
+    { uint ret = a; ret <<= 8; ret += b; ret <<= 8; ret += g; ret <<= 8; ret += r; return ret; }
+
     // Online/Offline helpers based on live connections
     public static string GetOnlineText(bool online, bool paused)
         => paused ? "Paused" : (online ? "Online" : "Offline");

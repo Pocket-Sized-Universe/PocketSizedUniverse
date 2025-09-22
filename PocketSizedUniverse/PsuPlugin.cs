@@ -23,6 +23,7 @@ public class PsuPlugin : IDalamudPlugin
     public static WindowSystem WindowSystem;
     public static MainWindow MainWindow;
     public static SetupWindow SetupWindow;
+    public static ProgressWindow ProgressWindow;
     public static SyncThingService SyncThingService;
     public static MoodlesService MoodlesService;
     public static PlayerDataService PlayerDataService;
@@ -51,8 +52,10 @@ public class PsuPlugin : IDalamudPlugin
         WindowSystem = new WindowSystem();
         MainWindow = new MainWindow();
         SetupWindow = new SetupWindow();
+        ProgressWindow = new ProgressWindow();
         WindowSystem.AddWindow(MainWindow);
         WindowSystem.AddWindow(SetupWindow);
+        WindowSystem.AddWindow(ProgressWindow);
         
         if (!Configuration.SetupComplete)
         {
