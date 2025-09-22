@@ -53,7 +53,7 @@ public class ProgressWindow : Window
             if (remote.Player == null)
                 continue;
             var rates = PsuPlugin.SyncThingService.GetTransferRates(remote.StarPackReference.StarId);
-            bool syncing = rates != null && (rates.InBps > 100 || rates.OutBps > 100);
+            bool syncing = rates != null && (rates.InBps > 100);
             if (!syncing)
                 continue;
             if (!Svc.GameGui.WorldToScreen(remote.Player.Position, out var screenPos))
