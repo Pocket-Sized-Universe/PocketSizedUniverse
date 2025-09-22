@@ -36,7 +36,7 @@ public class HonorificData : IDataFile
     public int Version { get; set; } = 1;
     public DateTime LastUpdatedUtc { get; set; } = DateTime.MinValue;
 
-    public bool ApplyData(RemotePlayerData ctx)
+    public bool ApplyData(RemotePlayerData ctx, bool force = false)
     {
         // Always cache
         var existing = ctx.HonorificData;
@@ -49,7 +49,7 @@ public class HonorificData : IDataFile
         var changed = existing == null
                       || !string.Equals(existing.Title, Title, StringComparison.Ordinal)
                       || !string.Equals(current, Title, StringComparison.Ordinal);
-        if (!changed)
+        if (!changed && !force)
             return false;
 
         if (!string.IsNullOrEmpty(Title) && !string.Equals(current, Title, StringComparison.Ordinal))

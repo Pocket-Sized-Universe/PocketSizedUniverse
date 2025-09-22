@@ -36,7 +36,7 @@ public class CustomizeData : IDataFile
     public int Version { get; set; } = 1;
     public DateTime LastUpdatedUtc { get; set; } = DateTime.MinValue;
 
-    public bool ApplyData(RemotePlayerData ctx)
+    public bool ApplyData(RemotePlayerData ctx, bool force = false)
     {
         // Always cache
         ctx.CustomizeData = this;
@@ -51,6 +51,8 @@ public class CustomizeData : IDataFile
         var changed = ctx.CustomizeData == null
             || !string.Equals(ctx.CustomizeData.CustomizeState, CustomizeState, StringComparison.Ordinal)
                 || !string.Equals(currentProfile.Item2, CustomizeState, StringComparison.Ordinal);
+        if (!changed && !force)
+            return false;
         if (ctx.AssignedCustomizeProfileId == null && !string.IsNullOrEmpty(CustomizeState))
         {
             var apply = PsuPlugin.CustomizeService

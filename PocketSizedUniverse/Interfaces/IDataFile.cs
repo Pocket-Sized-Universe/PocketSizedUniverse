@@ -11,5 +11,5 @@ public interface IDataFile : IWriteableData
     // Apply the data to the provided remote player context.
     // Must be invoked on the Dalamud framework thread.
     // Returns true if an in-game change was applied.
-    public bool ApplyData(RemotePlayerData ctx);
+    public bool ApplyData(RemotePlayerData ctx, bool force = false);
 }

@@ -39,7 +39,7 @@ public class GlamourerData : IDataFile
     public Guid Id { get; set; } = Guid.NewGuid();
     public string GetPath(string basePath) => Path.Combine(basePath, Filename);
 
-    public bool ApplyData(RemotePlayerData ctx)
+    public bool ApplyData(RemotePlayerData ctx, bool force = false)
     {
         if (ctx.Player == null)
             return false; // no logging to avoid spam
@@ -47,7 +47,7 @@ public class GlamourerData : IDataFile
         var changed = ctx.GlamourerData == null
                       || !string.Equals(ctx.GlamourerData.GlamState, GlamState, StringComparison.Ordinal)
                       || !string.Equals(current, GlamState, StringComparison.Ordinal);
-        if (!changed)
+        if (!changed && !force)
             return false;
 
         // Cache new state always

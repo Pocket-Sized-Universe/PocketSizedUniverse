@@ -36,7 +36,7 @@ public class MoodlesData : IDataFile
     public DateTime LastUpdatedUtc { get; set; } = DateTime.MinValue;
     public string MoodlesState { get; init; } = string.Empty;
 
-    public bool ApplyData(RemotePlayerData ctx)
+    public bool ApplyData(RemotePlayerData ctx, bool force = false)
     {
         // Always cache
         var existing = ctx.MoodlesData;
@@ -49,7 +49,7 @@ public class MoodlesData : IDataFile
         var changed = existing == null
                       || !string.Equals(existing.MoodlesState, MoodlesState, StringComparison.Ordinal)
                       || !string.Equals(current, MoodlesState, StringComparison.Ordinal);
-        if (!changed)
+        if (!changed && !force)
             return false;
 
         if (!string.IsNullOrEmpty(MoodlesState) && !string.Equals(current, MoodlesState, StringComparison.Ordinal))

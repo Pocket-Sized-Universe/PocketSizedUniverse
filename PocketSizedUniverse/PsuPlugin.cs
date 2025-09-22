@@ -27,6 +27,7 @@ public class PsuPlugin : IDalamudPlugin
     public static SyncThingService SyncThingService;
     public static MoodlesService MoodlesService;
     public static PlayerDataService PlayerDataService;
+    public static ContextMenuService ContextMenuService;
     public static SyncThingProcess? ServerProcess;
     private Task _serverRunTask;
     public PsuPlugin(IDalamudPluginInterface dalamudPluginInterface)
@@ -48,6 +49,8 @@ public class PsuPlugin : IDalamudPlugin
         SyncThingService = new SyncThingService();
 
         PlayerDataService = new PlayerDataService();
+
+        ContextMenuService = new ContextMenuService();
 
         WindowSystem = new WindowSystem();
         MainWindow = new MainWindow();

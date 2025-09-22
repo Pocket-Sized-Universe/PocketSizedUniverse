@@ -58,7 +58,7 @@ public class PenumbraData : IDataFile
         return ak.SequenceEqual(bk, StringComparer.Ordinal);
     }
 
-    public bool ApplyData(RemotePlayerData ctx)
+    public bool ApplyData(RemotePlayerData ctx, bool force = false)
     {
         // Compute change
         bool filesEq = true;
@@ -89,7 +89,7 @@ public class PenumbraData : IDataFile
                       || !filesEq
                       || !swapsEq
                       || ctx.AssignedCollectionId == null;
-        if (!changed)
+        if (!changed && !force)
             return false;
 
         // Cache new state always
