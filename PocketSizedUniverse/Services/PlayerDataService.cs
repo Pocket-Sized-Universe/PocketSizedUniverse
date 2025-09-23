@@ -46,7 +46,7 @@ public class PlayerDataService : IUpdatable, IDisposable
         Svc.Framework.Update += Update;
         Svc.ClientState.Login += OnLogin;
         Svc.ClientState.Logout += OnLogout;
-        StateChanged.Subscriber(Svc.PluginInterface, OnGlamourerStateChanged).Enable();
+        //StateChanged.Subscriber(Svc.PluginInterface, OnGlamourerStateChanged).Enable();
         //GameObjectRedrawn.Subscriber(Svc.PluginInterface, OnRedraw).Enable();
         //GameObjectResourcePathResolved.Subscriber(Svc.PluginInterface, OnObjectPathResolved).Enable();
         if (Svc.ClientState.IsLoggedIn)
