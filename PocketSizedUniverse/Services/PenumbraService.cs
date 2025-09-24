@@ -21,7 +21,11 @@ public class PenumbraService
         RemoveTemporaryMod = new RemoveTemporaryMod(Svc.PluginInterface);
         GetGameObjectResourcePaths = new GetGameObjectResourcePaths(Svc.PluginInterface);
         DeleteTemporaryCollection = new DeleteTemporaryCollection(Svc.PluginInterface);
+        GetModList = new GetModList(Svc.PluginInterface);
+        GetChangedItems = new GetChangedItems(Svc.PluginInterface);
     }
+    public GetChangedItems GetChangedItems { get; }
+    public GetModList GetModList { get; }
     public GetModDirectory GetModDirectory { get; }
     public CreateTemporaryCollection CreateTemporaryCollection { get; }
     public AssignTemporaryCollection AssignTemporaryCollection { get; }

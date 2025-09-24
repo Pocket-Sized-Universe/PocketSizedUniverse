@@ -4,6 +4,7 @@ using Dalamud.Bindings.ImGui;
 using Dalamud.Interface.ImGuiFileDialog;
 using ECommons.Configuration;
 using ECommons.DalamudServices;
+using OtterGui;
 using PocketSizedUniverse.Models;
 using PocketSizedUniverse.Models.Data;
 
@@ -24,10 +25,7 @@ public partial class MainWindow
 
         DrawGeneralSettings();
 
-        // Future settings sections can be added here:
-        // DrawNetworkingSettings();
-        // DrawUISettings();
-        // DrawAdvancedSettings();
+        DrawTransientDataSettings();
 
         // Handle file dialogs
         _settingsFileDialogManager.Draw();
@@ -36,6 +34,19 @@ public partial class MainWindow
         if (_settingsChanged)
         {
             EzConfig.Save();
+        }
+    }
+
+    private void DrawTransientDataSettings()
+    {
+        if (ImGui.CollapsingHeader("Transient Data", ImGuiTreeNodeFlags.DefaultOpen))
+        {
+            if (ImGui.Button("Clear Transient Data"))
+            {
+                PsuPlugin.Configuration.TransientFiles.Clear();
+                EzConfig.Save();
+            }
+            ImGuiUtil.HoverTooltip("Click this button if things like VFX and animations are acting weird.");
         }
     }
 

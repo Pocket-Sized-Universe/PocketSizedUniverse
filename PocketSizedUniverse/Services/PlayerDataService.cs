@@ -48,7 +48,7 @@ public class PlayerDataService : IUpdatable, IDisposable
         Svc.ClientState.Logout += OnLogout;
         //StateChanged.Subscriber(Svc.PluginInterface, OnGlamourerStateChanged).Enable();
         //GameObjectRedrawn.Subscriber(Svc.PluginInterface, OnRedraw).Enable();
-        //GameObjectResourcePathResolved.Subscriber(Svc.PluginInterface, OnObjectPathResolved).Enable();
+        GameObjectResourcePathResolved.Subscriber(Svc.PluginInterface, OnObjectPathResolved).Enable();
         if (Svc.ClientState.IsLoggedIn)
             OnLogin();
     }
@@ -203,7 +203,25 @@ public class PlayerDataService : IUpdatable, IDisposable
                                 }
                             }
 
+                            foreach (var customFile in newPenumbra.TransientFiles)
+                            {
+                                var localFilePath = customFile.GetPath(filesPath);
+                                if (!File.Exists(localFilePath))
+                                    continue;
+                                foreach (var gamePath in customFile.ApplicableGamePaths)
+                                {
+                                    if (string.IsNullOrWhiteSpace(gamePath)) continue;
+                                    paths[gamePath] = localFilePath;
+                                }
+                            }
+
                             foreach (var swap in newPenumbra.FileSwaps)
+                            {
+                                if (swap.GamePath != null)
+                                    paths[swap.GamePath] = swap.RealPath;
+                            }
+
+                            foreach (var swap in newPenumbra.TransientFileSwaps)
                             {
                                 if (swap.GamePath != null)
                                     paths[swap.GamePath] = swap.RealPath;
@@ -311,33 +329,13 @@ public class PlayerDataService : IUpdatable, IDisposable
         }
     }
 
-    private void OnGlamourerStateChanged(IntPtr objPointer)
+    private void OnObjectPathResolved(nint gameObject, string gamePath, string localPath)
     {
-        var obj = Svc.Objects.CreateObjectReference(objPointer);
-        if (obj == null)
+        var realLocalPath = localPath.Split('|').Last();
+        if (LocalPlayerData?.Player?.Address == gameObject)
         {
-            Svc.Log.Debug("Glamourer changed object not in object table");
-            return;
+            LocalPlayerData.UpdateTransientData(gamePath, realLocalPath);
         }
-
-        if (Player.Object.Address != obj.Address)
-        {
-            Svc.Log.Debug("Glamourer changed object not for local player");
-            return;
-        }
-
-        Svc.Log.Debug("Glamourer state changed");
-        if (LocalPlayerData is null)
-        {
-            Svc.Log.Warning("Glamourer state trigger with no local player data.");
-            return;
-        }
-
-        if (!Svc.ClientState.IsLoggedIn || Svc.ClientState.LocalPlayer == null ||
-            Svc.ClientState.LocalPlayer.Address == IntPtr.Zero || PsuPlugin.Configuration.MyStarPack == null)
-            return;
-        LocalPlayerData.Player = Svc.ClientState.LocalPlayer;
-        Task.Run(LocalPlayerData.UpdateGlamData);
     }
 
     public void Dispose()
@@ -346,7 +344,7 @@ public class PlayerDataService : IUpdatable, IDisposable
         Svc.ClientState.Login -= OnLogin;
         Svc.ClientState.Logout -= OnLogout;
         //StateChanged.Subscriber(Svc.PluginInterface, OnGlamourerStateChanged).Disable();
-        //GameObjectResourcePathResolved.Subscriber(Svc.PluginInterface, OnObjectPathResolved).Disable();
+        GameObjectResourcePathResolved.Subscriber(Svc.PluginInterface, OnObjectPathResolved).Disable();
     }
 
     private void OnLogin()

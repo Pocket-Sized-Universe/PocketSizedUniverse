@@ -24,6 +24,8 @@ public class PenumbraData : IDataFile
     // Aggregated, per-character Penumbra state (matching Mare's model)
     public List<CustomRedirect> Files { get; set; } = new();
     public List<AssetSwap> FileSwaps { get; set; } = new();
+    public List<CustomRedirect> TransientFiles { get; set; } = new();
+    public List<AssetSwap> TransientFileSwaps { get; set; } = new();
     public string MetaManipulations { get; set; } = string.Empty;
     public DateTime LastUpdatedUtc { get; set; } = DateTime.MinValue;
 
@@ -63,6 +65,8 @@ public class PenumbraData : IDataFile
         // Compute change
         bool filesEq = true;
         bool swapsEq = true;
+        bool transientFilesEq = true;
+        bool transientSwapsEq = true;
         if (ctx.PenumbraData != null)
         {
             filesEq = UnorderedEqualByKey(ctx.PenumbraData.Files, Files, f =>
@@ -82,12 +86,31 @@ public class PenumbraData : IDataFile
                 var rp = CanonicalPath(s.RealPath).ToLowerInvariant();
                 return $"{gp}|{rp}";
             });
+            transientFilesEq = UnorderedEqualByKey(ctx.PenumbraData.TransientFiles, TransientFiles, f =>
+            {
+                var b64 = Convert.ToBase64String(f.Hash);
+                var ext = (f.FileExtension ?? string.Empty).Trim().ToLowerInvariant();
+                var paths = f.ApplicableGamePaths
+                    .Where(p => !string.IsNullOrWhiteSpace(p))
+                    .Select(CanonicalPath)
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .OrderBy(p => p, StringComparer.OrdinalIgnoreCase);
+                return $"{b64}|{ext}|{string.Join(",", paths)}";
+            });
+            transientSwapsEq = UnorderedEqualByKey(ctx.PenumbraData.TransientFileSwaps, TransientFileSwaps, s =>
+            {
+                var gp = CanonicalPath(s.GamePath).ToLowerInvariant();
+                var rp = CanonicalPath(s.RealPath).ToLowerInvariant();
+                return $"{gp}|{rp}";
+            });
         }
 
         var changed = ctx.PenumbraData == null
                       || !string.Equals(ctx.PenumbraData.MetaManipulations, MetaManipulations, StringComparison.Ordinal)
                       || !filesEq
                       || !swapsEq
+                      || !transientFilesEq
+                      || !transientSwapsEq
                       || ctx.AssignedCollectionId == null;
         if (!changed && !force)
             return false;
@@ -100,6 +123,13 @@ public class PenumbraData : IDataFile
         // Ensure collection
         if (ctx.AssignedCollectionId == null)
         {
+            PsuPlugin.PenumbraService.CreateTemporaryCollection.Invoke(
+                "PocketSizedUniverse", "PSU_" + Id, out var newColl);
+            ctx.AssignedCollectionId = newColl;
+        }
+        else
+        {
+            PsuPlugin.PenumbraService.DeleteTemporaryCollection.Invoke(ctx.AssignedCollectionId.Value);
             PsuPlugin.PenumbraService.CreateTemporaryCollection.Invoke(
                 "PocketSizedUniverse", "PSU_" + Id, out var newColl);
             ctx.AssignedCollectionId = newColl;

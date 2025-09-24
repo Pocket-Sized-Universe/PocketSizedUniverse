@@ -14,4 +14,5 @@ public class Configuration
     public StarPack? MyStarPack { get; set; }
     public List<StarPack> StarPacks { get; set; } = new();
     public List<StarPack> Blocklist { get; set; } = new();
+    public Dictionary<string, (string GamePath, string RealPath)> TransientFiles { get; set; } = new();
 }

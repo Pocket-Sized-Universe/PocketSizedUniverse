@@ -3,6 +3,7 @@ using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading;
 using Dalamud.Game.ClientState.Objects.SubKinds;
+using ECommons.Configuration;
 using ECommons.DalamudServices;
 using ECommons.GameFunctions;
 using PocketSizedUniverse.Models.Mods;
@@ -26,6 +27,8 @@ public class LocalPlayerData : PlayerData
     private CancellationTokenSource? _penumbraCts;
     private Task? _penumbraJob;
     private int _penumbraGen;
+
+    private readonly Lock _transientLock = new();
 
     private async Task WriteText(string path, string content)
     {
@@ -215,8 +218,28 @@ public class LocalPlayerData : PlayerData
         string DataPath,
         string MetaManipulations,
         IReadOnlyDictionary<string, IReadOnlyList<string>> ResourcePaths,
-        IReadOnlyList<(string GamePath, string RealPath)> Swaps
+        IReadOnlyList<(string GamePath, string RealPath)> Swaps,
+        IReadOnlyDictionary<string, IReadOnlyList<string>> TransientResourcePaths,
+        IReadOnlyList<(string GamePath, string RealPath)> TransientSwaps
     );
+
+    public void UpdateTransientData(string gamePath, string realPath)
+    {
+        if (Player == null)
+            return;
+        var ext = Path.GetExtension(realPath);
+        if (AllowedFileExtensions.IsAllowed(gamePath, ext))
+        {
+            lock (_transientLock)
+            {
+                var normalizedGamePath = NormalizePenumbraPath(gamePath)!;
+                var normalizedRealPath = NormalizePenumbraPath(realPath)!;
+                var key = $"{normalizedGamePath}|{normalizedRealPath}";
+                
+                PsuPlugin.Configuration.TransientFiles[key] = (normalizedGamePath, normalizedRealPath);
+            }
+        }
+    }
 
     public void UpdatePenumbraData()
     {
@@ -272,13 +295,37 @@ public class LocalPlayerData : PlayerData
             }
         }
 
+        // Capture transient data for processing
+        Dictionary<string, IReadOnlyList<string>> transientResourcePaths;
+        List<(string GamePath, string RealPath)> transientSwaps;
+        lock (_transientLock)
+        {
+            // Group transient files that exist on disk by their real path
+            transientResourcePaths = PsuPlugin.Configuration.TransientFiles
+                .Where(kvp => File.Exists(kvp.Value.RealPath))
+                .GroupBy(kvp => kvp.Value.RealPath, StringComparer.OrdinalIgnoreCase)
+                .ToDictionary(
+                    g => g.Key,
+                    g => (IReadOnlyList<string>)g.Select(kvp => kvp.Value.GamePath).Distinct(StringComparer.OrdinalIgnoreCase).ToList(),
+                    StringComparer.OrdinalIgnoreCase
+                );
+            
+            // Transient swaps for files that don't exist on disk (reference other game assets)
+            transientSwaps = PsuPlugin.Configuration.TransientFiles
+                .Where(kvp => !File.Exists(kvp.Value.RealPath))
+                .Select(kvp => (kvp.Value.GamePath, kvp.Value.RealPath))
+                .ToList();
+        }
+
         var snapshot = new PenumbraComputeSnapshot(
             Player.ObjectIndex,
             filesPath,
             dataPath,
             manips,
             resourcePaths,
-            swaps
+            swaps,
+            transientResourcePaths,
+            transientSwaps
         );
 
         // Phase B: coalesce and run heavy compute off-thread
@@ -303,7 +350,9 @@ public class LocalPlayerData : PlayerData
                     || !string.Equals(PenumbraData.MetaManipulations, result.MetaManipulations,
                         StringComparison.Ordinal)
                     || !UnorderedEqualByKey(PenumbraData.Files, result.Files, FileKey)
-                    || !UnorderedEqualByKey(PenumbraData.FileSwaps, result.FileSwaps, SwapKey);
+                    || !UnorderedEqualByKey(PenumbraData.FileSwaps, result.FileSwaps, SwapKey)
+                    || !UnorderedEqualByKey(PenumbraData.TransientFiles, result.TransientFiles, FileKey)
+                    || !UnorderedEqualByKey(PenumbraData.TransientFileSwaps, result.TransientFileSwaps, SwapKey);
 
                 if (!changed)
                     return;
@@ -313,6 +362,7 @@ public class LocalPlayerData : PlayerData
                 var encoded = Base64Util.ToBase64(PenumbraData);
                 await WriteText(penumbraLoc, encoded);
                 Svc.Log.Debug("Updated penumbra data on disk.");
+                EzConfig.Save();
             }
             catch (OperationCanceledException)
             {
@@ -326,6 +376,7 @@ public class LocalPlayerData : PlayerData
 
     private static async Task<PenumbraData> ComputePenumbraAsync(PenumbraComputeSnapshot s, CancellationToken ct)
     {
+        // Process static files
         var files = new List<CustomRedirect>();
         foreach (var kv in s.ResourcePaths)
         {
@@ -364,7 +415,50 @@ public class LocalPlayerData : PlayerData
             }
         }
 
+        // Process transient files
+        var transientFiles = new List<CustomRedirect>();
+        foreach (var kv in s.TransientResourcePaths)
+        {
+            ct.ThrowIfCancellationRequested();
+            var localPath = kv.Key;
+            var gamePaths = kv.Value;
+            if (!File.Exists(localPath))
+                continue;
+
+            try
+            {
+                var data = await File.ReadAllBytesAsync(localPath, ct).ConfigureAwait(false);
+                using var sha256 = SHA256.Create();
+                var hash = sha256.ComputeHash(data);
+                var ext = Path.GetExtension(localPath);
+                var redirected = new CustomRedirect(hash)
+                {
+                    FileExtension = string.IsNullOrWhiteSpace(ext)
+                        ? Path.GetExtension(gamePaths.FirstOrDefault() ?? string.Empty)
+                        : ext,
+                    ApplicableGamePaths = gamePaths.ToList()
+                };
+
+                var redirectPath = redirected.GetPath(s.FilesPath);
+                if (!File.Exists(redirectPath))
+                {
+                    Directory.CreateDirectory(Path.GetDirectoryName(redirectPath)!);
+                    await File.WriteAllBytesAsync(redirectPath, data, ct).ConfigureAwait(false);
+                }
+
+                transientFiles.Add(redirected);
+            }
+            catch (Exception ex)
+            {
+                Svc.Log.Error($"Error processing transient file {localPath}: {ex.Message}");
+            }
+        }
+
         var fileSwaps = s.Swaps
+            .Select(t => new AssetSwap(t.GamePath, t.RealPath))
+            .ToList();
+
+        var transientFileSwaps = s.TransientSwaps
             .Select(t => new AssetSwap(t.GamePath, t.RealPath))
             .ToList();
 
@@ -372,6 +466,8 @@ public class LocalPlayerData : PlayerData
         {
             Files = files,
             FileSwaps = fileSwaps,
+            TransientFiles = transientFiles,
+            TransientFileSwaps = transientFileSwaps,
             MetaManipulations = s.MetaManipulations,
             LastUpdatedUtc = DateTime.UtcNow
         };

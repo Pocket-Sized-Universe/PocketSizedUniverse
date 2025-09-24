@@ -1,4 +1,5 @@
-﻿using Dalamud.Interface.Windowing;
+﻿using System.Diagnostics;
+using Dalamud.Interface.Windowing;
 using Dalamud.Plugin;
 using ECommons;
 using ECommons.Commands;
@@ -29,7 +30,6 @@ public class PsuPlugin : IDalamudPlugin
     public static PlayerDataService PlayerDataService;
     public static ContextMenuService ContextMenuService;
     public static SyncThingProcess? ServerProcess;
-    private Task _serverRunTask;
     public PsuPlugin(IDalamudPluginInterface dalamudPluginInterface)
     {
         ECommonsMain.Init(dalamudPluginInterface, this, Module.All);
@@ -128,6 +128,8 @@ public class PsuPlugin : IDalamudPlugin
     {
         if (!ServerProcess?.HasExited ?? true)
             StopServer();
+        PlayerDataService.Dispose();
+        SyncThingService.Dispose();
         ECommonsMain.Dispose();
     }
 }
