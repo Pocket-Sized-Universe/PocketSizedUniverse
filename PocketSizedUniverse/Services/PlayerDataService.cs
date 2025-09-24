@@ -36,7 +36,6 @@ public class PlayerDataService : IUpdatable, IDisposable
 
     private readonly ConcurrentDictionary<string, RemoteApplySnapshot> _pendingApplies = new();
     private readonly ConcurrentDictionary<string, byte> _readsInFlight = new();
-    private const int MaxAppliesPerTick = 1;
 
     private DateTime _applyNotBeforeUtc = DateTime.MaxValue;
     private static readonly TimeSpan LoginDelay = TimeSpan.FromSeconds(15);
@@ -261,13 +260,8 @@ public class PlayerDataService : IUpdatable, IDisposable
             }
         }
 
-        // Apply at most N snapshots per tick on main thread (avoid freeze)
-        int applied = 0;
         foreach (var kv in _pendingApplies.ToArray())
         {
-            if (applied >= MaxAppliesPerTick)
-                break;
-
             if (!_pendingApplies.TryRemove(kv.Key, out var snap))
                 continue;
 
@@ -324,8 +318,6 @@ public class PlayerDataService : IUpdatable, IDisposable
             snap.Customize.ApplyData(remote);
             snap.Honorific.ApplyData(remote);
             snap.Moodles.ApplyData(remote);
-
-            applied++;
         }
     }
 
