@@ -19,7 +19,7 @@ public class GlamourerData : IDataFile
     public int Version { get; set; } = 1;
     public static string Filename { get; } = "Glamourer.dat";
 
-    public uint Key { get; set; } = (uint)Random.Shared.Next();
+    public const uint LockKey = 8675309;
 
     public bool Equals(IWriteableData? x, IWriteableData? y)
     {
@@ -45,7 +45,7 @@ public class GlamourerData : IDataFile
     {
         if (ctx.Player == null)
             return false; // no logging to avoid spam
-        var current = PsuPlugin.GlamourerService.GetStateBase64.Invoke(ctx.Player.ObjectIndex, Key).Item2;
+        var current = PsuPlugin.GlamourerService.GetStateBase64.Invoke(ctx.Player.ObjectIndex, LockKey).Item2;
         var changed = ctx.GlamourerData == null
                       || !string.Equals(ctx.GlamourerData.GlamState, GlamState, StringComparison.Ordinal)
                       || !string.Equals(current, GlamState, StringComparison.Ordinal);
@@ -56,7 +56,7 @@ public class GlamourerData : IDataFile
         ctx.GlamourerData = this;
 
 
-        PsuPlugin.GlamourerService.ApplyState.Invoke(GlamState, ctx.Player.ObjectIndex, Key);
+        PsuPlugin.GlamourerService.ApplyState.Invoke(GlamState, ctx.Player.ObjectIndex, LockKey);
         return true;
     }
 }
