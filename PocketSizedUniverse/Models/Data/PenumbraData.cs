@@ -99,35 +99,44 @@ public class PenumbraData : IDataFile, IEquatable<PenumbraData>
 
     public (bool Applied, string Result) ApplyData(IPlayerCharacter player, params object?[] args)
     {
-        var collId = args[0] as Guid?;
-        if (collId != null)
+        try
         {
-            PsuPlugin.PenumbraService.DeleteTemporaryCollection.Invoke(collId.Value);
-        }
-        
-        PsuPlugin.PenumbraService.CreateTemporaryCollection.Invoke(
-            "PocketSizedUniverse", "PSU_" + Id, out var newColl);
-        collId = newColl;
+            var collId = args[0] as Guid?;
+            if (collId != null)
+            {
+                PsuPlugin.PenumbraService.DeleteTemporaryCollection.Invoke(collId.Value);
+            }
 
-        var metaModName = $"PSU_Meta_{Id}";
-        PsuPlugin.PenumbraService.RemoveTemporaryMod.Invoke(metaModName, collId.Value, 0);
-        if (!string.IsNullOrEmpty(MetaManipulations))
+            PsuPlugin.PenumbraService.CreateTemporaryCollection.Invoke(
+                "PocketSizedUniverse", "PSU_" + Id, out var newColl);
+            collId = newColl;
+
+            var metaModName = $"PSU_Meta_{Id}";
+            PsuPlugin.PenumbraService.RemoveTemporaryMod.Invoke(metaModName, collId.Value, 0);
+            if (!string.IsNullOrEmpty(MetaManipulations))
+            {
+                PsuPlugin.PenumbraService.AddTemporaryMod.Invoke(
+                    metaModName, collId.Value, new Dictionary<string, string>(), MetaManipulations, 0);
+            }
+
+            var paths = PreparedPaths ?? new Dictionary<string, string>();
+
+            var fileModName = $"PSU_File_{Id}";
+            PsuPlugin.PenumbraService.RemoveTemporaryMod.Invoke(fileModName, collId.Value, 0);
+            if (paths.Count > 0)
+            {
+                PsuPlugin.PenumbraService.AddTemporaryMod.Invoke(fileModName, collId.Value, paths,
+                    string.Empty, 0);
+            }
+
+            PsuPlugin.PenumbraService.AssignTemporaryCollection.Invoke(collId.Value, player.ObjectIndex);
+            PsuPlugin.PenumbraService.RedrawObject.Invoke(player.ObjectIndex);
+            return (true, collId.Value.ToString());
+        }
+        catch (Exception ex)
         {
-            PsuPlugin.PenumbraService.AddTemporaryMod.Invoke(
-                metaModName, collId.Value, new Dictionary<string, string>(), MetaManipulations, 0);
+            PsuPlugin.PlayerDataService.ReportMissingPlugin(player.Name.TextValue, "Penumbra");
+            return (false, string.Empty);
         }
-        var paths = PreparedPaths ?? new Dictionary<string, string>();
-
-        var fileModName = $"PSU_File_{Id}";
-        PsuPlugin.PenumbraService.RemoveTemporaryMod.Invoke(fileModName, collId.Value, 0);
-        if (paths.Count > 0)
-        {
-            PsuPlugin.PenumbraService.AddTemporaryMod.Invoke(fileModName, collId.Value, paths,
-                string.Empty, 0);
-        }
-
-        PsuPlugin.PenumbraService.AssignTemporaryCollection.Invoke(collId.Value, player.ObjectIndex);
-        PsuPlugin.PenumbraService.RedrawObject.Invoke(player.ObjectIndex);
-        return (true, collId.Value.ToString());
     }
 }

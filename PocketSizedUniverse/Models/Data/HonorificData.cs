@@ -31,20 +31,28 @@ public class HonorificData : IDataFile, IEquatable<HonorificData>
 
     public (bool Applied, string Result) ApplyData(IPlayerCharacter player, params object[] args)
     {
-        var current = PsuPlugin.HonorificService.GetCharacterTitle(player.ObjectIndex);
-        var changed = !string.Equals(current, Title, StringComparison.Ordinal);
-        if (!changed)
-            return (false, string.Empty);
+        try
+        {
+            var current = PsuPlugin.HonorificService.GetCharacterTitle(player.ObjectIndex);
+            var changed = !string.Equals(current, Title, StringComparison.Ordinal);
+            if (!changed)
+                return (false, string.Empty);
 
-        if (!string.IsNullOrEmpty(Title))
-        {
-            PsuPlugin.HonorificService.SetCharacterTitle(player.ObjectIndex, Title);
-            return (true, Title);
+            if (!string.IsNullOrEmpty(Title))
+            {
+                PsuPlugin.HonorificService.SetCharacterTitle(player.ObjectIndex, Title);
+                return (true, Title);
+            }
+            else
+            {
+                PsuPlugin.HonorificService.ClearCharacterTitle(player.ObjectIndex);
+                return (true, "Cleared");
+            }
         }
-        else
+        catch (Exception ex)
         {
-            PsuPlugin.HonorificService.ClearCharacterTitle(player.ObjectIndex);
-            return (true, "Cleared");
+            PsuPlugin.PlayerDataService.ReportMissingPlugin(player.Name.TextValue, "Honorific");
+            return (false, string.Empty);
         }
     }
 }

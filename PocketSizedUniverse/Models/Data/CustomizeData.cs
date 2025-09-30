@@ -32,32 +32,40 @@ public class CustomizeData : IDataFile, IEquatable<CustomizeData>
 
     public (bool Applied, string Result) ApplyData(IPlayerCharacter player, params object[] args)
     {
-        var current = PsuPlugin.CustomizeService.GetActiveProfileOnCharacter(player.ObjectIndex);
-        if (current.Item1 > 0 || current.Item2 == null || current.Item2 == Guid.Empty)
-            return (false, string.Empty);
-        var currentProfile = PsuPlugin.CustomizeService.GetCustomizeProfileByUniqueId(current.Item2.Value);
-        var changed = !string.Equals(currentProfile.Item2, CustomizeState, StringComparison.Ordinal);
-        if (!changed)
-            return (false, string.Empty);
-
-        if (!string.IsNullOrEmpty(CustomizeState))
+        try
         {
-            var apply = PsuPlugin.CustomizeService
-                .ApplyTemporaryCustomizeProfileOnCharacter(player.ObjectIndex, CustomizeState);
-            if (apply.Item1 > 0)
+            var current = PsuPlugin.CustomizeService.GetActiveProfileOnCharacter(player.ObjectIndex);
+            if (current.Item1 > 0 || current.Item2 == null || current.Item2 == Guid.Empty)
+                return (false, string.Empty);
+            var currentProfile = PsuPlugin.CustomizeService.GetCustomizeProfileByUniqueId(current.Item2.Value);
+            var changed = !string.Equals(currentProfile.Item2, CustomizeState, StringComparison.Ordinal);
+            if (!changed)
+                return (false, string.Empty);
+
+            if (!string.IsNullOrEmpty(CustomizeState))
             {
-                return (false, string.Empty);
-            }
+                var apply = PsuPlugin.CustomizeService
+                    .ApplyTemporaryCustomizeProfileOnCharacter(player.ObjectIndex, CustomizeState);
+                if (apply.Item1 > 0)
+                {
+                    return (false, string.Empty);
+                }
 
-            return (true, apply.Item2!.Value.ToString());
+                return (true, apply.Item2!.Value.ToString());
+            }
+            else
+            {
+                var remove = PsuPlugin.CustomizeService
+                    .DeleteTemporaryCustomizeProfileOnCharacter(player.ObjectIndex);
+                if (remove > 0)
+                    return (false, string.Empty);
+                return (true, string.Empty);
+            }
         }
-        else
+        catch
         {
-            var remove = PsuPlugin.CustomizeService
-                .DeleteTemporaryCustomizeProfileOnCharacter(player.ObjectIndex);
-            if (remove > 0)
-                return (false, string.Empty);
-            return (true, string.Empty);
+            PsuPlugin.PlayerDataService.ReportMissingPlugin(player.Name.TextValue, "Customize+");
+            return (false, string.Empty);
         }
     }
 }

@@ -31,20 +31,28 @@ public class MoodlesData : IDataFile, IEquatable<MoodlesData>
 
     public (bool Applied, string Result) ApplyData(IPlayerCharacter player, params object[] args)
     {
-        var current = PsuPlugin.MoodlesService.GetStatusManager(player.Address);
-        var changed = !string.Equals(current, MoodlesState, StringComparison.Ordinal);
-        if (!changed)
-            return (false, string.Empty);
+        try
+        {
+            var current = PsuPlugin.MoodlesService.GetStatusManager(player.Address);
+            var changed = !string.Equals(current, MoodlesState, StringComparison.Ordinal);
+            if (!changed)
+                return (false, string.Empty);
 
-        if (!string.IsNullOrEmpty(MoodlesState))
-        {
-            PsuPlugin.MoodlesService.SetStatusManager(player.Address, MoodlesState);
-            return (true, "Moodles data applied.");
+            if (!string.IsNullOrEmpty(MoodlesState))
+            {
+                PsuPlugin.MoodlesService.SetStatusManager(player.Address, MoodlesState);
+                return (true, "Moodles data applied.");
+            }
+            else
+            {
+                PsuPlugin.MoodlesService.ClearStatusManager(player.Address);
+                return (true, "Cleared");
+            }
         }
-        else
+        catch (Exception ex)
         {
-            PsuPlugin.MoodlesService.ClearStatusManager(player.Address);
-            return (true, "Cleared");
+            PsuPlugin.PlayerDataService.ReportMissingPlugin(player.Name.TextValue, "Moodles");
+            return (false, string.Empty);
         }
     }
 }

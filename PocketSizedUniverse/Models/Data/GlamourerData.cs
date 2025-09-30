@@ -36,12 +36,20 @@ public class GlamourerData : IDataFile, IEquatable<GlamourerData>
 
     public (bool Applied, string Result) ApplyData(IPlayerCharacter player, params object[] args)
     {
-        var current = PsuPlugin.GlamourerService.GetStateBase64.Invoke(player.ObjectIndex, LockKey).Item2;
-        var changed = !string.Equals(current, GlamState, StringComparison.Ordinal);
-        if (!changed)
-            return (false, string.Empty);
+        try
+        {
+            var current = PsuPlugin.GlamourerService.GetStateBase64.Invoke(player.ObjectIndex, LockKey).Item2;
+            var changed = !string.Equals(current, GlamState, StringComparison.Ordinal);
+            if (!changed)
+                return (false, string.Empty);
 
-        PsuPlugin.GlamourerService.ApplyState.Invoke(GlamState, player.ObjectIndex, LockKey);
-        return (true, "Glamourer data applied.");
+            PsuPlugin.GlamourerService.ApplyState.Invoke(GlamState, player.ObjectIndex, LockKey);
+            return (true, "Glamourer data applied.");
+        }
+        catch (Exception ex)
+        {
+            PsuPlugin.PlayerDataService.ReportMissingPlugin(player.Name.TextValue, "Glamourer");
+            return (false, string.Empty);
+        }
     }
 }

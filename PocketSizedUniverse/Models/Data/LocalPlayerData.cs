@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using System.Security.Cryptography;
 using System.Text;
 using Dalamud.Game.ClientState.Objects.SubKinds;
+using Dalamud.Plugin.Ipc.Exceptions;
 using ECommons.Configuration;
 using ECommons.DalamudServices;
 using PocketSizedUniverse.Models.Mods;
@@ -49,150 +50,179 @@ public class LocalPlayerData : PlayerData
 
     public void UpdateMoodlesData()
     {
-        if (Player == null)
-            return;
-        if (DateTime.UtcNow - _lastMoodlesUpdate < TimeSpan.FromMilliseconds(500))
-            return;
-        _lastMoodlesUpdate = DateTime.UtcNow;
-        var moodles = PsuPlugin.MoodlesService.GetStatusManager(Player.Address);
-        var pack = StarPackReference.GetDataPack();
-        if (pack == null) return;
-
-        var moodlesData = new MoodlesData()
+        try
         {
-            LastUpdatedUtc = DateTime.UtcNow,
-            MoodlesState = moodles
-        };
+            if (Player == null)
+                return;
+            if (DateTime.UtcNow - _lastMoodlesUpdate < TimeSpan.FromMilliseconds(500))
+                return;
+            _lastMoodlesUpdate = DateTime.UtcNow;
+            var moodles = PsuPlugin.MoodlesService.GetStatusManager(Player.Address);
+            var pack = StarPackReference.GetDataPack();
+            if (pack == null) return;
 
-        var changed = MoodlesData == null ||
-                      !string.Equals(MoodlesData.MoodlesState, moodlesData.MoodlesState, StringComparison.Ordinal);
-        if (changed)
-        {
-            MoodlesData = moodlesData;
-            var cLoc = MoodlesData.GetPath(pack.DataPath);
-            var encodedMoodles = Base64Util.ToBase64(MoodlesData);
-            Task.Run(async () =>
+            var moodlesData = new MoodlesData()
             {
-                await WriteText(cLoc, encodedMoodles);
-                Svc.Log.Debug("Updated Moodles data on disk.");
-            });
+                LastUpdatedUtc = DateTime.UtcNow,
+                MoodlesState = moodles
+            };
+
+            var changed = MoodlesData == null ||
+                          !string.Equals(MoodlesData.MoodlesState, moodlesData.MoodlesState, StringComparison.Ordinal);
+            if (changed)
+            {
+                MoodlesData = moodlesData;
+                var cLoc = MoodlesData.GetPath(pack.DataPath);
+                var encodedMoodles = Base64Util.ToBase64(MoodlesData);
+                Task.Run(async () =>
+                {
+                    await WriteText(cLoc, encodedMoodles);
+                    Svc.Log.Debug("Updated Moodles data on disk.");
+                });
+            }
+        }
+        catch (IpcNotReadyError ex)
+        {
+            Svc.Log.Warning("Moodles plugin not ready.");
         }
     }
 
     public void UpdateHonorificData()
     {
-        if (Player == null)
-            return;
-        if (DateTime.UtcNow - _lastHonorificUpdate < TimeSpan.FromMilliseconds(500))
-            return;
-        _lastHonorificUpdate = DateTime.UtcNow;
-        var honorific = PsuPlugin.HonorificService.GetLocalCharacterTitle() ?? string.Empty;
-        var honorificData = new HonorificData()
+        try
         {
-            LastUpdatedUtc = DateTime.UtcNow,
-            Title = honorific
-        };
-        var pack = StarPackReference.GetDataPack();
-        if (pack == null) return;
-
-        var changed = HonorificData == null ||
-                      !string.Equals(HonorificData.Title, honorificData.Title, StringComparison.Ordinal);
-        if (changed)
-        {
-            HonorificData = honorificData;
-            var cLoc = HonorificData.GetPath(pack.DataPath);
-            var encodedHonorific = Base64Util.ToBase64(HonorificData);
-            Task.Run(async () =>
+            if (Player == null)
+                return;
+            if (DateTime.UtcNow - _lastHonorificUpdate < TimeSpan.FromMilliseconds(500))
+                return;
+            _lastHonorificUpdate = DateTime.UtcNow;
+            var honorific = PsuPlugin.HonorificService.GetLocalCharacterTitle() ?? string.Empty;
+            var honorificData = new HonorificData()
             {
-                await WriteText(cLoc, encodedHonorific);
-                Svc.Log.Debug("Updated Honorific data on disk.");
-            });
+                LastUpdatedUtc = DateTime.UtcNow,
+                Title = honorific
+            };
+            var pack = StarPackReference.GetDataPack();
+            if (pack == null) return;
+
+            var changed = HonorificData == null ||
+                          !string.Equals(HonorificData.Title, honorificData.Title, StringComparison.Ordinal);
+            if (changed)
+            {
+                HonorificData = honorificData;
+                var cLoc = HonorificData.GetPath(pack.DataPath);
+                var encodedHonorific = Base64Util.ToBase64(HonorificData);
+                Task.Run(async () =>
+                {
+                    await WriteText(cLoc, encodedHonorific);
+                    Svc.Log.Debug("Updated Honorific data on disk.");
+                });
+            }
+        }
+        catch (IpcNotReadyError ex)
+        {
+            Svc.Log.Warning("Honorific plugin not ready.");
         }
     }
 
     public void UpdateCustomizeData()
     {
-        if (Player == null)
-            return;
-        if (DateTime.UtcNow - _lastCustomizeUpdate < TimeSpan.FromMilliseconds(500))
-            return;
-        _lastCustomizeUpdate = DateTime.UtcNow;
-        string data = string.Empty;
-        var activeProfileId = PsuPlugin.CustomizeService.GetActiveProfileOnCharacter(Player.ObjectIndex);
-        if (activeProfileId.Item1 > 0 || activeProfileId.Item2 == null || activeProfileId.Item2 == Guid.Empty)
+        try
         {
-            Svc.Log.Debug("Failed to get active C+ profile.");
-        }
-        else
-        {
-            var customizeData = PsuPlugin.CustomizeService.GetCustomizeProfileByUniqueId(activeProfileId.Item2.Value);
-            if (customizeData.Item1 > 0 || string.IsNullOrEmpty(customizeData.Item2))
+            if (Player == null)
+                return;
+            if (DateTime.UtcNow - _lastCustomizeUpdate < TimeSpan.FromMilliseconds(500))
+                return;
+            _lastCustomizeUpdate = DateTime.UtcNow;
+            string data = string.Empty;
+            var activeProfileId = PsuPlugin.CustomizeService.GetActiveProfileOnCharacter(Player.ObjectIndex);
+            if (activeProfileId.Item1 > 0 || activeProfileId.Item2 == null || activeProfileId.Item2 == Guid.Empty)
             {
-                Svc.Log.Warning("Failed to get customize data.");
+                Svc.Log.Debug("Failed to get active C+ profile.");
             }
             else
             {
-                data = customizeData.Item2;
+                var customizeData =
+                    PsuPlugin.CustomizeService.GetCustomizeProfileByUniqueId(activeProfileId.Item2.Value);
+                if (customizeData.Item1 > 0 || string.IsNullOrEmpty(customizeData.Item2))
+                {
+                    Svc.Log.Warning("Failed to get customize data.");
+                }
+                else
+                {
+                    data = customizeData.Item2;
+                }
+            }
+
+            var pack = StarPackReference.GetDataPack();
+            if (pack == null) return;
+            var cData = new CustomizeData()
+            {
+                CustomizeState = data,
+                LastUpdatedUtc = DateTime.UtcNow
+            };
+
+            var changed = CustomizeData == null ||
+                          !string.Equals(CustomizeData.CustomizeState, cData.CustomizeState, StringComparison.Ordinal);
+            if (changed)
+            {
+                CustomizeData = cData;
+                var cLoc = CustomizeData.GetPath(pack.DataPath);
+                var encodedCustomize = Base64Util.ToBase64(CustomizeData);
+                Task.Run(async () =>
+                {
+                    await WriteText(cLoc, encodedCustomize);
+                    Svc.Log.Debug("Updated Customize+ data on disk.");
+                });
             }
         }
-
-        var pack = StarPackReference.GetDataPack();
-        if (pack == null) return;
-        var cData = new CustomizeData()
+        catch (IpcNotReadyError ex)
         {
-            CustomizeState = data,
-            LastUpdatedUtc = DateTime.UtcNow
-        };
-
-        var changed = CustomizeData == null ||
-                      !string.Equals(CustomizeData.CustomizeState, cData.CustomizeState, StringComparison.Ordinal);
-        if (changed)
-        {
-            CustomizeData = cData;
-            var cLoc = CustomizeData.GetPath(pack.DataPath);
-            var encodedCustomize = Base64Util.ToBase64(CustomizeData);
-            Task.Run(async () =>
-            {
-                await WriteText(cLoc, encodedCustomize);
-                Svc.Log.Debug("Updated Customize+ data on disk.");
-            });
+            Svc.Log.Warning("Customize+ plugin not ready.");
         }
     }
 
     public void UpdateGlamData()
     {
-        if (Player == null)
-            return;
-        if (DateTime.UtcNow - _lastGlamUpdate < TimeSpan.FromMilliseconds(500))
-            return;
-        _lastGlamUpdate = DateTime.UtcNow;
-        var glamState = PsuPlugin.GlamourerService.GetStateBase64.Invoke(Player.ObjectIndex);
-        if (glamState.Item2 == null)
+        try
         {
-            Svc.Log.Warning("Failed to get glamourer state.");
-            return;
-        }
-
-        var pack = StarPackReference.GetDataPack();
-        if (pack == null) return;
-
-        var glamData = new GlamourerData()
-        {
-            GlamState = glamState.Item2
-        };
-
-        var changed = GlamourerData == null ||
-                      !string.Equals(GlamourerData.GlamState, glamData.GlamState, StringComparison.Ordinal);
-        if (changed)
-        {
-            GlamourerData = glamData;
-            var glamourerLoc = GlamourerData.GetPath(pack.DataPath);
-            var encodedGlamourer = Base64Util.ToBase64(GlamourerData);
-            Task.Run(async () =>
+            if (Player == null)
+                return;
+            if (DateTime.UtcNow - _lastGlamUpdate < TimeSpan.FromMilliseconds(500))
+                return;
+            _lastGlamUpdate = DateTime.UtcNow;
+            var glamState = PsuPlugin.GlamourerService.GetStateBase64.Invoke(Player.ObjectIndex);
+            if (glamState.Item2 == null)
             {
-                await WriteText(glamourerLoc, encodedGlamourer);
-                Svc.Log.Debug("Updated glamourer data on disk.");
-            });
+                Svc.Log.Warning("Failed to get glamourer state.");
+                return;
+            }
+
+            var pack = StarPackReference.GetDataPack();
+            if (pack == null) return;
+
+            var glamData = new GlamourerData()
+            {
+                GlamState = glamState.Item2
+            };
+
+            var changed = GlamourerData == null ||
+                          !string.Equals(GlamourerData.GlamState, glamData.GlamState, StringComparison.Ordinal);
+            if (changed)
+            {
+                GlamourerData = glamData;
+                var glamourerLoc = GlamourerData.GetPath(pack.DataPath);
+                var encodedGlamourer = Base64Util.ToBase64(GlamourerData);
+                Task.Run(async () =>
+                {
+                    await WriteText(glamourerLoc, encodedGlamourer);
+                    Svc.Log.Debug("Updated glamourer data on disk.");
+                });
+            }
+        }
+        catch (IpcNotReadyError ex)
+        {
+            Svc.Log.Warning("Glamourer plugin not ready.");
         }
     }
 
@@ -254,108 +284,115 @@ public class LocalPlayerData : PlayerData
 
     public void UpdatePenumbraData()
     {
-        if (Player == null)
-            return;
-        if (DateTime.UtcNow - _lastPenumbraUpdate < TimeSpan.FromMilliseconds(500))
-            return;
-        _lastPenumbraUpdate = DateTime.UtcNow;
-
-        // Phase A: gather snapshot on framework thread (no IO)
-        var dataPack = StarPackReference.GetDataPack();
-        if (dataPack == null)
-            return;
-        var filesPath = dataPack.FilesPath;
-        var dataPath = dataPack.DataPath;
-
-        var manips = PsuPlugin.PenumbraService.GetPlayerMetaManipulations.Invoke();
-
-        var resourcePathsArr = PsuPlugin.PenumbraService.GetGameObjectResourcePaths.Invoke(Player.ObjectIndex);
-        if (resourcePathsArr.Length == 0)
+        try
         {
-            Svc.Log.Warning("Failed to get character resource paths from Penumbra.");
-            return;
+            if (Player == null)
+                return;
+            if (DateTime.UtcNow - _lastPenumbraUpdate < TimeSpan.FromMilliseconds(500))
+                return;
+            _lastPenumbraUpdate = DateTime.UtcNow;
+
+            // Phase A: gather snapshot on framework thread (no IO)
+            var dataPack = StarPackReference.GetDataPack();
+            if (dataPack == null)
+                return;
+            var filesPath = dataPack.FilesPath;
+            var dataPath = dataPack.DataPath;
+
+            var manips = PsuPlugin.PenumbraService.GetPlayerMetaManipulations.Invoke();
+
+            var resourcePathsArr = PsuPlugin.PenumbraService.GetGameObjectResourcePaths.Invoke(Player.ObjectIndex);
+            if (resourcePathsArr.Length == 0)
+            {
+                Svc.Log.Warning("Failed to get character resource paths from Penumbra.");
+                return;
+            }
+
+            var resolvedPaths = resourcePathsArr[0];
+            if (resolvedPaths == null || resolvedPaths.Count == 0)
+                return;
+
+            var ct = _penumbraCts.Token;
+
+            Task.Run(async () =>
+            {
+                try
+                {
+                    var resourcePaths = resolvedPaths.Where(kvp => File.Exists(kvp.Key))
+                        .GroupBy(kvp => kvp.Key, StringComparer.OrdinalIgnoreCase)
+                        .ToDictionary(
+                            g => g.Key,
+                            IReadOnlyList<string> (g) => g.SelectMany(kvp => kvp.Value)
+                                .Distinct(StringComparer.OrdinalIgnoreCase).ToList(),
+                            StringComparer.OrdinalIgnoreCase
+                        );
+
+                    var swaps = resourcePaths.Where(kvp => !File.Exists(kvp.Key))
+                        .SelectMany(kvp => kvp.Value.Select(gp => (GamePath: gp, RealPath: kvp.Key)))
+                        .ToList();
+
+                    // Group transient files that exist on disk by their real path
+                    var transientResourcePaths = PsuPlugin.Configuration.TransientFiles
+                        .Where(kvp => File.Exists(kvp.Value.RealPath))
+                        .GroupBy(kvp => kvp.Value.RealPath, StringComparer.OrdinalIgnoreCase)
+                        .ToDictionary(
+                            g => g.Key,
+                            IReadOnlyList<string> (g) => g.Select(kvp => kvp.Value.GamePath)
+                                .Distinct(StringComparer.OrdinalIgnoreCase).ToList(),
+                            StringComparer.OrdinalIgnoreCase
+                        );
+
+                    // Transient swaps for files that don't exist on disk (reference other game assets)
+                    var transientSwaps = PsuPlugin.Configuration.TransientFiles
+                        .Where(kvp => !File.Exists(kvp.Value.RealPath))
+                        .Select(kvp => (kvp.Value.GamePath, kvp.Value.RealPath))
+                        .ToList();
+
+
+                    var snapshot = new PenumbraComputeSnapshot(
+                        filesPath,
+                        dataPath,
+                        manips,
+                        resourcePaths,
+                        swaps,
+                        transientResourcePaths,
+                        transientSwaps
+                    );
+
+                    var result = await ComputePenumbraAsync(snapshot, ct).ConfigureAwait(false);
+
+                    var changed =
+                        PenumbraData == null
+                        || !string.Equals(PenumbraData.MetaManipulations, result.MetaManipulations,
+                            StringComparison.Ordinal)
+                        || !UnorderedEqualByKey(PenumbraData.Files, result.Files, FileKey)
+                        || !UnorderedEqualByKey(PenumbraData.FileSwaps, result.FileSwaps, SwapKey)
+                        || !UnorderedEqualByKey(PenumbraData.TransientFiles, result.TransientFiles, FileKey)
+                        || !UnorderedEqualByKey(PenumbraData.TransientFileSwaps, result.TransientFileSwaps, SwapKey);
+
+                    if (!changed)
+                        return;
+
+                    PenumbraData = result;
+                    var penumbraLoc = PenumbraData.GetPath(snapshot.DataPath);
+                    var encoded = Base64Util.ToBase64(PenumbraData);
+                    await WriteText(penumbraLoc, encoded);
+                    Svc.Log.Debug("Updated penumbra data on disk.");
+                    EzConfig.Save();
+                }
+                catch (OperationCanceledException)
+                {
+                }
+                catch (Exception ex)
+                {
+                    Svc.Log.Error($"Penumbra compute failed: {ex}");
+                }
+            }, ct);
         }
-
-        var resolvedPaths = resourcePathsArr[0];
-        if (resolvedPaths == null || resolvedPaths.Count == 0)
-            return;
-
-        var ct = _penumbraCts.Token;
-
-        Task.Run(async () =>
+        catch (IpcNotReadyError)
         {
-            try
-            {
-                var resourcePaths = resolvedPaths.Where(kvp => File.Exists(kvp.Key))
-                    .GroupBy(kvp => kvp.Key, StringComparer.OrdinalIgnoreCase)
-                    .ToDictionary(
-                        g => g.Key,
-                        IReadOnlyList<string> (g) => g.SelectMany(kvp => kvp.Value)
-                            .Distinct(StringComparer.OrdinalIgnoreCase).ToList(),
-                        StringComparer.OrdinalIgnoreCase
-                    );
-
-                var swaps = resourcePaths.Where(kvp => !File.Exists(kvp.Key))
-                    .SelectMany(kvp => kvp.Value.Select(gp => (GamePath: gp, RealPath: kvp.Key)))
-                    .ToList();
-
-                // Group transient files that exist on disk by their real path
-                var transientResourcePaths = PsuPlugin.Configuration.TransientFiles
-                    .Where(kvp => File.Exists(kvp.Value.RealPath))
-                    .GroupBy(kvp => kvp.Value.RealPath, StringComparer.OrdinalIgnoreCase)
-                    .ToDictionary(
-                        g => g.Key,
-                        IReadOnlyList<string> (g) => g.Select(kvp => kvp.Value.GamePath)
-                            .Distinct(StringComparer.OrdinalIgnoreCase).ToList(),
-                        StringComparer.OrdinalIgnoreCase
-                    );
-
-                // Transient swaps for files that don't exist on disk (reference other game assets)
-                var transientSwaps = PsuPlugin.Configuration.TransientFiles
-                    .Where(kvp => !File.Exists(kvp.Value.RealPath))
-                    .Select(kvp => (kvp.Value.GamePath, kvp.Value.RealPath))
-                    .ToList();
-
-
-                var snapshot = new PenumbraComputeSnapshot(
-                    filesPath,
-                    dataPath,
-                    manips,
-                    resourcePaths,
-                    swaps,
-                    transientResourcePaths,
-                    transientSwaps
-                );
-
-                var result = await ComputePenumbraAsync(snapshot, ct).ConfigureAwait(false);
-
-                var changed =
-                    PenumbraData == null
-                    || !string.Equals(PenumbraData.MetaManipulations, result.MetaManipulations,
-                        StringComparison.Ordinal)
-                    || !UnorderedEqualByKey(PenumbraData.Files, result.Files, FileKey)
-                    || !UnorderedEqualByKey(PenumbraData.FileSwaps, result.FileSwaps, SwapKey)
-                    || !UnorderedEqualByKey(PenumbraData.TransientFiles, result.TransientFiles, FileKey)
-                    || !UnorderedEqualByKey(PenumbraData.TransientFileSwaps, result.TransientFileSwaps, SwapKey);
-
-                if (!changed)
-                    return;
-
-                PenumbraData = result;
-                var penumbraLoc = PenumbraData.GetPath(snapshot.DataPath);
-                var encoded = Base64Util.ToBase64(PenumbraData);
-                await WriteText(penumbraLoc, encoded);
-                Svc.Log.Debug("Updated penumbra data on disk.");
-                EzConfig.Save();
-            }
-            catch (OperationCanceledException)
-            {
-            }
-            catch (Exception ex)
-            {
-                Svc.Log.Error($"Penumbra compute failed: {ex}");
-            }
-        }, ct);
+            Svc.Log.Warning("Penumbra plugin not ready.");
+        }
     }
 
     private async Task<PenumbraData> ComputePenumbraAsync(PenumbraComputeSnapshot s, CancellationToken ct)
@@ -445,31 +482,38 @@ public class LocalPlayerData : PlayerData
 
     public void UpdateHeelsData()
     {
-        if (Player == null)
-            return;
-        if (DateTime.UtcNow - _lastHeelsUpdate < TimeSpan.FromMilliseconds(500))
-            return;
-        _lastHeelsUpdate = DateTime.UtcNow;
-        var heelsState = PsuPlugin.SimpleHeelsService.GetLocalPlayer();
-        var pack = StarPackReference.GetDataPack();
-        if (pack == null) return;
-        var heelsData = new HeelsData()
+        try
         {
-            LastUpdatedUtc = DateTime.UtcNow,
-            HeelsState = heelsState
-        };
-        var changed = HeelsData == null ||
-                      !string.Equals(HeelsData.HeelsState, heelsData.HeelsState, StringComparison.Ordinal);
-        if (changed)
-        {
-            HeelsData = heelsData;
-            var cLoc = HeelsData.GetPath(pack.DataPath);
-            var encodedHeels = Base64Util.ToBase64(HeelsData);
-            Task.Run(async () =>
+            if (Player == null)
+                return;
+            if (DateTime.UtcNow - _lastHeelsUpdate < TimeSpan.FromMilliseconds(500))
+                return;
+            _lastHeelsUpdate = DateTime.UtcNow;
+            var heelsState = PsuPlugin.SimpleHeelsService.GetLocalPlayer();
+            var pack = StarPackReference.GetDataPack();
+            if (pack == null) return;
+            var heelsData = new HeelsData()
             {
-                await WriteText(cLoc, encodedHeels);
-                Svc.Log.Debug("Updated Heels data on disk.");
-            });
+                LastUpdatedUtc = DateTime.UtcNow,
+                HeelsState = heelsState
+            };
+            var changed = HeelsData == null ||
+                          !string.Equals(HeelsData.HeelsState, heelsData.HeelsState, StringComparison.Ordinal);
+            if (changed)
+            {
+                HeelsData = heelsData;
+                var cLoc = HeelsData.GetPath(pack.DataPath);
+                var encodedHeels = Base64Util.ToBase64(HeelsData);
+                Task.Run(async () =>
+                {
+                    await WriteText(cLoc, encodedHeels);
+                    Svc.Log.Debug("Updated Heels data on disk.");
+                });
+            }
+        }
+        catch (IpcNotReadyError ex)
+        {
+            Svc.Log.Warning("SimpleHeels plugin not ready.");
         }
     }
     const long giggleBit = 1_073_741_824L;

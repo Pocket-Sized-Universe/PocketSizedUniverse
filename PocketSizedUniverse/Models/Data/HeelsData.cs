@@ -24,15 +24,23 @@ public class HeelsData : IDataFile, IEquatable<HeelsData>
     public DateTime LastUpdatedUtc { get; set; } = DateTime.MinValue;
     public (bool Applied, string Result) ApplyData(IPlayerCharacter player, params object[] args)
     {
-        if (!string.IsNullOrEmpty(HeelsState))
+        try
         {
-            PsuPlugin.SimpleHeelsService.RegisterPlayer(player.ObjectIndex, HeelsState);
-            return (true, "Heels data applied.");
+            if (!string.IsNullOrEmpty(HeelsState))
+            {
+                PsuPlugin.SimpleHeelsService.RegisterPlayer(player.ObjectIndex, HeelsState);
+                return (true, "Heels data applied.");
+            }
+            else
+            {
+                PsuPlugin.SimpleHeelsService.UnregisterPlayer(player.ObjectIndex);
+                return (true, "Cleared");
+            }
         }
-        else
+        catch
         {
-            PsuPlugin.SimpleHeelsService.UnregisterPlayer(player.ObjectIndex);
-            return (true, "Cleared");
+            PsuPlugin.PlayerDataService.ReportMissingPlugin(player.Name.TextValue, "SimpleHeels");
+            return (false, string.Empty);
         }
     }
 

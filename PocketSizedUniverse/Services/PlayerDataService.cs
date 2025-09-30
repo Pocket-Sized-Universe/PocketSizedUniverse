@@ -40,6 +40,20 @@ public class PlayerDataService : IUpdatable, IDisposable
     public ConcurrentDictionary<string, RemotePlayerData> RemotePlayerData { get; } = new();
     public Queue<string> PendingReads { get; } = new();
     public Queue<string> PendingApplies { get; } = new();
+    
+    public ConcurrentDictionary<string, List<string>> MissingPluginsByPlayerName { get; } = new();
+    
+    public void ReportMissingPlugin(string playerName, string pluginName)
+    {
+        if (!MissingPluginsByPlayerName.TryGetValue(playerName, out var missingPlugins))
+            MissingPluginsByPlayerName[playerName] = missingPlugins = new();
+        if (!missingPlugins.Contains(pluginName))
+        {
+            missingPlugins.Add(pluginName);
+            Svc.Chat.PrintError($"[PSU] {playerName} is sending data that requires the {pluginName} plugin, which you do not have installed. Install it to see them as they see themselves!");
+        }
+        MissingPluginsByPlayerName[playerName] = missingPlugins;
+    }
 
     private readonly List<ConditionFlag> _badConditions =
     [
