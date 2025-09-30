@@ -25,8 +25,6 @@ public class PenumbraData : IDataFile, IEquatable<PenumbraData>
     // Aggregated, per-character Penumbra state (matching Mare's model)
     public List<CustomRedirect> Files { get; set; } = new();
     public List<AssetSwap> FileSwaps { get; set; } = new();
-    public List<CustomRedirect> TransientFiles { get; set; } = new();
-    public List<AssetSwap> TransientFileSwaps { get; set; } = new();
     public string MetaManipulations { get; set; } = string.Empty;
     public DateTime LastUpdatedUtc { get; set; } = DateTime.MinValue;
 
@@ -48,25 +46,7 @@ public class PenumbraData : IDataFile, IEquatable<PenumbraData>
                 paths[gamePath] = localFilePath;
             }
         }
-
-        foreach (var f in TransientFiles)
-        {
-            var localFilePath = f.GetPath(filesPath);
-            if (!File.Exists(localFilePath))
-                return;
-            foreach (var gamePath in f.ApplicableGamePaths)
-            {
-                if (string.IsNullOrWhiteSpace(gamePath)) continue;
-                paths[gamePath] = localFilePath;
-            }
-        }
         foreach (var s in FileSwaps)
-        {
-            if (string.IsNullOrWhiteSpace(s.GamePath) || string.IsNullOrWhiteSpace(s.RealPath)) continue;
-            paths[s.GamePath] = s.RealPath;
-        }
-
-        foreach (var s in TransientFileSwaps)
         {
             if (string.IsNullOrWhiteSpace(s.GamePath) || string.IsNullOrWhiteSpace(s.RealPath)) continue;
             paths[s.GamePath] = s.RealPath;
@@ -79,8 +59,6 @@ public class PenumbraData : IDataFile, IEquatable<PenumbraData>
         if (obj == null) return false;
         return UnorderedEqualByKey(Files, obj.Files, f => CanonicalPath(f.FileName))
             && UnorderedEqualByKey(FileSwaps, obj.FileSwaps, s => CanonicalPath(s.GamePath) + "->" + CanonicalPath(s.RealPath))
-            && UnorderedEqualByKey(TransientFiles, obj.TransientFiles, f => CanonicalPath(f.FileName))
-            && UnorderedEqualByKey(TransientFileSwaps, obj.TransientFileSwaps, s => CanonicalPath(s.GamePath) + "->" + CanonicalPath(s.RealPath))
             && MetaManipulations == obj.MetaManipulations;
     }
 

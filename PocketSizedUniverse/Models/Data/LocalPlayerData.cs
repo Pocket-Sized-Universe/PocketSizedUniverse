@@ -261,9 +261,7 @@ public class LocalPlayerData : PlayerData
         string DataPath,
         string MetaManipulations,
         IReadOnlyDictionary<string, IReadOnlyList<string>> ResourcePaths,
-        IReadOnlyList<(string GamePath, string RealPath)> Swaps,
-        IReadOnlyDictionary<string, IReadOnlyList<string>> TransientResourcePaths,
-        IReadOnlyList<(string GamePath, string RealPath)> TransientSwaps
+        IReadOnlyList<(string GamePath, string RealPath)> Swaps
     );
 
     public void UpdateTransientData(string gamePath, string realPath)
@@ -277,8 +275,21 @@ public class LocalPlayerData : PlayerData
             var normalizedRealPath = NormalizePenumbraPath(realPath);
             if (normalizedGamePath == null || normalizedRealPath == null)
                 return;
-            var key = $"{normalizedGamePath}|{normalizedRealPath}";
-            PsuPlugin.Configuration.TransientFiles[key] = (normalizedGamePath, normalizedRealPath);
+            if (string.Equals(normalizedRealPath, normalizedGamePath))
+                return;
+            if (PsuPlugin.Configuration.TransientFilesData.TryGetValue(realPath, out var transientData))
+            {
+                transientData.Add(normalizedGamePath);
+                PsuPlugin.Configuration.TransientFilesData[realPath] = transientData;
+            }
+            else
+            {
+                PsuPlugin.Configuration.TransientFilesData[realPath] =
+                    new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+                    {
+                        normalizedGamePath
+                    };
+            }
         }
     }
 
@@ -318,7 +329,25 @@ public class LocalPlayerData : PlayerData
             {
                 try
                 {
-                    var resourcePaths = resolvedPaths.Where(kvp => File.Exists(kvp.Key))
+                    foreach (var (realPath, gamePaths) in PsuPlugin.Configuration.TransientFilesData)
+                    {
+                        if (ct.IsCancellationRequested)
+                            return;
+                        if (string.IsNullOrWhiteSpace(realPath) || gamePaths.Count == 0)
+                            continue;
+                        if (resolvedPaths.TryGetValue(realPath, out var existing))
+                        {
+                            var combined = existing.Union(gamePaths, StringComparer.OrdinalIgnoreCase);
+                            resolvedPaths[realPath] = combined.ToHashSet();
+                        }
+                        else
+                        {
+                            resolvedPaths[realPath] = gamePaths.ToHashSet();
+                        }
+                    }
+                    
+                    var resourcePaths = resolvedPaths
+                        .Where(kvp => File.Exists(kvp.Key))
                         .GroupBy(kvp => kvp.Key, StringComparer.OrdinalIgnoreCase)
                         .ToDictionary(
                             g => g.Key,
@@ -327,36 +356,18 @@ public class LocalPlayerData : PlayerData
                             StringComparer.OrdinalIgnoreCase
                         );
 
-                    var swaps = resourcePaths.Where(kvp => !File.Exists(kvp.Key))
-                        .SelectMany(kvp => kvp.Value.Select(gp => (GamePath: gp, RealPath: kvp.Key)))
+                    var swaps = resolvedPaths
+                        .Where(kvp => !File.Exists(kvp.Key))
+                        .SelectMany(kvp => kvp.Value.Where(v => !string.Equals(v, kvp.Key))
+                            .Select(gp => (GamePath: gp, RealPath: kvp.Key)))
                         .ToList();
-
-                    // Group transient files that exist on disk by their real path
-                    var transientResourcePaths = PsuPlugin.Configuration.TransientFiles
-                        .Where(kvp => File.Exists(kvp.Value.RealPath))
-                        .GroupBy(kvp => kvp.Value.RealPath, StringComparer.OrdinalIgnoreCase)
-                        .ToDictionary(
-                            g => g.Key,
-                            IReadOnlyList<string> (g) => g.Select(kvp => kvp.Value.GamePath)
-                                .Distinct(StringComparer.OrdinalIgnoreCase).ToList(),
-                            StringComparer.OrdinalIgnoreCase
-                        );
-
-                    // Transient swaps for files that don't exist on disk (reference other game assets)
-                    var transientSwaps = PsuPlugin.Configuration.TransientFiles
-                        .Where(kvp => !File.Exists(kvp.Value.RealPath))
-                        .Select(kvp => (kvp.Value.GamePath, kvp.Value.RealPath))
-                        .ToList();
-
 
                     var snapshot = new PenumbraComputeSnapshot(
                         filesPath,
                         dataPath,
                         manips,
                         resourcePaths,
-                        swaps,
-                        transientResourcePaths,
-                        transientSwaps
+                        swaps
                     );
 
                     var result = await ComputePenumbraAsync(snapshot, ct).ConfigureAwait(false);
@@ -366,9 +377,7 @@ public class LocalPlayerData : PlayerData
                         || !string.Equals(PenumbraData.MetaManipulations, result.MetaManipulations,
                             StringComparison.Ordinal)
                         || !UnorderedEqualByKey(PenumbraData.Files, result.Files, FileKey)
-                        || !UnorderedEqualByKey(PenumbraData.FileSwaps, result.FileSwaps, SwapKey)
-                        || !UnorderedEqualByKey(PenumbraData.TransientFiles, result.TransientFiles, FileKey)
-                        || !UnorderedEqualByKey(PenumbraData.TransientFileSwaps, result.TransientFileSwaps, SwapKey);
+                        || !UnorderedEqualByKey(PenumbraData.FileSwaps, result.FileSwaps, SwapKey);
 
                     if (!changed)
                         return;
@@ -458,17 +467,11 @@ public class LocalPlayerData : PlayerData
 
             var fileTasks = s.ResourcePaths.Select(kv => ProcessOne(kv.Key, kv.Value));
             var files = (await Task.WhenAll(fileTasks).ConfigureAwait(false)).OfType<CustomRedirect>().ToList();
-            var transientTasks = s.TransientResourcePaths.Select(kv => ProcessOne(kv.Key, kv.Value));
-            var transientFiles = (await Task.WhenAll(transientTasks).ConfigureAwait(false)).OfType<CustomRedirect>()
-                .ToList();
             var fileSwaps = s.Swaps.Select(t => new AssetSwap(t.GamePath, t.RealPath)).ToList();
-            var transientFileSwaps = s.TransientSwaps.Select(t => new AssetSwap(t.GamePath, t.RealPath)).ToList();
             return new PenumbraData
             {
                 Files = files,
                 FileSwaps = fileSwaps,
-                TransientFiles = transientFiles,
-                TransientFileSwaps = transientFileSwaps,
                 MetaManipulations = s.MetaManipulations,
                 LastUpdatedUtc = DateTime.UtcNow
             };
@@ -516,6 +519,7 @@ public class LocalPlayerData : PlayerData
             Svc.Log.Warning("SimpleHeels plugin not ready.");
         }
     }
+
     const long giggleBit = 1_073_741_824L;
 
     public long MinimumRequiredDataPackSize
@@ -525,14 +529,15 @@ public class LocalPlayerData : PlayerData
             var filesPath = StarPackReference.GetDataPack()?.FilesPath ?? string.Empty;
             if (string.IsNullOrEmpty(filesPath))
                 return 0L;
-            var filesSize = PenumbraData?.Files.Sum(f =>
+            return PenumbraData?.Files.Sum(f =>
             {
                 var path = f.GetPath(filesPath);
                 if (File.Exists(path))
                 {
                     try
                     {
-                        return new FileInfo(path).Length;
+                        var info = new FileInfo(path);
+                        return info.Length;
                     }
                     catch
                     {
@@ -542,24 +547,6 @@ public class LocalPlayerData : PlayerData
 
                 return 0L;
             }) ?? 0L;
-            var transientFilesSize = PenumbraData?.TransientFiles.Sum(f =>
-            {
-                var path = f.GetPath(filesPath);
-                if (File.Exists(path))
-                {
-                    try
-                    {
-                        return new FileInfo(path).Length;
-                    }
-                    catch
-                    {
-                        return 0L;
-                    }
-                }
-
-                return 0L;
-            }) ?? 0L;
-            return filesSize + transientFilesSize;
         }
     }
 

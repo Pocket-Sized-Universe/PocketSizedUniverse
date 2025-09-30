@@ -11,7 +11,7 @@ public static class AllowedFileExtensions
     // These are excluded to match Mare’s filtering of pap/tmb/scd for player data
     public static readonly HashSet<string> AlwaysExclude = new(StringComparer.OrdinalIgnoreCase)
     {
-        ".exe", ".dll", ".pdb"
+        ".exe", ".dll", ".pdb", ".imc"
     };
 
     // For avfx/atex, Mare allows only for weapon/equipment; enforce same here

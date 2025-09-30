@@ -71,7 +71,7 @@ public partial class MainWindow
         {
             if (ImGui.Button("Clear Transient Data"))
             {
-                PsuPlugin.Configuration.TransientFiles.Clear();
+                PsuPlugin.Configuration.TransientFilesData.Clear();
                 EzConfig.Save();
             }
             ImGuiUtil.HoverTooltip("Click this button if things like VFX and animations are acting weird.");

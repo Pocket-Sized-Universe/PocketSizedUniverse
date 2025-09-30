@@ -15,7 +15,7 @@ public class Configuration
     public StarPack? MyStarPack { get; set; }
     public List<StarPack> StarPacks { get; set; } = new();
     public List<StarPack> Blocklist { get; set; } = new();
-    public ConcurrentDictionary<string, (string GamePath, string RealPath)> TransientFiles { get; set; } = new();
+    public ConcurrentDictionary<string, HashSet<string>> TransientFilesData { get; set; } = new();
     public int LocalPollingSeconds { get; set; } = 30;
     public int RemotePollingSeconds { get; set; } = 10;
     public int MaxDataPackSizeGb { get; set; } = 5;
