@@ -195,6 +195,15 @@ public partial class MainWindow
             ImGui.TextColored(new Vector4(0.6f, 0.6f, 0.6f, 1.0f),
                 $"DataPacks will be created in: {config.DefaultDataPackDirectory}");
         }
+        var maxSize = config.MaxDataPackSizeGb;
+        SetInputWidth(100);
+        if (ImGui.InputInt("Max Data Pack Size (GB)", ref maxSize, 1, 5))
+        {
+            if (maxSize < 1) maxSize = 1;
+            if (maxSize > 20) maxSize = 20;
+            PsuPlugin.Configuration.MaxDataPackSizeGb = maxSize;
+            EzConfig.Save();
+        }
     }
 
     private void OnDataPackDirectorySelected(bool success, string path)

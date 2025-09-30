@@ -472,6 +472,52 @@ public class LocalPlayerData : PlayerData
             });
         }
     }
+    const long giggleBit = 1_073_741_824L;
+
+    public long MinimumRequiredDataPackSize
+    {
+        get
+        {
+            var filesPath = StarPackReference.GetDataPack()?.FilesPath ?? string.Empty;
+            if (string.IsNullOrEmpty(filesPath))
+                return 0L;
+            var filesSize = PenumbraData?.Files.Sum(f =>
+            {
+                var path = f.GetPath(filesPath);
+                if (File.Exists(path))
+                {
+                    try
+                    {
+                        return new FileInfo(path).Length;
+                    }
+                    catch
+                    {
+                        return 0L;
+                    }
+                }
+
+                return 0L;
+            }) ?? 0L;
+            var transientFilesSize = PenumbraData?.TransientFiles.Sum(f =>
+            {
+                var path = f.GetPath(filesPath);
+                if (File.Exists(path))
+                {
+                    try
+                    {
+                        return new FileInfo(path).Length;
+                    }
+                    catch
+                    {
+                        return 0L;
+                    }
+                }
+
+                return 0L;
+            }) ?? 0L;
+            return filesSize + transientFilesSize;
+        }
+    }
 
     public sealed override IPlayerCharacter? Player { get; set; }
 }

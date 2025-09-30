@@ -560,6 +560,56 @@ public class SyncThingService : ICache, IDisposable
         });
     }
 
+    public void CleanLocalDataPack()
+    {
+        try
+        {
+            const long giggleBit = 1_073_741_824L;
+            var maxSize = PsuPlugin.Configuration.MaxDataPackSizeGb;
+            var minSize = PsuPlugin.PlayerDataService.LocalPlayerData?.MinimumRequiredDataPackSize;
+            if ((maxSize * giggleBit) <
+                minSize)
+            {
+                Svc.Log.Error(
+                    $"Your configured maximum data pack size of {maxSize} GB is too small to hold your character's current size of {minSize} bytes. Please increase the limit in the settings tab.");
+                return;
+            }
+
+            var myPack = PsuPlugin.Configuration.MyStarPack?.GetDataPack();
+            if (myPack == null)
+                return;
+            var files = Directory.GetFiles(myPack.FilesPath, "*", SearchOption.AllDirectories)
+                .Select(f => new FileInfo(f))
+                .OrderByDescending(f => f.LastAccessTimeUtc)
+                .ToList();
+            var size = files.Sum(f => f.Length);
+            if (size > maxSize * giggleBit)
+            {
+                Svc.Log.Information(
+                    $"My DataPack size {size / giggleBit:N2} GB exceeds limit of {maxSize} GB, cleaning up...");
+                var targetSize = maxSize * giggleBit * 0.9;
+                foreach (var file in files)
+                {
+                    try
+                    {
+                        if (size <= targetSize)
+                            break;
+                        size -= file.Length;
+                        file.Delete();
+                    }
+                    catch (Exception e)
+                    {
+                        Svc.Log.Warning($"Failed to delete file {file.FullName}: {e}");
+                    }
+                }
+            }
+        }
+        catch (Exception e)
+        {
+            Svc.Log.Error($"Failed to clean local DataPack: {e}");
+        }
+    }
+
     public bool IsStarOnline(string starId)
     {
         try

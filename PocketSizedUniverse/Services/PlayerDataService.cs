@@ -80,6 +80,8 @@ public class PlayerDataService : IUpdatable, IDisposable
         LocalPlayerData.UpdateHonorificData();
         LocalPlayerData.UpdateMoodlesData();
         LocalPlayerData.UpdateHeelsData();
+
+        Task.Run(PsuPlugin.SyncThingService.CleanLocalDataPack);
     }
 
     private void RemoteUpdate(IFramework framework)

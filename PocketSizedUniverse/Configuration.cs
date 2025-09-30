@@ -18,4 +18,5 @@ public class Configuration
     public ConcurrentDictionary<string, (string GamePath, string RealPath)> TransientFiles { get; set; } = new();
     public int LocalPollingSeconds { get; set; } = 30;
     public int RemotePollingSeconds { get; set; } = 10;
+    public int MaxDataPackSizeGb { get; set; } = 5;
 }
