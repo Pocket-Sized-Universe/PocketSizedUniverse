@@ -23,6 +23,7 @@ public class LocalPlayerData : PlayerData
     private DateTime _lastGlamUpdate = DateTime.MinValue;
     private DateTime _lastBasicUpdate = DateTime.MinValue;
     private DateTime _lastPenumbraUpdate = DateTime.MinValue;
+    private DateTime _lastHeelsUpdate = DateTime.MinValue;
     private readonly SemaphoreSlim _semaphoreSlim;
 
     // Penumbra heavy compute job control
@@ -439,6 +440,36 @@ public class LocalPlayerData : PlayerData
         {
             Svc.Log.Error($"Error during Penumbra data computation: {ex}");
             throw;
+        }
+    }
+
+    public void UpdateHeelsData()
+    {
+        if (Player == null)
+            return;
+        if (DateTime.UtcNow - _lastHeelsUpdate < TimeSpan.FromMilliseconds(500))
+            return;
+        _lastHeelsUpdate = DateTime.UtcNow;
+        var heelsState = PsuPlugin.SimpleHeelsService.GetLocalPlayer();
+        var pack = StarPackReference.GetDataPack();
+        if (pack == null) return;
+        var heelsData = new HeelsData()
+        {
+            LastUpdatedUtc = DateTime.UtcNow,
+            HeelsState = heelsState
+        };
+        var changed = HeelsData == null ||
+                      !string.Equals(HeelsData.HeelsState, heelsData.HeelsState, StringComparison.Ordinal);
+        if (changed)
+        {
+            HeelsData = heelsData;
+            var cLoc = HeelsData.GetPath(pack.DataPath);
+            var encodedHeels = Base64Util.ToBase64(HeelsData);
+            Task.Run(async () =>
+            {
+                await WriteText(cLoc, encodedHeels);
+                Svc.Log.Debug("Updated Heels data on disk.");
+            });
         }
     }
 

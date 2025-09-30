@@ -79,6 +79,7 @@ public class PlayerDataService : IUpdatable, IDisposable
         LocalPlayerData.UpdateCustomizeData();
         LocalPlayerData.UpdateHonorificData();
         LocalPlayerData.UpdateMoodlesData();
+        LocalPlayerData.UpdateHeelsData();
     }
 
     private void RemoteUpdate(IFramework framework)
@@ -160,6 +161,7 @@ public class PlayerDataService : IUpdatable, IDisposable
                     var newCustomize = CustomizeData.LoadFromDisk(basePath);
                     var newHonorific = HonorificData.LoadFromDisk(basePath);
                     var newMoodles = MoodlesData.LoadFromDisk(basePath);
+                    var newHeels = HeelsData.LoadFromDisk(basePath);
                     bool dataChanged = false;
                     if (newBasic != null && !newBasic.Equals(remoteData.Data))
                     {
@@ -212,6 +214,13 @@ public class PlayerDataService : IUpdatable, IDisposable
                         Svc.Log.Debug($"[DEBUG] Moodles data changed for {starIdToRead}");
                     }
 
+                    if (newHeels != null && !newHeels.Equals(remoteData.HeelsData))
+                    {
+                        remoteData.HeelsData = newHeels;
+                        dataChanged = true;
+                        Svc.Log.Debug($"[DEBUG] Heels data changed for {starIdToRead}");
+                    }
+
                     if (dataChanged)
                     {
                         PendingApplies.Enqueue(starIdToRead);
@@ -235,6 +244,7 @@ public class PlayerDataService : IUpdatable, IDisposable
             var customizeApply = remote.CustomizeData?.ApplyData(remote.Player);
             var honorificApply = remote.HonorificData?.ApplyData(remote.Player);
             var moodlesApply = remote.MoodlesData?.ApplyData(remote.Player);
+            var heelsApply = remote.HeelsData?.ApplyData(remote.Player);
             if (penApply is not { Applied: true }) return;
             var collectionId = Guid.Parse(penApply.Value.Result);
             remote.AssignedCollectionId = collectionId;
