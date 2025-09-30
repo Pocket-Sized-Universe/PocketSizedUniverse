@@ -15,7 +15,7 @@ public class ContextMenuService
         if (args.MenuType is ContextMenuType.Inventory) return;
         foreach (var remote in PsuPlugin.PlayerDataService.RemotePlayerData)
         {
-            remote.AddContextMenu(args);
+            remote.Value.AddContextMenu(args);
         }
     }
 }

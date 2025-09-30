@@ -49,7 +49,7 @@ public class SyncThingService : ICache, IDisposable
 
     public SyncThingService()
     {
-        Svc.Framework.Update += Update;
+        Svc.Framework.Update += LocalUpdate;
         InitializeClient();
     }
 
@@ -78,7 +78,7 @@ public class SyncThingService : ICache, IDisposable
     public TimeSpan UpdateInterval { get; set; } = TimeSpan.FromSeconds(10);
     public DateTime LastUpdated { get; set; } = DateTime.MinValue;
 
-    public void Update(IFramework framework)
+    public void LocalUpdate(IFramework framework)
     {
         // Periodically refresh caches and stats
         if (DateTime.Now - LastUpdated >= UpdateInterval)
@@ -580,6 +580,6 @@ public class SyncThingService : ICache, IDisposable
 
     public void Dispose()
     {
-        Svc.Framework.Update -= Update;
+        Svc.Framework.Update -= LocalUpdate;
     }
 }

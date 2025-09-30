@@ -6,5 +6,5 @@ public interface IUpdatable
 {
     public TimeSpan UpdateInterval { get; set; }
     public DateTime LastUpdated { get; set; }
-    public void Update(IFramework framework);
+    public void LocalUpdate(IFramework framework);
 }

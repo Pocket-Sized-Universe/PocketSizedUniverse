@@ -1,8 +1,9 @@
+using Dalamud.Game.ClientState.Objects.SubKinds;
 using PocketSizedUniverse.Interfaces;
 
 namespace PocketSizedUniverse.Models.Data;
 
-public class MoodlesData : IDataFile
+public class MoodlesData : IDataFile, IEquatable<MoodlesData>
 {
     public static MoodlesData? LoadFromDisk(string basePath)
     {
@@ -16,18 +17,10 @@ public class MoodlesData : IDataFile
         return Base64Util.FromBase64<MoodlesData>(data);
     }
     public static string Filename { get; } = "Moodles.dat";
-    public bool Equals(IWriteableData? x, IWriteableData? y)
+    public bool Equals(MoodlesData? obj)
     {
-        if (ReferenceEquals(x, y)) return true;
-        if (ReferenceEquals(x, null)) return false;
-        if (ReferenceEquals(y, null)) return false;
-        if (x.GetType() != y.GetType()) return false;
-        return x.Id == y.Id;
-    }
-
-    public int GetHashCode(IWriteableData obj)
-    {
-        return obj.Id.GetHashCode();
+        if (obj == null) return false;
+        return MoodlesState == obj.MoodlesState;
     }
 
     public Guid Id { get; set; } = Guid.NewGuid();
@@ -36,28 +29,22 @@ public class MoodlesData : IDataFile
     public DateTime LastUpdatedUtc { get; set; } = DateTime.MinValue;
     public string MoodlesState { get; init; } = string.Empty;
 
-    public bool ApplyData(RemotePlayerData ctx, bool force = false)
+    public (bool Applied, string Result) ApplyData(IPlayerCharacter player, params object[] args)
     {
-        // Always cache
-        var existing = ctx.MoodlesData;
-        ctx.MoodlesData = this;
+        var current = PsuPlugin.MoodlesService.GetStatusManager(player.Address);
+        var changed = !string.Equals(current, MoodlesState, StringComparison.Ordinal);
+        if (!changed)
+            return (false, string.Empty);
 
-        if (ctx.Player == null)
-            return false; // do not log
-
-        var current = PsuPlugin.MoodlesService.GetStatusManager(ctx.Player.Address);
-        var changed = existing == null
-                      || !string.Equals(existing.MoodlesState, MoodlesState, StringComparison.Ordinal)
-                      || !string.Equals(current, MoodlesState, StringComparison.Ordinal);
-        if (!changed && !force)
-            return false;
-
-        if (!string.IsNullOrEmpty(MoodlesState) && !string.Equals(current, MoodlesState, StringComparison.Ordinal))
+        if (!string.IsNullOrEmpty(MoodlesState))
         {
-            PsuPlugin.MoodlesService.SetStatusManager(ctx.Player.Address, MoodlesState);
-            return true;
+            PsuPlugin.MoodlesService.SetStatusManager(player.Address, MoodlesState);
+            return (true, "Moodles data applied.");
         }
-
-        return false;
+        else
+        {
+            PsuPlugin.MoodlesService.ClearStatusManager(player.Address);
+            return (true, "Cleared");
+        }
     }
 }

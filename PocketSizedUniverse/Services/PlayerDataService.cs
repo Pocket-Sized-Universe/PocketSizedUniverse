@@ -24,38 +24,22 @@ namespace PocketSizedUniverse.Services;
 
 public class PlayerDataService : IUpdatable, IDisposable
 {
-    private sealed class RemoteApplySnapshot
-    {
-        public BasicData Basic { get; init; }
-        public GlamourerData Glamourer { get; init; }
-        public PenumbraData Penumbra { get; init; }
-        public CustomizeData Customize { get; init; }
-        public HonorificData Honorific { get; init; }
-        public MoodlesData Moodles { get; init; }
-    }
-
-    private readonly ConcurrentDictionary<string, RemoteApplySnapshot> _pendingApplies = new();
-    private readonly ConcurrentDictionary<string, byte> _readsInFlight = new();
-
-    private DateTime _applyNotBeforeUtc = DateTime.MaxValue;
-    private static readonly TimeSpan LoginDelay = TimeSpan.FromSeconds(15);
-
     public PlayerDataService()
     {
-        Svc.Framework.Update += Update;
-        Svc.ClientState.Login += OnLogin;
+        Svc.Framework.Update += LocalUpdate;
+        Svc.Framework.Update += RemoteUpdate;
         Svc.ClientState.Logout += OnLogout;
         //StateChanged.Subscriber(Svc.PluginInterface, OnGlamourerStateChanged).Enable();
         //GameObjectRedrawn.Subscriber(Svc.PluginInterface, OnRedraw).Enable();
         GameObjectResourcePathResolved.Subscriber(Svc.PluginInterface, OnObjectPathResolved).Enable();
-        if (Svc.ClientState.IsLoggedIn)
-            OnLogin();
     }
 
-    public TimeSpan UpdateInterval { get; set; } = TimeSpan.FromSeconds(10);
+    public TimeSpan UpdateInterval { get; set; } = TimeSpan.FromSeconds(1);
     public DateTime LastUpdated { get; set; } = DateTime.MinValue;
     public LocalPlayerData? LocalPlayerData { get; private set; }
-    public ConcurrentBag<RemotePlayerData> RemotePlayerData { get; } = new();
+    public ConcurrentDictionary<string, RemotePlayerData> RemotePlayerData { get; } = new();
+    public Queue<string> PendingReads { get; } = new();
+    public Queue<string> PendingApplies { get; } = new();
 
     private readonly List<ConditionFlag> _badConditions =
     [
@@ -69,18 +53,14 @@ public class PlayerDataService : IUpdatable, IDisposable
         ConditionFlag.Performing
     ];
 
-    public void Update(IFramework framework)
+    public void LocalUpdate(IFramework framework)
     {
-        if (DateTime.Now - LastUpdated < UpdateInterval) return;
+        if (DateTime.Now - LastUpdated < TimeSpan.FromSeconds(PsuPlugin.Configuration.LocalPollingSeconds)) return;
         LastUpdated = DateTime.Now;
 
         if (!PsuPlugin.Configuration.SetupComplete)
             return;
         if (!Svc.ClientState.IsLoggedIn)
-            return;
-
-        // Delay all processing shortly after login to avoid applying during world load
-        if (DateTime.UtcNow < _applyNotBeforeUtc)
             return;
 
         if (Svc.ClientState.LocalPlayer == null || PsuPlugin.Configuration.MyStarPack == null ||
@@ -99,189 +79,35 @@ public class PlayerDataService : IUpdatable, IDisposable
         LocalPlayerData.UpdateCustomizeData();
         LocalPlayerData.UpdateHonorificData();
         LocalPlayerData.UpdateMoodlesData();
+    }
 
+    private void RemoteUpdate(IFramework framework)
+    {
+        var nearbyPlayers = Svc.Objects.PlayerObjects.Cast<IPlayerCharacter>();
         foreach (var star in PsuPlugin.Configuration.StarPacks)
         {
-            if (RemotePlayerData.Any(x => x.StarPackReference.StarId == star.StarId))
-                continue;
-            RemotePlayerData.Add(new RemotePlayerData(star));
-        }
-
-        // Proactive cleanup for any remote with assigned collection but no player
-        foreach (var remote in RemotePlayerData)
-        {
-            if (remote.AssignedCollectionId != null)
+            if (!RemotePlayerData.TryGetValue(star.StarId, out var remote))
+                RemotePlayerData[star.StarId] = remote = new RemotePlayerData(star);
+            
+            var rates = PsuPlugin.SyncThingService.GetTransferRates(remote.StarPackReference.StarId);
+            bool syncing = rates is { InBps: > 100 };
+            if (syncing)
             {
-                // Check current player presence based on last known BasicData
-                var players = Svc.Objects.PlayerObjects.Cast<IPlayerCharacter>();
-                var known = remote.Data;
-                var player = known == null
-                    ? null
-                    : players.FirstOrDefault(p =>
-                        p.HomeWorld.RowId == known.WorldId && p.Name.TextValue == known.PlayerName);
-                if (player == null)
-                {
-                    try
-                    {
-                        var collId = remote.AssignedCollectionId.Value;
-                        var penId = remote.PenumbraData?.Id ?? Guid.Empty;
-                        if (penId != Guid.Empty)
-                        {
-                            var metaModName = $"PSU_Meta_{penId}";
-                            var fileModName = $"PSU_File_{penId}";
-                            PsuPlugin.PenumbraService.RemoveTemporaryMod.Invoke(metaModName, collId, 0);
-                            PsuPlugin.PenumbraService.RemoveTemporaryMod.Invoke(fileModName, collId, 0);
-                        }
-
-                        PsuPlugin.PenumbraService.DeleteTemporaryCollection.Invoke(collId);
-                    }
-                    catch (Exception ex)
-                    {
-                        Svc.Log.Error($"Error cleaning up temporary Penumbra collection (proactive): {ex}");
-                    }
-                    finally
-                    {
-                        remote.AssignedCollectionId = null;
-                        // Clear cached transient data so next appearance triggers full re-apply
-                        remote.PenumbraData = null;
-                        remote.GlamourerData = null;
-                        remote.CustomizeData = null;
-                        remote.HonorificData = null;
-                        remote.MoodlesData = null;
-                    }
-                }
-            }
-        }
-
-        // Stage remote snapshots in background; apply on main thread when ready
-        foreach (var remote in RemotePlayerData)
-        {
-            try
-            {
-                var dataPack = remote.StarPackReference.GetDataPack();
-                if (dataPack == null)
-                    continue;
-
-                var starId = remote.StarPackReference.StarId;
-                if (_pendingApplies.ContainsKey(starId) || _readsInFlight.ContainsKey(starId))
-                    continue;
-
-                _readsInFlight.TryAdd(starId, 1);
-                Task.Run(() =>
-                {
-                    try
-                    {
-                        var basePath = dataPack.DataPath;
-                        var newBasic = BasicData.LoadFromDisk(basePath);
-                        var newPenumbra = PenumbraData.LoadFromDisk(basePath);
-                        var newGlamourer = GlamourerData.LoadFromDisk(basePath);
-                        var newCustomize = CustomizeData.LoadFromDisk(basePath);
-                        var newHonorific = HonorificData.LoadFromDisk(basePath);
-                        var newMoodles = MoodlesData.LoadFromDisk(basePath);
-
-                        if (newBasic == null || newPenumbra == null || newGlamourer == null || newCustomize == null ||
-                            newHonorific == null || newMoodles == null)
-                        {
-                            return;
-                        }
-
-                        // Precompute Penumbra mappings off-thread; avoid IO on main thread
-                        try
-                        {
-                            var paths = new Dictionary<string, string>();
-                            var filesPath = dataPack.FilesPath;
-                            foreach (var customFile in newPenumbra.Files)
-                            {
-                                var localFilePath = customFile.GetPath(filesPath);
-                                if (!File.Exists(localFilePath))
-                                    continue;
-                                foreach (var gamePath in customFile.ApplicableGamePaths)
-                                {
-                                    if (string.IsNullOrWhiteSpace(gamePath)) continue;
-                                    paths[gamePath] = localFilePath;
-                                }
-                            }
-
-                            foreach (var customFile in newPenumbra.TransientFiles)
-                            {
-                                var localFilePath = customFile.GetPath(filesPath);
-                                if (!File.Exists(localFilePath))
-                                    continue;
-                                foreach (var gamePath in customFile.ApplicableGamePaths)
-                                {
-                                    if (string.IsNullOrWhiteSpace(gamePath)) continue;
-                                    paths[gamePath] = localFilePath;
-                                }
-                            }
-
-                            foreach (var swap in newPenumbra.FileSwaps)
-                            {
-                                if (swap.GamePath != null)
-                                    paths[swap.GamePath] = swap.RealPath;
-                            }
-
-                            foreach (var swap in newPenumbra.TransientFileSwaps)
-                            {
-                                if (swap.GamePath != null)
-                                    paths[swap.GamePath] = swap.RealPath;
-                            }
-
-                            newPenumbra.PreparedPaths = paths;
-                        }
-                        catch (Exception ex)
-                        {
-                            Svc.Log.Error($"Error preparing Penumbra mapping: {ex}");
-                        }
-
-                        var snapshot = new RemoteApplySnapshot
-                        {
-                            Basic = newBasic,
-                            Glamourer = newGlamourer,
-                            Penumbra = newPenumbra,
-                            Customize = newCustomize,
-                            Honorific = newHonorific,
-                            Moodles = newMoodles
-                        };
-                        _pendingApplies[starId] = snapshot;
-                    }
-                    catch (Exception ex)
-                    {
-                        Svc.Log.Error($"Error reading remote player data: {ex}");
-                    }
-                    finally
-                    {
-                        _readsInFlight.TryRemove(starId, out _);
-                    }
-                });
-            }
-            catch (Exception ex)
-            {
-                Svc.Log.Error($"Error scheduling remote player data read: {ex}");
-            }
-        }
-
-        foreach (var kv in _pendingApplies.ToArray())
-        {
-            if (!_pendingApplies.TryRemove(kv.Key, out var snap))
+                //Svc.Log.Debug($"[DEBUG] Syncing {star.StarId} - {rates?.InBps} Bps");
                 continue;
+            }
 
-            var remote = RemotePlayerData.FirstOrDefault(r => r.StarPackReference.StarId == kv.Key);
-            if (remote == null)
-                continue;
+            if (remote.Data == null || DateTime.Now - remote.LastUpdated < TimeSpan.FromSeconds(PsuPlugin.Configuration.RemotePollingSeconds))
+                PendingReads.Enqueue(star.StarId);
 
-            // Refresh the player reference just before apply (avoid stale)
-            var players = Svc.Objects.PlayerObjects.Cast<IPlayerCharacter>();
-            remote.Player = players.FirstOrDefault(p =>
-                p.HomeWorld.RowId == snap.Basic.WorldId && p.Name.TextValue == snap.Basic.PlayerName);
-
-            // If player is not present but we have an assigned Penumbra collection, clean it up.
+            remote.Player = nearbyPlayers.FirstOrDefault(p =>
+                p.HomeWorld.RowId == remote.Data?.WorldId && p.Name.TextValue == remote.Data?.PlayerName);
             if (remote.Player == null && remote.AssignedCollectionId != null)
             {
                 try
                 {
                     var collId = remote.AssignedCollectionId.Value;
-                    // Prefer snapshot ID; fallback to previously applied data
-                    var penId = snap.Penumbra?.Id ?? remote.PenumbraData?.Id ?? Guid.Empty;
+                    var penId = remote.PenumbraData?.Id ?? Guid.Empty;
                     if (penId != Guid.Empty)
                     {
                         var metaModName = $"PSU_Meta_{penId}";
@@ -294,7 +120,7 @@ public class PlayerDataService : IUpdatable, IDisposable
                 }
                 catch (Exception ex)
                 {
-                    Svc.Log.Error($"Error cleaning up temporary Penumbra collection: {ex}");
+                    Svc.Log.Error($"Error cleaning up temporary Penumbra collection (proactive): {ex}");
                 }
                 finally
                 {
@@ -306,18 +132,113 @@ public class PlayerDataService : IUpdatable, IDisposable
                     remote.HonorificData = null;
                     remote.MoodlesData = null;
                 }
-
-                // Skip applying when player isn't present
-                continue;
             }
+            else if (remote.Player != null && remote.AssignedCollectionId == null)
+            {
+                PendingApplies.Enqueue(star.StarId);
+            }
+        }
 
-            // Apply in dependency-friendly order
-            snap.Basic.ApplyData(remote);
-            snap.Glamourer.ApplyData(remote);
-            snap.Penumbra.ApplyData(remote);
-            snap.Customize.ApplyData(remote);
-            snap.Honorific.ApplyData(remote);
-            snap.Moodles.ApplyData(remote);
+        if (PendingReads.TryDequeue(out var starIdToRead))
+        {
+            Task.Run(() =>
+            {
+                try
+                {
+                    var remoteData = RemotePlayerData[starIdToRead];
+                    var dataPack = remoteData.StarPackReference.GetDataPack();
+                    if (dataPack == null)
+                    {
+                        Svc.Log.Warning($"DataPack for star {starIdToRead} is null, skipping read");
+                        return;
+                    }
+
+                    var basePath = dataPack.DataPath;
+                    var newBasic = BasicData.LoadFromDisk(basePath);
+                    var newPenumbra = PenumbraData.LoadFromDisk(basePath);
+                    var newGlamourer = GlamourerData.LoadFromDisk(basePath);
+                    var newCustomize = CustomizeData.LoadFromDisk(basePath);
+                    var newHonorific = HonorificData.LoadFromDisk(basePath);
+                    var newMoodles = MoodlesData.LoadFromDisk(basePath);
+                    bool dataChanged = false;
+                    if (newBasic != null && !newBasic.Equals(remoteData.Data))
+                    {
+                        remoteData.Data = newBasic;
+                        dataChanged = true;
+                        Svc.Log.Debug($"[DEBUG] Basic data changed for {starIdToRead}");
+                    }
+
+                    if (newPenumbra != null && !newPenumbra.Equals(remoteData.PenumbraData))
+                    {
+                        remoteData.PenumbraData = newPenumbra;
+                        dataChanged = true;
+                        var filesPath = remoteData.StarPackReference.GetDataPack()?.FilesPath;
+                        if (filesPath == null)
+                        {
+                            Svc.Log.Warning(
+                                $"DataPack for star {starIdToRead} has null FilesPath, cannot prepare Penumbra paths");
+                            return;
+                        }
+
+                        remoteData.PenumbraData.PreparePaths(filesPath);
+                        Svc.Log.Debug($"[DEBUG] Penumbra data changed for {starIdToRead}");
+                    }
+
+                    if (newGlamourer != null && !newGlamourer.Equals(remoteData.GlamourerData))
+                    {
+                        remoteData.GlamourerData = newGlamourer;
+                        dataChanged = true;
+                        Svc.Log.Debug($"[DEBUG] Glamourer data changed for {starIdToRead}");
+                    }
+
+                    if (newCustomize != null && !newCustomize.Equals(remoteData.CustomizeData))
+                    {
+                        remoteData.CustomizeData = newCustomize;
+                        dataChanged = true;
+                        Svc.Log.Debug($"[DEBUG] Customize data changed for {starIdToRead}");
+                    }
+
+                    if (newHonorific != null && !newHonorific.Equals(remoteData.HonorificData))
+                    {
+                        remoteData.HonorificData = newHonorific;
+                        dataChanged = true;
+                        Svc.Log.Debug($"[DEBUG] Honorific data changed for {starIdToRead}");
+                    }
+
+                    if (newMoodles != null && !newMoodles.Equals(remoteData.MoodlesData))
+                    {
+                        remoteData.MoodlesData = newMoodles;
+                        dataChanged = true;
+                        Svc.Log.Debug($"[DEBUG] Moodles data changed for {starIdToRead}");
+                    }
+
+                    if (dataChanged)
+                    {
+                        PendingApplies.Enqueue(starIdToRead);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Svc.Log.Error($"Error reading remote player data: {ex}");
+                }
+            });
+        }
+
+        if (PendingApplies.TryDequeue(out var starIdToApply))
+        {
+            var remote = RemotePlayerData[starIdToApply];
+            if (remote.Player == null)
+                return;
+            var basicApply = remote.Data?.ApplyData(remote.Player);
+            var glamApply = remote.GlamourerData?.ApplyData(remote.Player);
+            var penApply = remote.PenumbraData?.ApplyData(remote.Player, remote.AssignedCollectionId);
+            var customizeApply = remote.CustomizeData?.ApplyData(remote.Player);
+            var honorificApply = remote.HonorificData?.ApplyData(remote.Player);
+            var moodlesApply = remote.MoodlesData?.ApplyData(remote.Player);
+            if (penApply is not { Applied: true }) return;
+            var collectionId = Guid.Parse(penApply.Value.Result);
+            remote.AssignedCollectionId = collectionId;
+            remote.LastUpdated = DateTime.UtcNow;
         }
     }
 
@@ -332,31 +253,23 @@ public class PlayerDataService : IUpdatable, IDisposable
 
     public void Dispose()
     {
-        Svc.Framework.Update -= Update;
-        Svc.ClientState.Login -= OnLogin;
+        Svc.Framework.Update -= LocalUpdate;
         Svc.ClientState.Logout -= OnLogout;
         //StateChanged.Subscriber(Svc.PluginInterface, OnGlamourerStateChanged).Disable();
         GameObjectResourcePathResolved.Subscriber(Svc.PluginInterface, OnObjectPathResolved).Disable();
     }
 
-    private void OnLogin()
-    {
-        _applyNotBeforeUtc = DateTime.UtcNow + LoginDelay;
-    }
-
     private void OnLogout(int a, int b)
     {
-        _applyNotBeforeUtc = DateTime.MaxValue; // block until next login sets it
-
         // Best-effort cleanup of any temporary collections/mods
         try
         {
             foreach (var remote in RemotePlayerData)
             {
-                if (remote.AssignedCollectionId != null)
+                if (remote.Value.AssignedCollectionId != null)
                 {
-                    var collId = remote.AssignedCollectionId.Value;
-                    var penId = remote.PenumbraData?.Id ?? Guid.Empty;
+                    var collId = remote.Value.AssignedCollectionId.Value;
+                    var penId = remote.Value.PenumbraData?.Id ?? Guid.Empty;
                     if (penId != Guid.Empty)
                     {
                         var metaModName = $"PSU_Meta_{penId}";
@@ -366,13 +279,13 @@ public class PlayerDataService : IUpdatable, IDisposable
                     }
 
                     PsuPlugin.PenumbraService.DeleteTemporaryCollection.Invoke(collId);
-                    remote.AssignedCollectionId = null;
+                    remote.Value.AssignedCollectionId = null;
                     // Clear cached transient data so next appearance triggers full re-apply
-                    remote.PenumbraData = null;
-                    remote.GlamourerData = null;
-                    remote.CustomizeData = null;
-                    remote.HonorificData = null;
-                    remote.MoodlesData = null;
+                    remote.Value.PenumbraData = null;
+                    remote.Value.GlamourerData = null;
+                    remote.Value.CustomizeData = null;
+                    remote.Value.HonorificData = null;
+                    remote.Value.MoodlesData = null;
                 }
             }
         }
@@ -380,8 +293,5 @@ public class PlayerDataService : IUpdatable, IDisposable
         {
             Svc.Log.Error($"Error cleaning up Penumbra temporary collections on logout: {ex}");
         }
-
-        _pendingApplies.Clear();
-        _readsInFlight.Clear();
     }
 }

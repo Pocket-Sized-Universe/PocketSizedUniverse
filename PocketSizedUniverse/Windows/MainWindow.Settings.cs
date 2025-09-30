@@ -27,6 +27,8 @@ public partial class MainWindow
 
         DrawTransientDataSettings();
 
+        DrawPollingSettings();
+
         // Handle file dialogs
         _settingsFileDialogManager.Draw();
 
@@ -34,6 +36,32 @@ public partial class MainWindow
         if (_settingsChanged)
         {
             EzConfig.Save();
+        }
+    }
+
+    private void DrawPollingSettings()
+    {
+        if (ImGui.CollapsingHeader("Polling Intervals", ImGuiTreeNodeFlags.DefaultOpen))
+        {
+            var localSeconds = PsuPlugin.Configuration.LocalPollingSeconds;
+            SetInputWidth(100);
+            if (ImGui.InputInt("Local Polling Interval (seconds)", ref localSeconds, 1, 5))
+            {
+                if (localSeconds < 5) localSeconds = 5;
+                PsuPlugin.Configuration.LocalPollingSeconds = localSeconds;
+                EzConfig.Save();
+            }
+            ImGuiUtil.HoverTooltip("How often to check for changes to the data applied to your current character.");
+            
+            var remoteSeconds = PsuPlugin.Configuration.RemotePollingSeconds;
+            SetInputWidth(100);
+            if (ImGui.InputInt("Remote Polling Interval (seconds)", ref remoteSeconds, 1, 5))
+            {
+                if (remoteSeconds < 5) remoteSeconds = 5;
+                PsuPlugin.Configuration.RemotePollingSeconds = remoteSeconds;
+                EzConfig.Save();
+            }
+            ImGuiUtil.HoverTooltip("How often to check for changes to Stars you are paired with.");
         }
     }
 

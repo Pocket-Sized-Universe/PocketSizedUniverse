@@ -50,13 +50,13 @@ public class ProgressWindow : Window
 
         foreach (var remote in PsuPlugin.PlayerDataService.RemotePlayerData)
         {
-            if (remote.Player == null)
+            if (remote.Value.Player == null)
                 continue;
-            var rates = PsuPlugin.SyncThingService.GetTransferRates(remote.StarPackReference.StarId);
+            var rates = PsuPlugin.SyncThingService.GetTransferRates(remote.Value.StarPackReference.StarId);
             bool syncing = rates is { InBps: > 100 };
             if (!syncing)
                 continue;
-            if (!Svc.GameGui.WorldToScreen(remote.Player.Position, out var screenPos))
+            if (!Svc.GameGui.WorldToScreen(remote.Value.Player.Position, out var screenPos))
                 continue;
             if (screenPos == Vector2.Zero)
                 continue;

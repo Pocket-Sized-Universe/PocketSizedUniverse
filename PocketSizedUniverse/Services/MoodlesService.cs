@@ -14,4 +14,7 @@ public class MoodlesService
 
     [EzIPC("GetStatusManagerByPtrV2")]
     internal readonly Func<nint, string> GetStatusManager;
+    
+    [EzIPC("ClearStatusManagerByPtrV2")]
+    internal readonly Action<nint> ClearStatusManager;
 }

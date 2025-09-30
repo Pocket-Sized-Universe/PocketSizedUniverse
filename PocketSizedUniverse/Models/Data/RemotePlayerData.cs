@@ -14,6 +14,8 @@ public class RemotePlayerData(StarPack starPack) : PlayerData(starPack)
     public Guid? AssignedCollectionId { get; set; }
 
     public Guid? AssignedCustomizeProfileId { get; set; }
+    
+    public DateTime LastUpdated { get; set; } = DateTime.MinValue;
 
     public void AddContextMenu(IMenuOpenedArgs args)
     {
@@ -29,21 +31,15 @@ public class RemotePlayerData(StarPack starPack) : PlayerData(starPack)
             PrefixColor = 567,
             OnClicked = (a) =>
             {
-                if (Player == null)
-                    return;
-                if (Data == null || GlamourerData == null || PenumbraData == null || HonorificData == null ||
-                    CustomizeData == null || MoodlesData == null)
-                {
-                    Notify.Error("Player data is incomplete, cannot apply.");
-                    return;
-                }
-
-                GlamourerData.ApplyData(this, true);
-                PenumbraData.ApplyData(this, true);
-                HonorificData.ApplyData(this, true);
-                MoodlesData.ApplyData(this, true);
-                CustomizeData.ApplyData(this, true);
-                Notify.Success("Data applied.");
+                Data = null;
+                GlamourerData = null;
+                PenumbraData = null;
+                CustomizeData = null;
+                HonorificData = null;
+                MoodlesData = null;
+                PsuPlugin.PlayerDataService.PendingReads.Enqueue(StarPackReference.StarId);
+                PsuPlugin.PlayerDataService.PendingApplies.Enqueue(StarPackReference.StarId);
+                Notify.Success("Data application enqueued");
             }
         };
         args.AddMenuItem(menuItem);

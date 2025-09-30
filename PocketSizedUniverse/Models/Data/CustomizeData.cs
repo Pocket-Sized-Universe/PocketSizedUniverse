@@ -1,8 +1,9 @@
+using Dalamud.Game.ClientState.Objects.SubKinds;
 using PocketSizedUniverse.Interfaces;
 
 namespace PocketSizedUniverse.Models.Data;
 
-public class CustomizeData : IDataFile
+public class CustomizeData : IDataFile, IEquatable<CustomizeData>
 {
     public static CustomizeData? LoadFromDisk(string basePath)
     {
@@ -15,18 +16,11 @@ public class CustomizeData : IDataFile
         var data = File.ReadAllText(path);
         return Base64Util.FromBase64<CustomizeData>(data);
     }
-    public bool Equals(IWriteableData? x, IWriteableData? y)
-    {
-        if (ReferenceEquals(x, y)) return true;
-        if (ReferenceEquals(x, null)) return false;
-        if (ReferenceEquals(y, null)) return false;
-        if (x.GetType() != y.GetType()) return false;
-        return x.Id == y.Id;
-    }
 
-    public int GetHashCode(IWriteableData obj)
+    public bool Equals(CustomizeData? obj)
     {
-        return obj.Id.GetHashCode();
+        if (obj == null) return false;
+        return CustomizeState == obj.CustomizeState;
     }
 
     public Guid Id { get; set; } = Guid.NewGuid();
@@ -36,46 +30,34 @@ public class CustomizeData : IDataFile
     public int Version { get; set; } = 1;
     public DateTime LastUpdatedUtc { get; set; } = DateTime.MinValue;
 
-    public bool ApplyData(RemotePlayerData ctx, bool force = false)
+    public (bool Applied, string Result) ApplyData(IPlayerCharacter player, params object[] args)
     {
-        // Always cache
-        ctx.CustomizeData = this;
-
-        if (ctx.Player == null)
-            return false;
-
-        var current = PsuPlugin.CustomizeService.GetActiveProfileOnCharacter(ctx.Player.ObjectIndex);
+        var current = PsuPlugin.CustomizeService.GetActiveProfileOnCharacter(player.ObjectIndex);
         if (current.Item1 > 0 || current.Item2 == null || current.Item2 == Guid.Empty)
-            return false;
+            return (false, string.Empty);
         var currentProfile = PsuPlugin.CustomizeService.GetCustomizeProfileByUniqueId(current.Item2.Value);
-        var changed = ctx.CustomizeData == null
-            || !string.Equals(ctx.CustomizeData.CustomizeState, CustomizeState, StringComparison.Ordinal)
-                || !string.Equals(currentProfile.Item2, CustomizeState, StringComparison.Ordinal);
-        if (!changed && !force)
-            return false;
-        if (ctx.AssignedCustomizeProfileId == null && !string.IsNullOrEmpty(CustomizeState))
+        var changed = !string.Equals(currentProfile.Item2, CustomizeState, StringComparison.Ordinal);
+        if (!changed)
+            return (false, string.Empty);
+
+        if (!string.IsNullOrEmpty(CustomizeState))
         {
             var apply = PsuPlugin.CustomizeService
-                .ApplyTemporaryCustomizeProfileOnCharacter(ctx.Player.ObjectIndex, CustomizeState);
+                .ApplyTemporaryCustomizeProfileOnCharacter(player.ObjectIndex, CustomizeState);
             if (apply.Item1 > 0)
             {
-                // failed to apply; treat as no-op
-                return false;
+                return (false, string.Empty);
             }
 
-            ctx.AssignedCustomizeProfileId = apply.Item2;
-            return true;
+            return (true, apply.Item2!.Value.ToString());
         }
-
-        if (ctx.AssignedCustomizeProfileId != null && string.IsNullOrEmpty(CustomizeState))
+        else
         {
             var remove = PsuPlugin.CustomizeService
-                .DeleteTemporaryCustomizeProfileOnCharacter(ctx.Player.ObjectIndex);
+                .DeleteTemporaryCustomizeProfileOnCharacter(player.ObjectIndex);
             if (remove > 0)
-                return false;
-            return true;
+                return (false, string.Empty);
+            return (true, string.Empty);
         }
-
-        return false;
     }
 }

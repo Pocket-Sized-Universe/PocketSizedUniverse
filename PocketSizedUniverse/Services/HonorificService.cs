@@ -17,4 +17,7 @@ public class HonorificService
 
     [EzIPC("GetCharacterTitle")]
     internal readonly Func<int, string?> GetCharacterTitle;
+    
+    [EzIPC("ClearCharacterTitle")]
+    internal readonly Action<int> ClearCharacterTitle;
 }

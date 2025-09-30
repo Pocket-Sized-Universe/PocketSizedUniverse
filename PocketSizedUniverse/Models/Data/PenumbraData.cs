@@ -1,10 +1,11 @@
+using Dalamud.Game.ClientState.Objects.SubKinds;
 using Newtonsoft.Json;
 using PocketSizedUniverse.Interfaces;
 using PocketSizedUniverse.Models.Mods;
 
 namespace PocketSizedUniverse.Models.Data;
 
-public class PenumbraData : IDataFile
+public class PenumbraData : IDataFile, IEquatable<PenumbraData>
 {
     public static PenumbraData? LoadFromDisk(string basePath)
     {
@@ -33,18 +34,54 @@ public class PenumbraData : IDataFile
     [JsonIgnore]
     public Dictionary<string, string>? PreparedPaths { get; set; }
 
-    public bool Equals(IWriteableData? x, IWriteableData? y)
+    public void PreparePaths(string filesPath)
     {
-        if (ReferenceEquals(x, y)) return true;
-        if (ReferenceEquals(x, null)) return false;
-        if (ReferenceEquals(y, null)) return false;
-        if (x.GetType() != y.GetType()) return false;
-        return x.Id == y.Id;
+        Dictionary<string, string> paths = new();
+        foreach (var f in Files)
+        {
+            var localFilePath = f.GetPath(filesPath);
+            if (!File.Exists(localFilePath))
+                return;
+            foreach (var gamePath in f.ApplicableGamePaths)
+            {
+                if (string.IsNullOrWhiteSpace(gamePath)) continue;
+                paths[gamePath] = localFilePath;
+            }
+        }
+
+        foreach (var f in TransientFiles)
+        {
+            var localFilePath = f.GetPath(filesPath);
+            if (!File.Exists(localFilePath))
+                return;
+            foreach (var gamePath in f.ApplicableGamePaths)
+            {
+                if (string.IsNullOrWhiteSpace(gamePath)) continue;
+                paths[gamePath] = localFilePath;
+            }
+        }
+        foreach (var s in FileSwaps)
+        {
+            if (string.IsNullOrWhiteSpace(s.GamePath) || string.IsNullOrWhiteSpace(s.RealPath)) continue;
+            paths[s.GamePath] = s.RealPath;
+        }
+
+        foreach (var s in TransientFileSwaps)
+        {
+            if (string.IsNullOrWhiteSpace(s.GamePath) || string.IsNullOrWhiteSpace(s.RealPath)) continue;
+            paths[s.GamePath] = s.RealPath;
+        }
+        PreparedPaths = paths;
     }
 
-    public int GetHashCode(IWriteableData obj)
+    public bool Equals(PenumbraData? obj)
     {
-        return obj.Id.GetHashCode();
+        if (obj == null) return false;
+        return UnorderedEqualByKey(Files, obj.Files, f => CanonicalPath(f.FileName))
+            && UnorderedEqualByKey(FileSwaps, obj.FileSwaps, s => CanonicalPath(s.GamePath) + "->" + CanonicalPath(s.RealPath))
+            && UnorderedEqualByKey(TransientFiles, obj.TransientFiles, f => CanonicalPath(f.FileName))
+            && UnorderedEqualByKey(TransientFileSwaps, obj.TransientFileSwaps, s => CanonicalPath(s.GamePath) + "->" + CanonicalPath(s.RealPath))
+            && MetaManipulations == obj.MetaManipulations;
     }
 
     public Guid Id { get; set; } = Guid.NewGuid();
@@ -60,105 +97,37 @@ public class PenumbraData : IDataFile
         return ak.SequenceEqual(bk, StringComparer.Ordinal);
     }
 
-    public bool ApplyData(RemotePlayerData ctx, bool force = false)
+    public (bool Applied, string Result) ApplyData(IPlayerCharacter player, params object?[] args)
     {
-        // Compute change
-        bool filesEq = true;
-        bool swapsEq = true;
-        bool transientFilesEq = true;
-        bool transientSwapsEq = true;
-        if (ctx.PenumbraData != null)
+        var collId = args[0] as Guid?;
+        if (collId != null)
         {
-            filesEq = UnorderedEqualByKey(ctx.PenumbraData.Files, Files, f =>
-            {
-                var b64 = Convert.ToBase64String(f.Hash);
-                var ext = (f.FileExtension ?? string.Empty).Trim().ToLowerInvariant();
-                var paths = f.ApplicableGamePaths
-                    .Where(p => !string.IsNullOrWhiteSpace(p))
-                    .Select(CanonicalPath)
-                    .Distinct(StringComparer.OrdinalIgnoreCase)
-                    .OrderBy(p => p, StringComparer.OrdinalIgnoreCase);
-                return $"{b64}|{ext}|{string.Join(",", paths)}";
-            });
-            swapsEq = UnorderedEqualByKey(ctx.PenumbraData.FileSwaps, FileSwaps, s =>
-            {
-                var gp = CanonicalPath(s.GamePath).ToLowerInvariant();
-                var rp = CanonicalPath(s.RealPath).ToLowerInvariant();
-                return $"{gp}|{rp}";
-            });
-            transientFilesEq = UnorderedEqualByKey(ctx.PenumbraData.TransientFiles, TransientFiles, f =>
-            {
-                var b64 = Convert.ToBase64String(f.Hash);
-                var ext = (f.FileExtension ?? string.Empty).Trim().ToLowerInvariant();
-                var paths = f.ApplicableGamePaths
-                    .Where(p => !string.IsNullOrWhiteSpace(p))
-                    .Select(CanonicalPath)
-                    .Distinct(StringComparer.OrdinalIgnoreCase)
-                    .OrderBy(p => p, StringComparer.OrdinalIgnoreCase);
-                return $"{b64}|{ext}|{string.Join(",", paths)}";
-            });
-            transientSwapsEq = UnorderedEqualByKey(ctx.PenumbraData.TransientFileSwaps, TransientFileSwaps, s =>
-            {
-                var gp = CanonicalPath(s.GamePath).ToLowerInvariant();
-                var rp = CanonicalPath(s.RealPath).ToLowerInvariant();
-                return $"{gp}|{rp}";
-            });
+            PsuPlugin.PenumbraService.DeleteTemporaryCollection.Invoke(collId.Value);
         }
+        
+        PsuPlugin.PenumbraService.CreateTemporaryCollection.Invoke(
+            "PocketSizedUniverse", "PSU_" + Id, out var newColl);
+        collId = newColl;
 
-        var changed = ctx.PenumbraData == null
-                      || !string.Equals(ctx.PenumbraData.MetaManipulations, MetaManipulations, StringComparison.Ordinal)
-                      || !filesEq
-                      || !swapsEq
-                      || !transientFilesEq
-                      || !transientSwapsEq
-                      || ctx.AssignedCollectionId == null;
-        if (!changed && !force)
-            return false;
-
-        // Cache new state always
-        ctx.PenumbraData = this;
-        if (ctx.Player == null)
-            return false; // stash only
-
-        // Ensure collection
-        if (ctx.AssignedCollectionId == null)
-        {
-            PsuPlugin.PenumbraService.CreateTemporaryCollection.Invoke(
-                "PocketSizedUniverse", "PSU_" + Id, out var newColl);
-            ctx.AssignedCollectionId = newColl;
-        }
-        else
-        {
-            PsuPlugin.PenumbraService.DeleteTemporaryCollection.Invoke(ctx.AssignedCollectionId.Value);
-            PsuPlugin.PenumbraService.CreateTemporaryCollection.Invoke(
-                "PocketSizedUniverse", "PSU_" + Id, out var newColl);
-            ctx.AssignedCollectionId = newColl;
-        }
-
-        var collectionId = ctx.AssignedCollectionId!.Value;
-
-        // Meta manipulations
         var metaModName = $"PSU_Meta_{Id}";
-        PsuPlugin.PenumbraService.RemoveTemporaryMod.Invoke(metaModName, collectionId, 0);
+        PsuPlugin.PenumbraService.RemoveTemporaryMod.Invoke(metaModName, collId.Value, 0);
         if (!string.IsNullOrEmpty(MetaManipulations))
         {
             PsuPlugin.PenumbraService.AddTemporaryMod.Invoke(
-                metaModName, collectionId, new Dictionary<string, string>(), MetaManipulations, 0);
+                metaModName, collId.Value, new Dictionary<string, string>(), MetaManipulations, 0);
         }
-
-        // File redirects and swaps (precomputed; no disk IO on main thread)
         var paths = PreparedPaths ?? new Dictionary<string, string>();
 
         var fileModName = $"PSU_File_{Id}";
-        PsuPlugin.PenumbraService.RemoveTemporaryMod.Invoke(fileModName, collectionId, 0);
+        PsuPlugin.PenumbraService.RemoveTemporaryMod.Invoke(fileModName, collId.Value, 0);
         if (paths.Count > 0)
         {
-            PsuPlugin.PenumbraService.AddTemporaryMod.Invoke(fileModName, collectionId, paths,
+            PsuPlugin.PenumbraService.AddTemporaryMod.Invoke(fileModName, collId.Value, paths,
                 string.Empty, 0);
         }
 
-        PsuPlugin.PenumbraService.AssignTemporaryCollection.Invoke(collectionId, ctx.Player.ObjectIndex);
-        PsuPlugin.PenumbraService.RedrawObject.Invoke(ctx.Player.ObjectIndex);
-        return true;
+        PsuPlugin.PenumbraService.AssignTemporaryCollection.Invoke(collId.Value, player.ObjectIndex);
+        PsuPlugin.PenumbraService.RedrawObject.Invoke(player.ObjectIndex);
+        return (true, collId.Value.ToString());
     }
 }

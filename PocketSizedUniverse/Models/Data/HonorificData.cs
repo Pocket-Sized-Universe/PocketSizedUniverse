@@ -1,8 +1,9 @@
+using Dalamud.Game.ClientState.Objects.SubKinds;
 using PocketSizedUniverse.Interfaces;
 
 namespace PocketSizedUniverse.Models.Data;
 
-public class HonorificData : IDataFile
+public class HonorificData : IDataFile, IEquatable<HonorificData>
 {
     public static HonorificData? LoadFromDisk(string basePath)
     {
@@ -15,18 +16,10 @@ public class HonorificData : IDataFile
         var data = File.ReadAllText(path);
         return Base64Util.FromBase64<HonorificData>(data);
     }
-    public bool Equals(IWriteableData? x, IWriteableData? y)
+    public bool Equals(HonorificData? obj)
     {
-        if (ReferenceEquals(x, y)) return true;
-        if (ReferenceEquals(x, null)) return false;
-        if (ReferenceEquals(y, null)) return false;
-        if (x.GetType() != y.GetType()) return false;
-        return x.Id == y.Id;
-    }
-
-    public int GetHashCode(IWriteableData obj)
-    {
-        return obj.Id.GetHashCode();
+        if (obj == null) return false;
+        return Title == obj.Title;
     }
 
     public Guid Id { get; set; } = Guid.NewGuid();
@@ -36,28 +29,22 @@ public class HonorificData : IDataFile
     public int Version { get; set; } = 1;
     public DateTime LastUpdatedUtc { get; set; } = DateTime.MinValue;
 
-    public bool ApplyData(RemotePlayerData ctx, bool force = false)
+    public (bool Applied, string Result) ApplyData(IPlayerCharacter player, params object[] args)
     {
-        // Always cache
-        var existing = ctx.HonorificData;
-        ctx.HonorificData = this;
+        var current = PsuPlugin.HonorificService.GetCharacterTitle(player.ObjectIndex);
+        var changed = !string.Equals(current, Title, StringComparison.Ordinal);
+        if (!changed)
+            return (false, string.Empty);
 
-        if (ctx.Player == null)
-            return false;
-
-        var current = PsuPlugin.HonorificService.GetCharacterTitle(ctx.Player.ObjectIndex);
-        var changed = existing == null
-                      || !string.Equals(existing.Title, Title, StringComparison.Ordinal)
-                      || !string.Equals(current, Title, StringComparison.Ordinal);
-        if (!changed && !force)
-            return false;
-
-        if (!string.IsNullOrEmpty(Title) && !string.Equals(current, Title, StringComparison.Ordinal))
+        if (!string.IsNullOrEmpty(Title))
         {
-            PsuPlugin.HonorificService.SetCharacterTitle(ctx.Player.ObjectIndex, Title);
-            return true;
+            PsuPlugin.HonorificService.SetCharacterTitle(player.ObjectIndex, Title);
+            return (true, Title);
         }
-
-        return false;
+        else
+        {
+            PsuPlugin.HonorificService.ClearCharacterTitle(player.ObjectIndex);
+            return (true, "Cleared");
+        }
     }
 }

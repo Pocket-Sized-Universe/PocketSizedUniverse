@@ -1,11 +1,9 @@
+using System.Collections.Concurrent;
 using System.Security.Cryptography;
-using System.Runtime.InteropServices;
 using System.Text;
-using System.Threading;
 using Dalamud.Game.ClientState.Objects.SubKinds;
 using ECommons.Configuration;
 using ECommons.DalamudServices;
-using ECommons.GameFunctions;
 using PocketSizedUniverse.Models.Mods;
 
 namespace PocketSizedUniverse.Models.Data;
@@ -14,6 +12,9 @@ public class LocalPlayerData : PlayerData
 {
     public LocalPlayerData(StarPack myStarPack) : base(myStarPack)
     {
+        var maxParallel = Math.Max(2, Environment.ProcessorCount - 1);
+        _semaphoreSlim = new SemaphoreSlim(maxParallel);
+        _penumbraCts = new CancellationTokenSource();
     }
 
     private DateTime _lastMoodlesUpdate = DateTime.MinValue;
@@ -22,20 +23,21 @@ public class LocalPlayerData : PlayerData
     private DateTime _lastGlamUpdate = DateTime.MinValue;
     private DateTime _lastBasicUpdate = DateTime.MinValue;
     private DateTime _lastPenumbraUpdate = DateTime.MinValue;
+    private readonly SemaphoreSlim _semaphoreSlim;
 
     // Penumbra heavy compute job control
-    private CancellationTokenSource? _penumbraCts;
-    private Task? _penumbraJob;
-    private int _penumbraGen;
+    private readonly CancellationTokenSource _penumbraCts;
 
-    private readonly Lock _transientLock = new();
+    private static readonly ConcurrentDictionary<string, (DateTime LastWriteUtc, long Length, byte[] Hash)>
+        FileHashCache = new(StringComparer.OrdinalIgnoreCase);
 
     private async Task WriteText(string path, string content)
     {
         try
         {
-            var dir = Path.GetDirectoryName(path)!;
-            Directory.CreateDirectory(dir);
+            var dir = Path.GetDirectoryName(path);
+            if (!string.IsNullOrEmpty(dir))
+                Directory.CreateDirectory(dir);
             await File.WriteAllTextAsync(path, content, Encoding.UTF8);
         }
         catch (Exception ex)
@@ -52,6 +54,8 @@ public class LocalPlayerData : PlayerData
             return;
         _lastMoodlesUpdate = DateTime.UtcNow;
         var moodles = PsuPlugin.MoodlesService.GetStatusManager(Player.Address);
+        var pack = StarPackReference.GetDataPack();
+        if (pack == null) return;
 
         var moodlesData = new MoodlesData()
         {
@@ -64,7 +68,7 @@ public class LocalPlayerData : PlayerData
         if (changed)
         {
             MoodlesData = moodlesData;
-            var cLoc = MoodlesData.GetPath(StarPackReference.GetDataPack()!.DataPath);
+            var cLoc = MoodlesData.GetPath(pack.DataPath);
             var encodedMoodles = Base64Util.ToBase64(MoodlesData);
             Task.Run(async () =>
             {
@@ -87,13 +91,15 @@ public class LocalPlayerData : PlayerData
             LastUpdatedUtc = DateTime.UtcNow,
             Title = honorific
         };
+        var pack = StarPackReference.GetDataPack();
+        if (pack == null) return;
 
         var changed = HonorificData == null ||
                       !string.Equals(HonorificData.Title, honorificData.Title, StringComparison.Ordinal);
         if (changed)
         {
             HonorificData = honorificData;
-            var cLoc = HonorificData.GetPath(StarPackReference.GetDataPack()!.DataPath);
+            var cLoc = HonorificData.GetPath(pack.DataPath);
             var encodedHonorific = Base64Util.ToBase64(HonorificData);
             Task.Run(async () =>
             {
@@ -129,7 +135,8 @@ public class LocalPlayerData : PlayerData
             }
         }
 
-
+        var pack = StarPackReference.GetDataPack();
+        if (pack == null) return;
         var cData = new CustomizeData()
         {
             CustomizeState = data,
@@ -141,7 +148,7 @@ public class LocalPlayerData : PlayerData
         if (changed)
         {
             CustomizeData = cData;
-            var cLoc = CustomizeData.GetPath(StarPackReference.GetDataPack()!.DataPath);
+            var cLoc = CustomizeData.GetPath(pack.DataPath);
             var encodedCustomize = Base64Util.ToBase64(CustomizeData);
             Task.Run(async () =>
             {
@@ -157,12 +164,16 @@ public class LocalPlayerData : PlayerData
             return;
         if (DateTime.UtcNow - _lastGlamUpdate < TimeSpan.FromMilliseconds(500))
             return;
+        _lastGlamUpdate = DateTime.UtcNow;
         var glamState = PsuPlugin.GlamourerService.GetStateBase64.Invoke(Player.ObjectIndex);
         if (glamState.Item2 == null)
         {
             Svc.Log.Warning("Failed to get glamourer state.");
             return;
         }
+
+        var pack = StarPackReference.GetDataPack();
+        if (pack == null) return;
 
         var glamData = new GlamourerData()
         {
@@ -174,7 +185,7 @@ public class LocalPlayerData : PlayerData
         if (changed)
         {
             GlamourerData = glamData;
-            var glamourerLoc = GlamourerData.GetPath(StarPackReference.GetDataPack()!.DataPath);
+            var glamourerLoc = GlamourerData.GetPath(pack.DataPath);
             var encodedGlamourer = Base64Util.ToBase64(GlamourerData);
             Task.Run(async () =>
             {
@@ -191,6 +202,8 @@ public class LocalPlayerData : PlayerData
         if (DateTime.UtcNow - _lastBasicUpdate < TimeSpan.FromMilliseconds(500))
             return;
         _lastBasicUpdate = DateTime.UtcNow;
+        var pack = StarPackReference.GetDataPack();
+        if (pack == null) return;
 
         var newBasic = new BasicData
         {
@@ -202,7 +215,7 @@ public class LocalPlayerData : PlayerData
         if (changed)
         {
             Data = newBasic;
-            var playerDataLoc = Data.GetPath(StarPackReference.GetDataPack()!.DataPath);
+            var playerDataLoc = Data.GetPath(pack.DataPath);
             var encodedData = Base64Util.ToBase64(Data);
             Task.Run(async () =>
             {
@@ -213,7 +226,6 @@ public class LocalPlayerData : PlayerData
     }
 
     private sealed record PenumbraComputeSnapshot(
-        int ObjectIndex,
         string FilesPath,
         string DataPath,
         string MetaManipulations,
@@ -230,14 +242,12 @@ public class LocalPlayerData : PlayerData
         var ext = Path.GetExtension(realPath);
         if (AllowedFileExtensions.IsAllowed(gamePath, ext))
         {
-            lock (_transientLock)
-            {
-                var normalizedGamePath = NormalizePenumbraPath(gamePath)!;
-                var normalizedRealPath = NormalizePenumbraPath(realPath)!;
-                var key = $"{normalizedGamePath}|{normalizedRealPath}";
-                
-                PsuPlugin.Configuration.TransientFiles[key] = (normalizedGamePath, normalizedRealPath);
-            }
+            var normalizedGamePath = NormalizePenumbraPath(gamePath);
+            var normalizedRealPath = NormalizePenumbraPath(realPath);
+            if (normalizedGamePath == null || normalizedRealPath == null)
+                return;
+            var key = $"{normalizedGamePath}|{normalizedRealPath}";
+            PsuPlugin.Configuration.TransientFiles[key] = (normalizedGamePath, normalizedRealPath);
         }
     }
 
@@ -247,6 +257,7 @@ public class LocalPlayerData : PlayerData
             return;
         if (DateTime.UtcNow - _lastPenumbraUpdate < TimeSpan.FromMilliseconds(500))
             return;
+        _lastPenumbraUpdate = DateTime.UtcNow;
 
         // Phase A: gather snapshot on framework thread (no IO)
         var dataPack = StarPackReference.GetDataPack();
@@ -255,9 +266,9 @@ public class LocalPlayerData : PlayerData
         var filesPath = dataPack.FilesPath;
         var dataPath = dataPack.DataPath;
 
-        var manips = Svc.Framework.RunOnFrameworkThread(() => PsuPlugin.PenumbraService.GetPlayerMetaManipulations.Invoke()).ConfigureAwait(false).GetAwaiter().GetResult();
+        var manips = PsuPlugin.PenumbraService.GetPlayerMetaManipulations.Invoke();
 
-        var resourcePathsArr = Svc.Framework.RunOnFrameworkThread(() => PsuPlugin.PenumbraService.GetGameObjectResourcePaths.Invoke(Player.ObjectIndex)).ConfigureAwait(false).GetAwaiter().GetResult();
+        var resourcePathsArr = PsuPlugin.PenumbraService.GetGameObjectResourcePaths.Invoke(Player.ObjectIndex);
         if (resourcePathsArr.Length == 0)
         {
             Svc.Log.Warning("Failed to get character resource paths from Penumbra.");
@@ -268,82 +279,54 @@ public class LocalPlayerData : PlayerData
         if (resolvedPaths == null || resolvedPaths.Count == 0)
             return;
 
-        var resourcePaths = new Dictionary<string, IReadOnlyList<string>>(StringComparer.Ordinal);
-        foreach (var kv in resolvedPaths)
-        {
-            var localPath = kv.Key;
-            var gamePaths = kv.Value?.ToList() ?? new List<string>();
-            if (!File.Exists(localPath))
-                continue;
-            var ext = Path.GetExtension(localPath);
-            var allowedGamePaths = gamePaths.Where(gp => AllowedFileExtensions.IsAllowed(gp, ext)).ToList();
-            if (allowedGamePaths.Count == 0)
-                continue;
-            resourcePaths[localPath] = allowedGamePaths;
-        }
-
-        var swaps = new List<(string GamePath, string RealPath)>();
-        var penumbraResourceTree = PsuPlugin.PenumbraService.GetPlayerResourceTrees.Invoke();
-        foreach (var tree in penumbraResourceTree)
-        {
-            foreach (var node in tree.Value.Nodes.Where(n => !File.Exists(n.ActualPath)))
-            {
-                if (node.GamePath == null) continue;
-                var ext = Path.GetExtension(node.ActualPath);
-                if (!AllowedFileExtensions.IsAllowed(node.GamePath, ext)) continue;
-                swaps.Add((NormalizePenumbraPath(node.GamePath)!, NormalizePenumbraPath(node.ActualPath)!));
-            }
-        }
-
-        // Capture transient data for processing
-        Dictionary<string, IReadOnlyList<string>> transientResourcePaths;
-        List<(string GamePath, string RealPath)> transientSwaps;
-        lock (_transientLock)
-        {
-            // Group transient files that exist on disk by their real path
-            transientResourcePaths = PsuPlugin.Configuration.TransientFiles
-                .Where(kvp => File.Exists(kvp.Value.RealPath))
-                .GroupBy(kvp => kvp.Value.RealPath, StringComparer.OrdinalIgnoreCase)
-                .ToDictionary(
-                    g => g.Key,
-                    g => (IReadOnlyList<string>)g.Select(kvp => kvp.Value.GamePath).Distinct(StringComparer.OrdinalIgnoreCase).ToList(),
-                    StringComparer.OrdinalIgnoreCase
-                );
-            
-            // Transient swaps for files that don't exist on disk (reference other game assets)
-            transientSwaps = PsuPlugin.Configuration.TransientFiles
-                .Where(kvp => !File.Exists(kvp.Value.RealPath))
-                .Select(kvp => (kvp.Value.GamePath, kvp.Value.RealPath))
-                .ToList();
-        }
-
-        var snapshot = new PenumbraComputeSnapshot(
-            Player.ObjectIndex,
-            filesPath,
-            dataPath,
-            manips,
-            resourcePaths,
-            swaps,
-            transientResourcePaths,
-            transientSwaps
-        );
-
-        // Phase B: coalesce and run heavy compute off-thread
-        Interlocked.Increment(ref _penumbraGen);
-        _penumbraCts?.Cancel();
-        _penumbraCts = new CancellationTokenSource();
-        var thisGen = _penumbraGen;
         var ct = _penumbraCts.Token;
 
-        _penumbraJob = Task.Run(async () =>
+        Task.Run(async () =>
         {
             try
             {
-                var result = await ComputePenumbraAsync(snapshot, ct).ConfigureAwait(false);
-                // Phase C: apply on framework thread
+                var resourcePaths = resolvedPaths.Where(kvp => File.Exists(kvp.Key))
+                    .GroupBy(kvp => kvp.Key, StringComparer.OrdinalIgnoreCase)
+                    .ToDictionary(
+                        g => g.Key,
+                        IReadOnlyList<string> (g) => g.SelectMany(kvp => kvp.Value)
+                            .Distinct(StringComparer.OrdinalIgnoreCase).ToList(),
+                        StringComparer.OrdinalIgnoreCase
+                    );
 
-                if (thisGen != _penumbraGen || ct.IsCancellationRequested)
-                    return;
+                var swaps = resourcePaths.Where(kvp => !File.Exists(kvp.Key))
+                    .SelectMany(kvp => kvp.Value.Select(gp => (GamePath: gp, RealPath: kvp.Key)))
+                    .ToList();
+
+                // Group transient files that exist on disk by their real path
+                var transientResourcePaths = PsuPlugin.Configuration.TransientFiles
+                    .Where(kvp => File.Exists(kvp.Value.RealPath))
+                    .GroupBy(kvp => kvp.Value.RealPath, StringComparer.OrdinalIgnoreCase)
+                    .ToDictionary(
+                        g => g.Key,
+                        IReadOnlyList<string> (g) => g.Select(kvp => kvp.Value.GamePath)
+                            .Distinct(StringComparer.OrdinalIgnoreCase).ToList(),
+                        StringComparer.OrdinalIgnoreCase
+                    );
+
+                // Transient swaps for files that don't exist on disk (reference other game assets)
+                var transientSwaps = PsuPlugin.Configuration.TransientFiles
+                    .Where(kvp => !File.Exists(kvp.Value.RealPath))
+                    .Select(kvp => (kvp.Value.GamePath, kvp.Value.RealPath))
+                    .ToList();
+
+
+                var snapshot = new PenumbraComputeSnapshot(
+                    filesPath,
+                    dataPath,
+                    manips,
+                    resourcePaths,
+                    swaps,
+                    transientResourcePaths,
+                    transientSwaps
+                );
+
+                var result = await ComputePenumbraAsync(snapshot, ct).ConfigureAwait(false);
 
                 var changed =
                     PenumbraData == null
@@ -374,103 +357,89 @@ public class LocalPlayerData : PlayerData
         }, ct);
     }
 
-    private static async Task<PenumbraData> ComputePenumbraAsync(PenumbraComputeSnapshot s, CancellationToken ct)
+    private async Task<PenumbraData> ComputePenumbraAsync(PenumbraComputeSnapshot s, CancellationToken ct)
     {
-        // Process static files
-        var files = new List<CustomRedirect>();
-        foreach (var kv in s.ResourcePaths)
+        try
         {
-            ct.ThrowIfCancellationRequested();
-            var localPath = kv.Key;
-            var gamePaths = kv.Value;
-            if (!File.Exists(localPath))
-                continue;
-
-            try
+            async Task<CustomRedirect?> ProcessOne(string localPath, IReadOnlyList<string> gamePaths)
             {
-                var data = await File.ReadAllBytesAsync(localPath, ct).ConfigureAwait(false);
-                using var sha256 = SHA256.Create();
-                var hash = sha256.ComputeHash(data);
-                var ext = Path.GetExtension(localPath);
-                var redirected = new CustomRedirect(hash)
+                await _semaphoreSlim.WaitAsync(ct).ConfigureAwait(false);
+                try
                 {
-                    FileExtension = string.IsNullOrWhiteSpace(ext)
-                        ? Path.GetExtension(gamePaths.FirstOrDefault() ?? string.Empty)
-                        : ext,
-                    ApplicableGamePaths = gamePaths.ToList()
-                };
+                    ct.ThrowIfCancellationRequested();
+                    if (!File.Exists(localPath)) return null;
+                    var info = new FileInfo(localPath);
+                    bool cacheHit;
+                    byte[] hash;
+                    lock (FileHashCache)
+                    {
+                        cacheHit = FileHashCache.TryGetValue(localPath, out var entry) &&
+                                   entry.LastWriteUtc == info.LastWriteTimeUtc && entry.Length == info.Length;
+                        hash = cacheHit ? entry.Hash : [];
+                    }
 
-                var redirectPath = redirected.GetPath(s.FilesPath);
-                if (!File.Exists(redirectPath))
-                {
-                    Directory.CreateDirectory(Path.GetDirectoryName(redirectPath)!);
-                    await File.WriteAllBytesAsync(redirectPath, data, ct).ConfigureAwait(false);
+                    byte[]? data = null;
+                    if (!cacheHit)
+                    {
+                        data = await File.ReadAllBytesAsync(localPath, ct).ConfigureAwait(false);
+                        using var sha = SHA256.Create();
+                        hash = sha.ComputeHash(data);
+                        lock (FileHashCache)
+                            FileHashCache[localPath] = (info.LastWriteTimeUtc, info.Length, hash);
+                    }
+
+                    var ext = Path.GetExtension(localPath);
+                    var redirect = new CustomRedirect(hash)
+                    {
+                        FileExtension = string.IsNullOrWhiteSpace(ext)
+                            ? Path.GetExtension(gamePaths.FirstOrDefault() ?? string.Empty)
+                            : ext,
+                        ApplicableGamePaths = gamePaths.ToList()
+                    };
+                    var redirectPath = redirect.GetPath(s.FilesPath);
+                    if (!File.Exists(redirectPath))
+                    {
+                        data ??= await File.ReadAllBytesAsync(localPath, ct).ConfigureAwait(false);
+                        var dir = Path.GetDirectoryName(redirectPath);
+                        if (!string.IsNullOrEmpty(dir)) Directory.CreateDirectory(dir);
+                        await File.WriteAllBytesAsync(redirectPath, data, ct).ConfigureAwait(false);
+                    }
+
+                    return redirect;
                 }
-
-                files.Add(redirected);
-            }
-            catch (Exception ex)
-            {
-                Svc.Log.Error($"Error processing file {localPath}: {ex.Message}");
-            }
-        }
-
-        // Process transient files
-        var transientFiles = new List<CustomRedirect>();
-        foreach (var kv in s.TransientResourcePaths)
-        {
-            ct.ThrowIfCancellationRequested();
-            var localPath = kv.Key;
-            var gamePaths = kv.Value;
-            if (!File.Exists(localPath))
-                continue;
-
-            try
-            {
-                var data = await File.ReadAllBytesAsync(localPath, ct).ConfigureAwait(false);
-                using var sha256 = SHA256.Create();
-                var hash = sha256.ComputeHash(data);
-                var ext = Path.GetExtension(localPath);
-                var redirected = new CustomRedirect(hash)
+                catch (Exception ex)
                 {
-                    FileExtension = string.IsNullOrWhiteSpace(ext)
-                        ? Path.GetExtension(gamePaths.FirstOrDefault() ?? string.Empty)
-                        : ext,
-                    ApplicableGamePaths = gamePaths.ToList()
-                };
-
-                var redirectPath = redirected.GetPath(s.FilesPath);
-                if (!File.Exists(redirectPath))
-                {
-                    Directory.CreateDirectory(Path.GetDirectoryName(redirectPath)!);
-                    await File.WriteAllBytesAsync(redirectPath, data, ct).ConfigureAwait(false);
+                    Svc.Log.Error($"Error processing file {localPath}: {ex.Message}");
+                    return null;
                 }
-
-                transientFiles.Add(redirected);
+                finally
+                {
+                    _semaphoreSlim.Release();
+                }
             }
-            catch (Exception ex)
+
+            var fileTasks = s.ResourcePaths.Select(kv => ProcessOne(kv.Key, kv.Value));
+            var files = (await Task.WhenAll(fileTasks).ConfigureAwait(false)).OfType<CustomRedirect>().ToList();
+            var transientTasks = s.TransientResourcePaths.Select(kv => ProcessOne(kv.Key, kv.Value));
+            var transientFiles = (await Task.WhenAll(transientTasks).ConfigureAwait(false)).OfType<CustomRedirect>()
+                .ToList();
+            var fileSwaps = s.Swaps.Select(t => new AssetSwap(t.GamePath, t.RealPath)).ToList();
+            var transientFileSwaps = s.TransientSwaps.Select(t => new AssetSwap(t.GamePath, t.RealPath)).ToList();
+            return new PenumbraData
             {
-                Svc.Log.Error($"Error processing transient file {localPath}: {ex.Message}");
-            }
+                Files = files,
+                FileSwaps = fileSwaps,
+                TransientFiles = transientFiles,
+                TransientFileSwaps = transientFileSwaps,
+                MetaManipulations = s.MetaManipulations,
+                LastUpdatedUtc = DateTime.UtcNow
+            };
         }
-
-        var fileSwaps = s.Swaps
-            .Select(t => new AssetSwap(t.GamePath, t.RealPath))
-            .ToList();
-
-        var transientFileSwaps = s.TransientSwaps
-            .Select(t => new AssetSwap(t.GamePath, t.RealPath))
-            .ToList();
-
-        return new PenumbraData
+        catch (Exception ex)
         {
-            Files = files,
-            FileSwaps = fileSwaps,
-            TransientFiles = transientFiles,
-            TransientFileSwaps = transientFileSwaps,
-            MetaManipulations = s.MetaManipulations,
-            LastUpdatedUtc = DateTime.UtcNow
-        };
+            Svc.Log.Error($"Error during Penumbra data computation: {ex}");
+            throw;
+        }
     }
 
     public sealed override IPlayerCharacter? Player { get; set; }

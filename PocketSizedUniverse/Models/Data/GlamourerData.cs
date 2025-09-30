@@ -1,8 +1,9 @@
+using Dalamud.Game.ClientState.Objects.SubKinds;
 using PocketSizedUniverse.Interfaces;
 
 namespace PocketSizedUniverse.Models.Data;
 
-public class GlamourerData : IDataFile
+public class GlamourerData : IDataFile, IEquatable<GlamourerData>
 {
     public static GlamourerData? LoadFromDisk(string basePath)
     {
@@ -21,18 +22,10 @@ public class GlamourerData : IDataFile
 
     public const uint LockKey = 8675309;
 
-    public bool Equals(IWriteableData? x, IWriteableData? y)
+    public bool Equals(GlamourerData? obj)
     {
-        if (ReferenceEquals(x, y)) return true;
-        if (ReferenceEquals(x, null)) return false;
-        if (ReferenceEquals(y, null)) return false;
-        if (x.GetType() != y.GetType()) return false;
-        return x.Id == y.Id;
-    }
-
-    public int GetHashCode(IWriteableData obj)
-    {
-        return obj.Id.GetHashCode();
+        if (obj == null) return false;
+        return GlamState == obj.GlamState;
     }
 
     public string GlamState { get; init; } = string.Empty;
@@ -41,22 +34,14 @@ public class GlamourerData : IDataFile
     public Guid Id { get; set; } = Guid.NewGuid();
     public string GetPath(string basePath) => Path.Combine(basePath, Filename);
 
-    public bool ApplyData(RemotePlayerData ctx, bool force = false)
+    public (bool Applied, string Result) ApplyData(IPlayerCharacter player, params object[] args)
     {
-        if (ctx.Player == null)
-            return false; // no logging to avoid spam
-        var current = PsuPlugin.GlamourerService.GetStateBase64.Invoke(ctx.Player.ObjectIndex, LockKey).Item2;
-        var changed = ctx.GlamourerData == null
-                      || !string.Equals(ctx.GlamourerData.GlamState, GlamState, StringComparison.Ordinal)
-                      || !string.Equals(current, GlamState, StringComparison.Ordinal);
-        if (!changed && !force)
-            return false;
+        var current = PsuPlugin.GlamourerService.GetStateBase64.Invoke(player.ObjectIndex, LockKey).Item2;
+        var changed = !string.Equals(current, GlamState, StringComparison.Ordinal);
+        if (!changed)
+            return (false, string.Empty);
 
-        // Cache new state always
-        ctx.GlamourerData = this;
-
-
-        PsuPlugin.GlamourerService.ApplyState.Invoke(GlamState, ctx.Player.ObjectIndex, LockKey);
-        return true;
+        PsuPlugin.GlamourerService.ApplyState.Invoke(GlamState, player.ObjectIndex, LockKey);
+        return (true, "Glamourer data applied.");
     }
 }
