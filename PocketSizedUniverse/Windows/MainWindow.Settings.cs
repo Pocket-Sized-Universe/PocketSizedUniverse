@@ -47,7 +47,7 @@ public partial class MainWindow
             SetInputWidth(100);
             if (ImGui.InputInt("Local Polling Interval (seconds)", ref localSeconds, 1, 5))
             {
-                if (localSeconds < 5) localSeconds = 5;
+                if (localSeconds < 1) localSeconds = 1;
                 PsuPlugin.Configuration.LocalPollingSeconds = localSeconds;
                 EzConfig.Save();
             }
@@ -57,7 +57,7 @@ public partial class MainWindow
             SetInputWidth(100);
             if (ImGui.InputInt("Remote Polling Interval (seconds)", ref remoteSeconds, 1, 5))
             {
-                if (remoteSeconds < 5) remoteSeconds = 5;
+                if (remoteSeconds < 1) remoteSeconds = 1;
                 PsuPlugin.Configuration.RemotePollingSeconds = remoteSeconds;
                 EzConfig.Save();
             }
