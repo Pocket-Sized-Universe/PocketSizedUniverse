@@ -19,4 +19,9 @@ public class SystemClient : ApiClient, ISystemClient
     {
         return await ApiConnection.Get<ConnectionsResponse>(ApiUrls.Connections());
     }
+
+    public async Task Shutdown()
+    {
+        await ApiConnection.Post(ApiUrls.Shutdown());
+    }
 }

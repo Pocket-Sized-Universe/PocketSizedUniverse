@@ -623,6 +623,12 @@ public class SyncThingService : ICache, IDisposable
         }
     }
 
+    public void Shutdown()
+    {
+        _client?.Config.System.Shutdown().ConfigureAwait(false).GetAwaiter().GetResult();
+        Svc.Log.Information("SyncThing Instance Shutdown Complete");
+    }
+
     public TransferRates? GetTransferRates(string starId)
     {
         return _currentRates.TryGetValue(starId, out var v) ? v : null;

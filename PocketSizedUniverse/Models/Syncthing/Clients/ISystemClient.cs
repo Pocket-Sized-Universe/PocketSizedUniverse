@@ -6,4 +6,5 @@ public interface ISystemClient
 {
     Task<PingResponse> Ping();
     Task<ConnectionsResponse> GetConnections();
+    Task Shutdown();
 }

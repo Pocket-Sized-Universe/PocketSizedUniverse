@@ -90,26 +90,9 @@ public class PsuPlugin : IDalamudPlugin
 
     public static void StopServer()
     {
-        if (ServerProcess == null || ServerProcess.HasExited)
+        if (Configuration.UseBuiltInSyncThing && ServerProcess != null)
         {
-            Svc.Log.Debug("Server process not running, nothing to stop");
-            return;
-        }
-        
-        try
-        {
-            var homePath = Path.Combine(Svc.PluginInterface.GetPluginConfigDirectory(), "engine-home");
-            var stopArgs = $"{SyncThingProcessStartType.Stop.ToArgument()}--home=\"{homePath}\" --gui-address={Configuration.ApiUri?.Host}:{Configuration.ApiUri?.Port} --gui-apikey={Configuration.ApiKey}";
-            var stopProcess = new SyncThingProcess(stopArgs);
-            stopProcess.Start();
-            stopProcess.BeginOutputReadLine();
-            stopProcess.BeginErrorReadLine();
-            stopProcess.WaitForExit();
-            ServerProcess.WaitForExit();
-        }
-        catch (Exception ex)
-        {
-            Svc.Log.Error($"Failed to stop syncthing process: {ex}");
+            SyncThingService.Shutdown();
         }
     }
 
@@ -128,8 +111,7 @@ public class PsuPlugin : IDalamudPlugin
 
     public void Dispose()
     {
-        if (!ServerProcess?.HasExited ?? true)
-            StopServer();
+        StopServer();
         PlayerDataService.Dispose();
         SyncThingService.Dispose();
         ECommonsMain.Dispose();

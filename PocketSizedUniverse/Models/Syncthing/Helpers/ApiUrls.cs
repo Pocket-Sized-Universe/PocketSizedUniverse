@@ -86,5 +86,10 @@ namespace Syncthing.Helpers
         {
             return "/rest/system/connections".FormatUri();
         }
+
+        public static Uri Shutdown()
+        {
+            return "/rest/system/shutdown".FormatUri();
+        }
     }
 }
