@@ -2,16 +2,18 @@
 using ECommons.DalamudServices;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
+using PocketSizedUniverse;
 
 namespace Syncthing.Models.Response
 {
     public class DataPackListConverter : JsonConverter<List<DataPack>>
     {
-        public override List<DataPack> ReadJson(JsonReader reader, Type objectType, List<DataPack>? existingValue, bool hasExistingValue, JsonSerializer serializer)
+        public override List<DataPack> ReadJson(JsonReader reader, Type objectType, List<DataPack>? existingValue,
+            bool hasExistingValue, JsonSerializer serializer)
         {
             var result = new List<DataPack>();
             var array = JArray.Load(reader);
-            
+
             foreach (var item in array)
             {
                 var idToken = item["id"];
@@ -35,23 +37,24 @@ namespace Syncthing.Models.Response
                     }
                 }
             }
-            
+
             return result;
         }
-        
+
         public override void WriteJson(JsonWriter writer, List<DataPack> value, JsonSerializer serializer)
         {
             // Use default serialization for writing
             serializer.Serialize(writer, value);
         }
     }
-    
+
     public class DataPack
     {
         public DataPack(Guid id)
         {
             IdString = id.ToString();
         }
+
         public string DataPath => System.IO.Path.Combine(Path, "Data");
         public string FilesPath => System.IO.Path.Combine(Path, "Files");
 
@@ -85,7 +88,53 @@ namespace Syncthing.Models.Response
         /// The path to the directory where the folder is stored on this star; not sent to other stars. (mandatory)
         /// </summary>
         [JsonProperty("path")]
-        public string Path { get; set; }
+        private string PathString { get; set; }
+
+        [JsonIgnore]
+        public string Path
+        {
+            get
+            {
+                if (PsuPlugin.IsRunningUnderWine() && !PsuPlugin.Configuration.UseBuiltInSyncThing)
+                {
+                    if (PathString.StartsWith('/'))
+                    {
+                        // Convert Linux path to WINE path (Z: drive mapping)
+                        return "Z:" + PathString.Replace('/', '\\');
+                    }
+                }
+
+                // Return as-is for normal Windows or when using built-in Syncthing
+                return PathString;
+            }
+            init
+            {
+                if (PsuPlugin.IsRunningUnderWine() && !PsuPlugin.Configuration.UseBuiltInSyncThing)
+                {
+                    if (value.Length >= 2 && value[0] == 'Z' && value[1] == ':')
+                    {
+                        // Convert WINE path back to Linux path
+                        PathString = value[2..].Replace('\\', '/');
+                        if (string.IsNullOrEmpty(PathString))
+                        {
+                            PathString = "/";
+                        }
+                    }
+                    else if (value.StartsWith('/'))
+                    {
+                        PathString = value.Replace('\\', '/').TrimEnd('/');
+                    }
+                    else
+                    {
+                        PathString = value.Replace('\\', '/').TrimEnd('/');
+                    }
+                }
+                else
+                {
+                    PathString = value.TrimEnd(System.IO.Path.DirectorySeparatorChar);
+                }
+            }
+        }
 
         /// <summary>
         /// Controls how the folder is handled by Syncthing.
@@ -98,8 +147,7 @@ namespace Syncthing.Models.Response
             set => TypeString = value.ToApiString();
         }
 
-        [JsonProperty("type")]
-        private string TypeString { get; set; }
+        [JsonProperty("type")] private string TypeString { get; set; }
 
         /// <summary>
         /// The rescan interval, in seconds. Can be set to zero to disable when external plugins are used to trigger

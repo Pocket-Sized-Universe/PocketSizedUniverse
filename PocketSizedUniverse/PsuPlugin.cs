@@ -68,6 +68,8 @@ public class PsuPlugin : IDalamudPlugin
         }
         Svc.PluginInterface.UiBuilder.Draw += WindowSystem.Draw;
         Svc.PluginInterface.UiBuilder.OpenMainUi += MainWindow.Toggle;
+        
+        Svc.Log.Information($"Pocket Sized Universe plugin loaded | WINE: {IsRunningUnderWine()} | Easy Mode: {Configuration.UseBuiltInSyncThing} | Server Process Exited: {ServerProcess?.HasExited ?? true}");
     }
 
     public static void StartServer()
@@ -115,5 +117,25 @@ public class PsuPlugin : IDalamudPlugin
         PlayerDataService.Dispose();
         SyncThingService.Dispose();
         ECommonsMain.Dispose();
+    }
+
+    public static bool IsRunningUnderWine()
+    {
+        if (!string.IsNullOrEmpty(Environment.GetEnvironmentVariable("WINE_PREFIX")) ||
+            !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("WINEPREFIX")) ||
+            !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("WINELOADER")))
+        {
+            return true;
+        }
+        
+        try
+        {
+            using var key = Microsoft.Win32.Registry.LocalMachine.OpenSubKey(@"Software\Wine");
+            return key != null;
+        }
+        catch
+        {
+            return false;
+        }
     }
 }
