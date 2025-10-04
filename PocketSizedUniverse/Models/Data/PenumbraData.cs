@@ -1,7 +1,9 @@
 using Dalamud.Game.ClientState.Objects.SubKinds;
+using ECommons.DalamudServices;
 using Newtonsoft.Json;
 using PocketSizedUniverse.Interfaces;
 using PocketSizedUniverse.Models.Mods;
+using PocketSizedUniverse.Services;
 
 namespace PocketSizedUniverse.Models.Data;
 
@@ -35,6 +37,22 @@ public class PenumbraData : IDataFile, IEquatable<PenumbraData>
     public void PreparePaths(string filesPath)
     {
         Dictionary<string, string> paths = new();
+        Dictionary<string, AntiVirusService.Result> scanResults = new();
+        foreach (var f in Files)
+        {
+            var localFilePath = f.GetPath(filesPath);
+            if (!File.Exists(localFilePath))
+                return;
+            var scanResult = PsuPlugin.AntiVirusService.IsFileSafe(localFilePath);
+            scanResults[localFilePath] = scanResult;
+        }
+        if (scanResults.Any(r => r.Value == AntiVirusService.Result.WaitForScan))
+            return;
+        if (scanResults.Any(r => r.Value == AntiVirusService.Result.Infected))
+        {
+            Svc.Log.Warning($"Penumbra data contains infected files!!!! Aborting load.");
+            return;
+        }
         foreach (var f in Files)
         {
             var localFilePath = f.GetPath(filesPath);

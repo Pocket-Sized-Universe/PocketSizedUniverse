@@ -27,6 +27,7 @@ public class PsuPlugin : IDalamudPlugin
     public static SetupWindow SetupWindow;
     public static ProgressWindow ProgressWindow;
     public static SyncThingService SyncThingService;
+    public static AntiVirusService AntiVirusService;
     public static MoodlesService MoodlesService;
     public static PlayerDataService PlayerDataService;
     public static ContextMenuService ContextMenuService;
@@ -40,6 +41,8 @@ public class PsuPlugin : IDalamudPlugin
         {
             StartServer();
         }
+        
+        AntiVirusService = new AntiVirusService();
 
         PenumbraService = new PenumbraService();
         GlamourerService = new GlamourerService();
@@ -114,6 +117,7 @@ public class PsuPlugin : IDalamudPlugin
     public void Dispose()
     {
         StopServer();
+        AntiVirusService.Dispose();
         PlayerDataService.Dispose();
         SyncThingService.Dispose();
         ECommonsMain.Dispose();

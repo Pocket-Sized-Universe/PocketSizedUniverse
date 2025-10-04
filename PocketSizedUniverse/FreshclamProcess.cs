@@ -4,12 +4,12 @@ using PocketSizedUniverse.Services;
 
 namespace PocketSizedUniverse;
 
-public class SyncThingProcess : Process
+public class FreshclamProcess : Process
 {
-    public SyncThingProcess(string args)
+    private readonly string _exePath = Path.Combine(Svc.PluginInterface.AssemblyLocation.DirectoryName!, "freshclam.exe");
+    public FreshclamProcess(string args)
     {
-        StartInfo = new ProcessStartInfo(Path.Combine(Svc.PluginInterface.AssemblyLocation.DirectoryName,
-            "syncthing.exe"))
+        StartInfo = new ProcessStartInfo(_exePath)
         {
             UseShellExecute = false,
             RedirectStandardOutput = true,
@@ -25,12 +25,12 @@ public class SyncThingProcess : Process
     private void OnError(object sender, DataReceivedEventArgs e)
     {
         if (string.IsNullOrEmpty(e.Data)) return;
-        Svc.Log.Error($"ST: {e.Data}");
+        Svc.Log.Error($"Freshclam: {e.Data}");
     }
 
     private void OnOutput(object sender, DataReceivedEventArgs e)
     {
         if (string.IsNullOrEmpty(e.Data)) return;
-        Svc.Log.Debug($"ST: {e.Data}");
+        Svc.Log.Debug($"Freshclam: {e.Data}");
     }
 }

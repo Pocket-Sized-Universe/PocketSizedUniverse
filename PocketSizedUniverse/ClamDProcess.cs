@@ -1,15 +1,15 @@
 using System.Diagnostics;
 using ECommons.DalamudServices;
-using PocketSizedUniverse.Services;
 
 namespace PocketSizedUniverse;
 
-public class SyncThingProcess : Process
+public class ClamDProcess : Process
 {
-    public SyncThingProcess(string args)
+    private readonly string _exePath = Path.Combine(Svc.PluginInterface.AssemblyLocation.DirectoryName!, "clamd.exe");
+    
+    public ClamDProcess(string args)
     {
-        StartInfo = new ProcessStartInfo(Path.Combine(Svc.PluginInterface.AssemblyLocation.DirectoryName,
-            "syncthing.exe"))
+        StartInfo = new ProcessStartInfo(_exePath)
         {
             UseShellExecute = false,
             RedirectStandardOutput = true,
@@ -21,16 +21,16 @@ public class SyncThingProcess : Process
         OutputDataReceived += OnOutput;
         ErrorDataReceived += OnError;
     }
-
+    
     private void OnError(object sender, DataReceivedEventArgs e)
     {
         if (string.IsNullOrEmpty(e.Data)) return;
-        Svc.Log.Error($"ST: {e.Data}");
+        Svc.Log.Error($"ClamD: {e.Data}");
     }
 
     private void OnOutput(object sender, DataReceivedEventArgs e)
     {
         if (string.IsNullOrEmpty(e.Data)) return;
-        Svc.Log.Debug($"ST: {e.Data}");
+        Svc.Log.Debug($"ClamD: {e.Data}");
     }
 }
