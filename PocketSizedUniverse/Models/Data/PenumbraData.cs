@@ -31,44 +31,38 @@ public class PenumbraData : IDataFile, IEquatable<PenumbraData>
     public DateTime LastUpdatedUtc { get; set; } = DateTime.MinValue;
 
     // Runtime-only, precomputed mapping prepared on a background thread.
-    [JsonIgnore]
-    public Dictionary<string, string>? PreparedPaths { get; set; }
+    [JsonIgnore] public Dictionary<string, string>? PreparedPaths { get; set; }
 
     public void PreparePaths(string filesPath)
     {
         Dictionary<string, string> paths = new();
-        Dictionary<string, AntiVirusService.Result> scanResults = new();
         foreach (var f in Files)
         {
             var localFilePath = f.GetPath(filesPath);
             if (!File.Exists(localFilePath))
-                return;
-            var scanResult = PsuPlugin.AntiVirusService.IsFileSafe(localFilePath);
-            scanResults[localFilePath] = scanResult;
-        }
-        if (scanResults.Any(r => r.Value == AntiVirusService.Result.WaitForScan))
-            return;
-        if (scanResults.Any(r => r.Value == AntiVirusService.Result.Infected))
-        {
-            Svc.Log.Warning($"Penumbra data contains infected files!!!! Aborting load.");
-            return;
-        }
-        foreach (var f in Files)
-        {
-            var localFilePath = f.GetPath(filesPath);
-            if (!File.Exists(localFilePath))
-                return;
-            foreach (var gamePath in f.ApplicableGamePaths)
+                continue;
+            if (PsuPlugin.Configuration.ScanResults.TryGetValue(localFilePath, out var scanResult) &&
+                scanResult.ScanTimeUtc > new FileInfo(localFilePath).LastWriteTimeUtc)
             {
-                if (string.IsNullOrWhiteSpace(gamePath)) continue;
-                paths[gamePath] = localFilePath;
+                if (scanResult.Result != ScanResult.ResultType.Clean)
+                    continue;
+                foreach (var gamePath in f.ApplicableGamePaths.Where(gamePath => !string.IsNullOrWhiteSpace(gamePath)))
+                {
+                    paths[gamePath] = localFilePath;
+                }
+            }
+            else
+            {
+                PsuPlugin.ClamScanProcess?.EnqueuePath(localFilePath);
             }
         }
+
         foreach (var s in FileSwaps)
         {
             if (string.IsNullOrWhiteSpace(s.GamePath) || string.IsNullOrWhiteSpace(s.RealPath)) continue;
             paths[s.GamePath] = s.RealPath;
         }
+
         PreparedPaths = paths;
     }
 
@@ -76,8 +70,9 @@ public class PenumbraData : IDataFile, IEquatable<PenumbraData>
     {
         if (obj == null) return false;
         return UnorderedEqualByKey(Files, obj.Files, f => CanonicalPath(f.FileName))
-            && UnorderedEqualByKey(FileSwaps, obj.FileSwaps, s => CanonicalPath(s.GamePath) + "->" + CanonicalPath(s.RealPath))
-            && MetaManipulations == obj.MetaManipulations;
+               && UnorderedEqualByKey(FileSwaps, obj.FileSwaps,
+                   s => CanonicalPath(s.GamePath) + "->" + CanonicalPath(s.RealPath))
+               && MetaManipulations == obj.MetaManipulations;
     }
 
     public Guid Id { get; set; } = Guid.NewGuid();

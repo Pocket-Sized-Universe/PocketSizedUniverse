@@ -7,8 +7,10 @@ namespace PocketSizedUniverse;
 public class FreshclamProcess : Process
 {
     private readonly string _exePath = Path.Combine(Svc.PluginInterface.AssemblyLocation.DirectoryName!, "freshclam.exe");
-    public FreshclamProcess(string args)
+    private readonly string _freshclamConfig = Path.Combine(Svc.PluginInterface.AssemblyLocation.DirectoryName!, "freshclam.conf");
+    public FreshclamProcess()
     {
+        string args = $"--config-file=\"{_freshclamConfig}\" --datadir=\"{PsuPlugin.ClamDbPath}\"";
         StartInfo = new ProcessStartInfo(_exePath)
         {
             UseShellExecute = false,

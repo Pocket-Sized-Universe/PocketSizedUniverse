@@ -27,11 +27,14 @@ public class PsuPlugin : IDalamudPlugin
     public static SetupWindow SetupWindow;
     public static ProgressWindow ProgressWindow;
     public static SyncThingService SyncThingService;
-    public static AntiVirusService AntiVirusService;
     public static MoodlesService MoodlesService;
     public static PlayerDataService PlayerDataService;
     public static ContextMenuService ContextMenuService;
     public static SyncThingProcess? ServerProcess;
+    public static FreshclamProcess FreshclamProcess;
+    public static ClamScanProcess? ClamScanProcess;
+    public static readonly string ClamDbPath = Path.Combine(Svc.PluginInterface.ConfigDirectory.FullName, "clam_db");
+
     public PsuPlugin(IDalamudPluginInterface dalamudPluginInterface)
     {
         ECommonsMain.Init(dalamudPluginInterface, this, Module.All);
@@ -41,8 +44,23 @@ public class PsuPlugin : IDalamudPlugin
         {
             StartServer();
         }
-        
-        AntiVirusService = new AntiVirusService();
+
+        FreshclamProcess = new FreshclamProcess();
+        FreshclamProcess.Start();
+        FreshclamProcess.BeginOutputReadLine();
+        FreshclamProcess.BeginErrorReadLine();
+        Task.Run(() =>
+        {
+            FreshclamProcess.WaitForExit();
+            if (FreshclamProcess.ExitCode != 0)
+            {
+                Svc.Log.Error("Failed to update ClamAV database");
+                return;
+            }
+            Svc.Log.Information("ClamAV database updated successfully");
+            ClamScanProcess = new ClamScanProcess();
+            ClamScanProcess.FileScanned += OnFileScanned;
+        });
 
         PenumbraService = new PenumbraService();
         GlamourerService = new GlamourerService();
@@ -64,15 +82,23 @@ public class PsuPlugin : IDalamudPlugin
         WindowSystem.AddWindow(MainWindow);
         WindowSystem.AddWindow(SetupWindow);
         WindowSystem.AddWindow(ProgressWindow);
-        
+
         if (!Configuration.SetupComplete)
         {
             SetupWindow.IsOpen = true;
         }
+
         Svc.PluginInterface.UiBuilder.Draw += WindowSystem.Draw;
         Svc.PluginInterface.UiBuilder.OpenMainUi += MainWindow.Toggle;
-        
-        Svc.Log.Information($"Pocket Sized Universe plugin loaded | WINE: {IsRunningUnderWine()} | Easy Mode: {Configuration.UseBuiltInSyncThing} | Server Process Exited: {ServerProcess?.HasExited ?? true}");
+
+        Svc.Log.Information(
+            $"Pocket Sized Universe plugin loaded | WINE: {IsRunningUnderWine()} | Easy Mode: {Configuration.UseBuiltInSyncThing} | Server Process Exited: {ServerProcess?.HasExited ?? true}");
+    }
+
+    private void OnFileScanned(object? sender, ClamScanProcess.FileScannedEventArgs e)
+    {
+        Configuration.ScanResults[e.FilePath] = e.Result;
+        EzConfig.Save();
     }
 
     public static void StartServer()
@@ -86,7 +112,8 @@ public class PsuPlugin : IDalamudPlugin
             return;
         }
 
-        var args = $"--home=\"{homePath}\" --gui-address={Configuration.ApiUri?.ToString()} --gui-apikey={Configuration.ApiKey} --no-browser";
+        var args =
+            $"--home=\"{homePath}\" --gui-address={Configuration.ApiUri?.ToString()} --gui-apikey={Configuration.ApiKey} --no-browser";
         ServerProcess = new SyncThingProcess(args);
         ServerProcess.Start();
         ServerProcess.BeginOutputReadLine();
@@ -117,7 +144,6 @@ public class PsuPlugin : IDalamudPlugin
     public void Dispose()
     {
         StopServer();
-        AntiVirusService.Dispose();
         PlayerDataService.Dispose();
         SyncThingService.Dispose();
         ECommonsMain.Dispose();
@@ -131,7 +157,7 @@ public class PsuPlugin : IDalamudPlugin
         {
             return true;
         }
-        
+
         try
         {
             using var key = Microsoft.Win32.Registry.LocalMachine.OpenSubKey(@"Software\Wine");
