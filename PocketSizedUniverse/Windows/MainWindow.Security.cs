@@ -19,18 +19,6 @@ public partial class MainWindow
             EzConfig.Save();
         }
         ImGuiUtil.HoverTooltip("Enables virus scanning of all mod files. Can cause performance issues on lower end systems.");
-        if (ImGui.Button("Refresh Database"))
-        {
-            if (PsuPlugin.FreshclamProcess.HasExited)
-            {
-                PsuPlugin.FreshclamProcess.Start();
-                PsuPlugin.FreshclamProcess.BeginOutputReadLine();
-                PsuPlugin.FreshclamProcess.BeginErrorReadLine();
-            }
-            else
-                Notify.Error("Database update already in progress");
-        }
-        ImGuiUtil.HoverTooltip("Force the anti-virus database to update. This is usually unnecessary as the database is updated automatically.");
         ImGui.Spacing();
         ImGui.Separator();
 
