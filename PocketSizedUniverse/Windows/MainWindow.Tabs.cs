@@ -48,6 +48,19 @@ public partial class MainWindow
                 ImGui.EndTabItem();
             }
 
+            if (ImGui.BeginTabItem("Security"))
+            {
+                if (PsuPlugin.SyncThingService.IsHealthy)
+                {
+                    DrawSecurity();
+                }
+                else
+                {
+                    DrawNotConnectedMessage();
+                }
+                ImGui.EndTabItem();
+            }
+
             if (ImGui.BeginTabItem("Settings"))
             {
                 DrawSettings();

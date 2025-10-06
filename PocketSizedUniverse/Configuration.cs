@@ -17,6 +17,7 @@ public class Configuration
     public List<StarPack> Blocklist { get; set; } = new();
     public ConcurrentDictionary<string, HashSet<string>> TransientFilesData { get; set; } = new();
     public ConcurrentDictionary<string, ScanResult> ScanResults { get; set; } = new();
+    public bool EnableVirusScanning { get; set; } = true;
     public int LocalPollingSeconds { get; set; } = 30;
     public int RemotePollingSeconds { get; set; } = 10;
     public int MaxDataPackSizeGb { get; set; } = 5;

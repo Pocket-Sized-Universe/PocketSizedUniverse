@@ -15,7 +15,7 @@ public class ClamScanProcess : Process
 
     public readonly System.Timers.Timer ScanTimer;
 
-    private ConcurrentBag<string> _pathsToScan = [];
+    public readonly ConcurrentBag<string> PathsToScan = [];
 
     // Regex to parse clamscan output
     // Captures: Group 1 = file path, Group 2 = status (virus name or "OK")
@@ -43,15 +43,15 @@ public class ClamScanProcess : Process
 
     public void EnqueuePath(string path)
     {
-        _pathsToScan.Add(path);
+        PathsToScan.Add(path);
         ScanTimer.Stop();
         ScanTimer.Start();
     }
 
     private void OnTimerElapsed(object? sender, System.Timers.ElapsedEventArgs e)
     {
-        List<string> pathsToProcess = _pathsToScan.ToList();
-        _pathsToScan.Clear();
+        List<string> pathsToProcess = PathsToScan.ToList();
+        PathsToScan.Clear();
         StartScan(pathsToProcess);
     }
 

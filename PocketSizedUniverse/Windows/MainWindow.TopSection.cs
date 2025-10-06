@@ -90,5 +90,7 @@ public partial class MainWindow
             ImGui.Text("If you experience issues, please restart your computer at your earliest convenience.");
             ImGui.PopStyleColor();
         }
+        if (!PsuPlugin.Configuration.EnableVirusScanning)
+            ImGui.TextColored(ImGuiColors.DalamudYellow, "WARNING: Virus scanning is disabled. Your system may be at risk of malware. Please be extra careful who you pair with.");
     }
 }

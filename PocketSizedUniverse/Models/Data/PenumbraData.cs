@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using Dalamud.Game.ClientState.Objects.SubKinds;
 using ECommons.DalamudServices;
 using Newtonsoft.Json;
@@ -33,7 +34,7 @@ public class PenumbraData : IDataFile, IEquatable<PenumbraData>
     // Runtime-only, precomputed mapping prepared on a background thread.
     [JsonIgnore] public Dictionary<string, string>? PreparedPaths { get; set; }
 
-    public void PreparePaths(string filesPath)
+    public void PreparePaths(string filesPath, string dataPackLabel)
     {
         Dictionary<string, string> paths = new();
         foreach (var f in Files)
@@ -41,11 +42,9 @@ public class PenumbraData : IDataFile, IEquatable<PenumbraData>
             var localFilePath = f.GetPath(filesPath);
             if (!File.Exists(localFilePath))
                 continue;
-            if (PsuPlugin.Configuration.ScanResults.TryGetValue(localFilePath, out var scanResult) &&
-                scanResult.ScanTimeUtc > new FileInfo(localFilePath).LastWriteTimeUtc)
+
+            if (IsFileSafeToUse(localFilePath, dataPackLabel))
             {
-                if (scanResult.Result != ScanResult.ResultType.Clean)
-                    continue;
                 foreach (var gamePath in f.ApplicableGamePaths.Where(gamePath => !string.IsNullOrWhiteSpace(gamePath)))
                 {
                     paths[gamePath] = localFilePath;
@@ -64,6 +63,27 @@ public class PenumbraData : IDataFile, IEquatable<PenumbraData>
         }
 
         PreparedPaths = paths;
+    }
+    
+    private readonly ConcurrentBag<string> _virusAlertedFiles = new();
+    private bool IsFileSafeToUse(string localFilePath, string dataPackLabel)
+    {
+        if (!PsuPlugin.Configuration.EnableVirusScanning)
+            return true;
+
+        if (!PsuPlugin.Configuration.ScanResults.TryGetValue(localFilePath, out var scanResult))
+            return false;
+
+        var fileInfo = new FileInfo(localFilePath);
+        if (scanResult.ScanTimeUtc > fileInfo.LastWriteTimeUtc && 
+               scanResult.Result == ScanResult.ResultType.Clean)
+            return true;
+        if (!_virusAlertedFiles.Contains(localFilePath))
+        {
+            _virusAlertedFiles.Add(localFilePath);
+            Svc.Chat.PrintError($"[PSU] CRITICAL ALERT: DataPack {dataPackLabel} contains malware: {localFilePath}");
+        }
+        return false;
     }
 
     public bool Equals(PenumbraData? obj)

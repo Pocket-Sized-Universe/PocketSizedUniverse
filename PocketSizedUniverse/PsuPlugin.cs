@@ -136,6 +136,8 @@ public class PsuPlugin : IDalamudPlugin
             Svc.Chat.Print("Here be dragons (TODO)");
             return;
         }
+        if (string.Equals(args, "clearav", StringComparison.OrdinalIgnoreCase))
+            Configuration.ScanResults.Clear();
 
         if (Configuration.SetupComplete)
             MainWindow.Toggle();
