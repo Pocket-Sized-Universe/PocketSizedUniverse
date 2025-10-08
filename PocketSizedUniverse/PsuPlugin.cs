@@ -32,7 +32,7 @@ public class PsuPlugin : IDalamudPlugin
     public static ContextMenuService ContextMenuService;
     public static SyncThingProcess? ServerProcess;
     public static FreshclamProcess FreshclamProcess;
-    public static ClamScanProcess? ClamScanProcess;
+    public static AntiVirusScanner AntiVirusScanner;
     public static readonly string ClamDbPath = Path.Combine(Svc.PluginInterface.ConfigDirectory.FullName, "clam_db");
 
     public PsuPlugin(IDalamudPluginInterface dalamudPluginInterface)
@@ -58,9 +58,9 @@ public class PsuPlugin : IDalamudPlugin
                 return;
             }
             Svc.Log.Information("ClamAV database updated successfully");
-            ClamScanProcess = new ClamScanProcess();
-            ClamScanProcess.FileScanned += OnFileScanned;
         });
+        AntiVirusScanner = new AntiVirusScanner();
+        AntiVirusScanner.FileScanned += OnFileScanned;
 
         PenumbraService = new PenumbraService();
         GlamourerService = new GlamourerService();
@@ -95,7 +95,7 @@ public class PsuPlugin : IDalamudPlugin
             $"Pocket Sized Universe plugin loaded | WINE: {IsRunningUnderWine()} | Easy Mode: {Configuration.UseBuiltInSyncThing} | Server Process Exited: {ServerProcess?.HasExited ?? true}");
     }
 
-    private void OnFileScanned(object? sender, ClamScanProcess.FileScannedEventArgs e)
+    private void OnFileScanned(object? sender, AntiVirusScanner.FileScannedEventArgs e)
     {
         Configuration.ScanResults[e.FilePath] = e.Result;
         EzConfig.Save();

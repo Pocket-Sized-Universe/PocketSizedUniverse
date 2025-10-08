@@ -27,8 +27,8 @@ public partial class MainWindow
         var clean = results.Count(kvp => kvp.Value.Result == ScanResult.ResultType.Clean);
         var infected = results.Count(kvp => kvp.Value.Result == ScanResult.ResultType.Infected);
         ImGui.Text($"Scanned {count} files. {clean} clean, {infected} infected.");
-        var pendingFiles = PsuPlugin.ClamScanProcess?.PathsToScan.Count;
-        ImGui.Text($"Pending: {pendingFiles ?? 0}");
+        var pendingFiles = PsuPlugin.AntiVirusScanner.PathsToScan.Count;
+        ImGui.Text($"Pending: {pendingFiles}");
         ImGui.Spacing();
         
         if (ImGui.BeginChild("ScanResultsChild", new System.Numerics.Vector2(0, 0), true))

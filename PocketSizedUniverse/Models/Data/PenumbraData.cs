@@ -52,7 +52,7 @@ public class PenumbraData : IDataFile, IEquatable<PenumbraData>
             }
             else
             {
-                PsuPlugin.ClamScanProcess?.EnqueuePath(localFilePath);
+                PsuPlugin.AntiVirusScanner?.EnqueuePath(localFilePath);
             }
         }
 

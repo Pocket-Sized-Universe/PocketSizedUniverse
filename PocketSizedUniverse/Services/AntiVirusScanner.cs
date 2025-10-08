@@ -4,9 +4,9 @@ using System.Text.RegularExpressions;
 using ECommons.DalamudServices;
 using PocketSizedUniverse.Models;
 
-namespace PocketSizedUniverse;
+namespace PocketSizedUniverse.Services;
 
-public class ClamScanProcess : Process
+public class AntiVirusScanner
 {
     private readonly string _exePath =
         Path.Combine(Svc.PluginInterface.AssemblyLocation.DirectoryName!, "clamscan.exe");
@@ -17,6 +17,8 @@ public class ClamScanProcess : Process
 
     public readonly ConcurrentBag<string> PathsToScan = [];
 
+    public Process? ScannerProcess;
+
     // Regex to parse clamscan output
     // Captures: Group 1 = file path, Group 2 = status (virus name or "OK")
     private static readonly Regex ScanOutputRegex = new Regex(
@@ -24,21 +26,18 @@ public class ClamScanProcess : Process
         RegexOptions.Compiled
     );
 
-    public ClamScanProcess()
+    public AntiVirusScanner()
     {
-        StartInfo = new ProcessStartInfo(_exePath)
-        {
-            UseShellExecute = false,
-            RedirectStandardOutput = true,
-            RedirectStandardError = true,
-            CreateNoWindow = true,
-            WorkingDirectory = Svc.PluginInterface.AssemblyLocation.DirectoryName
-        };
-        OutputDataReceived += OnOutput;
-        ErrorDataReceived += OnError;
         ScanTimer = new System.Timers.Timer(5000);
         ScanTimer.AutoReset = false;
         ScanTimer.Elapsed += OnTimerElapsed;
+    }
+
+    private void OnTimerElapsed(object? sender, System.Timers.ElapsedEventArgs e)
+    {
+        List<string> pathsToProcess = PathsToScan.ToList();
+        PathsToScan.Clear();
+        Task.Run(() => StartScan(pathsToProcess));
     }
 
     public void EnqueuePath(string path)
@@ -48,23 +47,56 @@ public class ClamScanProcess : Process
         ScanTimer.Start();
     }
 
-    private void OnTimerElapsed(object? sender, System.Timers.ElapsedEventArgs e)
-    {
-        List<string> pathsToProcess = PathsToScan.ToList();
-        PathsToScan.Clear();
-        StartScan(pathsToProcess);
-    }
-
     private void StartScan(List<string> paths)
     {
-        string fileList = string.Join(Environment.NewLine, paths);
-        var tempFile = Path.GetTempFileName();
-        File.WriteAllText(tempFile, fileList);
-        string args = $"--no-summary --database=\"{PsuPlugin.ClamDbPath}\" --file-list=\"{tempFile}\"";
-        StartInfo.Arguments = args;
-        Start();
-        BeginOutputReadLine();
-        BeginErrorReadLine();
+        string? tempList = null;
+        if (ScannerProcess != null)
+        {
+            Svc.Log.Warning("ClamScan process already running, skipping scan");
+            return;
+        }
+        try
+        {
+            string fileList = string.Join(Environment.NewLine, paths);
+            tempList = Path.GetTempFileName();
+            File.WriteAllText(tempList, fileList);
+            string args = $"--no-summary --database=\"{PsuPlugin.ClamDbPath}\" --file-list=\"{tempList}\"";
+            ScannerProcess = new Process()
+            {
+                StartInfo = new ProcessStartInfo(_exePath)
+                {
+                    UseShellExecute = false,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    CreateNoWindow = true,
+                    Arguments = args,
+                    WorkingDirectory = Svc.PluginInterface.AssemblyLocation.DirectoryName
+                }
+            };
+            ScannerProcess.OutputDataReceived += OnOutput;
+            ScannerProcess.ErrorDataReceived += OnError;
+            ScannerProcess.Start();
+            ScannerProcess.BeginOutputReadLine();
+            ScannerProcess.BeginErrorReadLine();
+            ScannerProcess.WaitForExit();
+            Svc.Log.Information("ClamScan scan completed");
+        }
+        catch (Exception ex)
+        {
+            Svc.Log.Error($"Failed to start ClamScan: {ex}");
+        }
+        finally
+        {
+            if (tempList != null && File.Exists(tempList))
+                File.Delete(tempList);
+            if (ScannerProcess != null)
+            {
+                ScannerProcess.OutputDataReceived -= OnOutput;
+                ScannerProcess.ErrorDataReceived -= OnError;
+                ScannerProcess.Dispose();
+                ScannerProcess = null;
+            }
+        }
     }
 
     private void OnOutput(object sender, DataReceivedEventArgs e)
