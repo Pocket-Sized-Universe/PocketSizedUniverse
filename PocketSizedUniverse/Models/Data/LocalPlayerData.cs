@@ -25,6 +25,7 @@ public class LocalPlayerData : PlayerData
     private DateTime _lastBasicUpdate = DateTime.MinValue;
     private DateTime _lastPenumbraUpdate = DateTime.MinValue;
     private DateTime _lastHeelsUpdate = DateTime.MinValue;
+    private DateTime _lastPetNameUpdate = DateTime.MinValue;
     private readonly SemaphoreSlim _semaphoreSlim;
 
     // Penumbra heavy compute job control
@@ -84,6 +85,46 @@ public class LocalPlayerData : PlayerData
         catch (IpcNotReadyError ex)
         {
             Svc.Log.Warning("Moodles plugin not ready.");
+        }
+    }
+
+    public void UpdatePetNameData()
+    {
+        try
+        {
+            if (Player == null)
+                return;
+            if (DateTime.UtcNow - _lastPetNameUpdate < TimeSpan.FromMilliseconds(500))
+                return;
+            _lastPetNameUpdate = DateTime.UtcNow;
+
+            var petName = PsuPlugin.PetNameService.GetPlayerData();
+            var nameData = new PetNameData()
+            {
+                LastUpdatedUtc = DateTime.UtcNow,
+                PetName = petName
+            };
+            var pack = StarPackReference.GetDataPack();
+            if (pack == null) return;
+
+            var changed = PetNameData == null ||
+                          !string.Equals(PetNameData.PetName, nameData.PetName, StringComparison.Ordinal);
+            if (changed)
+            {
+                PetNameData = nameData;
+                var cLoc = PetNameData.GetPath(pack.DataPath);
+                var encodedPetName = Base64Util.ToBase64(PetNameData);
+                Task.Run(async () =>
+                    {
+                        await WriteText(cLoc, encodedPetName);
+                        Svc.Log.Debug("Updated Pet Name data on disk.");
+                    }
+                );
+            }
+        }
+        catch (IpcNotReadyError ex)
+        {
+            Svc.Log.Warning("Pet Renamer plugin not ready.");
         }
     }
 
@@ -294,6 +335,7 @@ public class LocalPlayerData : PlayerData
     }
 
     public List<ushort> ApplicableObjectIndexes = new List<ushort>();
+
     public void UpdatePenumbraData()
     {
         try
@@ -330,10 +372,11 @@ public class LocalPlayerData : PlayerData
                 .GroupBy(kvp => kvp.Key, StringComparer.OrdinalIgnoreCase)
                 .ToDictionary(
                     g => g.Key,
-                    g => g.SelectMany(kvp => kvp.Value).Distinct(StringComparer.OrdinalIgnoreCase).ToHashSet(StringComparer.OrdinalIgnoreCase),
+                    g => g.SelectMany(kvp => kvp.Value).Distinct(StringComparer.OrdinalIgnoreCase)
+                        .ToHashSet(StringComparer.OrdinalIgnoreCase),
                     StringComparer.OrdinalIgnoreCase
                 );
-            
+
             var ct = _penumbraCts.Token;
 
             Task.Run(async () =>
@@ -355,7 +398,7 @@ public class LocalPlayerData : PlayerData
                             resolvedPaths[realPath] = gamePaths.ToHashSet(StringComparer.OrdinalIgnoreCase);
                         }
                     }
-                    
+
                     var resourcePaths = resolvedPaths
                         .Where(kvp => File.Exists(kvp.Key))
                         .GroupBy(kvp => kvp.Key, StringComparer.OrdinalIgnoreCase)

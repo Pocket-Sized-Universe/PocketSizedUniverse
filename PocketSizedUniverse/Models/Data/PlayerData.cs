@@ -71,6 +71,8 @@ public abstract class PlayerData(StarPack starPack)
     public MoodlesData? MoodlesData { get; set; }
     
     public HeelsData? HeelsData { get; set; }
+    
+    public PetNameData? PetNameData { get; set; }
 
     public StarPack StarPackReference { get; private set; } = starPack;
 }

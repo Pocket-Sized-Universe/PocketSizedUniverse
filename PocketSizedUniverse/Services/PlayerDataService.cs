@@ -96,6 +96,7 @@ public class PlayerDataService : IUpdatable, IDisposable
         LocalPlayerData.UpdateHonorificData();
         LocalPlayerData.UpdateMoodlesData();
         LocalPlayerData.UpdateHeelsData();
+        LocalPlayerData.UpdatePetNameData();
 
         Task.Run(PsuPlugin.SyncThingService.CleanLocalDataPack);
     }
@@ -146,11 +147,14 @@ public class PlayerDataService : IUpdatable, IDisposable
                 {
                     remote.AssignedCollectionId = null;
                     // Clear cached transient data so next appearance triggers full re-apply
+                    remote.Data = null;
                     remote.PenumbraData = null;
                     remote.GlamourerData = null;
                     remote.CustomizeData = null;
                     remote.HonorificData = null;
                     remote.MoodlesData = null;
+                    remote.HeelsData = null;
+                    remote.PetNameData = null;
                 }
             }
             else if (remote.Player != null && remote.AssignedCollectionId == null)
@@ -181,6 +185,7 @@ public class PlayerDataService : IUpdatable, IDisposable
                     var newHonorific = HonorificData.LoadFromDisk(basePath);
                     var newMoodles = MoodlesData.LoadFromDisk(basePath);
                     var newHeels = HeelsData.LoadFromDisk(basePath);
+                    var newPetName = PetNameData.LoadFromDisk(basePath);
                     bool dataChanged = false;
                     if (newBasic != null && !newBasic.Equals(remoteData.Data))
                     {
@@ -240,6 +245,13 @@ public class PlayerDataService : IUpdatable, IDisposable
                         Svc.Log.Debug($"[DEBUG] Heels data changed for {starIdToRead}");
                     }
 
+                    if (newPetName != null && !newPetName.Equals(remoteData.PetNameData))
+                    {
+                        remoteData.PetNameData = newPetName;
+                        dataChanged = true;
+                        Svc.Log.Debug($"[DEBUG] PetName data changed for {starIdToRead}");   
+                    }
+
                     if (dataChanged)
                     {
                         PendingApplies.Enqueue(starIdToRead);
@@ -264,6 +276,7 @@ public class PlayerDataService : IUpdatable, IDisposable
             var honorificApply = remote.HonorificData?.ApplyData(remote.Player);
             var moodlesApply = remote.MoodlesData?.ApplyData(remote.Player);
             var heelsApply = remote.HeelsData?.ApplyData(remote.Player);
+            var petNameApply = remote.PetNameData?.ApplyData(remote.Player);
             if (penApply is not { Applied: true }) return;
             var collectionId = Guid.Parse(penApply.Value.Result);
             remote.AssignedCollectionId = collectionId;
@@ -329,11 +342,14 @@ public class PlayerDataService : IUpdatable, IDisposable
                     PsuPlugin.PenumbraService.DeleteTemporaryCollection.Invoke(collId);
                     remote.Value.AssignedCollectionId = null;
                     // Clear cached transient data so next appearance triggers full re-apply
+                    remote.Value.Data = null;
                     remote.Value.PenumbraData = null;
                     remote.Value.GlamourerData = null;
                     remote.Value.CustomizeData = null;
                     remote.Value.HonorificData = null;
                     remote.Value.MoodlesData = null;
+                    remote.Value.HeelsData = null;
+                    remote.Value.PetNameData = null;
                 }
             }
         }

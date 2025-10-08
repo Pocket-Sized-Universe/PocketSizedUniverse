@@ -22,6 +22,7 @@ public class PsuPlugin : IDalamudPlugin
     public static CustomizeService CustomizeService;
     public static HonorificService HonorificService;
     public static SimpleHeelsService SimpleHeelsService;
+    public static PetNameService PetNameService;
     public static WindowSystem WindowSystem;
     public static MainWindow MainWindow;
     public static SetupWindow SetupWindow;
@@ -68,6 +69,7 @@ public class PsuPlugin : IDalamudPlugin
         HonorificService = new HonorificService();
         MoodlesService = new MoodlesService();
         SimpleHeelsService = new SimpleHeelsService();
+        PetNameService = new PetNameService();
 
         SyncThingService = new SyncThingService();
 
