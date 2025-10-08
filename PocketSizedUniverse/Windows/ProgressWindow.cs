@@ -71,7 +71,7 @@ public class ProgressWindow : Window
             drawList.AddText(font, fontSize, centerPos + new Vector2(1, 1), UIHelpers.Color(0, 0, 0, shadowTransparency), text);
 
             // Draw main text
-            drawList.AddText(font, fontSize, centerPos, UIHelpers.Color(220, 220, 220, transparency), text);
+            drawList.AddText(font, fontSize, centerPos, UIHelpers.Color(255, 255, 255, transparency), text);
         }
     }
 }
