@@ -293,6 +293,7 @@ public class LocalPlayerData : PlayerData
         }
     }
 
+    public List<ushort> ApplicableObjectIndexes = new List<ushort>();
     public void UpdatePenumbraData()
     {
         try
@@ -312,17 +313,27 @@ public class LocalPlayerData : PlayerData
 
             var manips = PsuPlugin.PenumbraService.GetPlayerMetaManipulations.Invoke();
 
-            var resourcePathsArr = PsuPlugin.PenumbraService.GetGameObjectResourcePaths.Invoke(Player.ObjectIndex);
+            var playerResources = PsuPlugin.PenumbraService.GetPlayerResourcePaths.Invoke();
+            ApplicableObjectIndexes.Clear();
+            ApplicableObjectIndexes.AddRange(playerResources.Keys);
+            var resourcePathsArr = playerResources.Values.ToArray();
             if (resourcePathsArr.Length == 0)
             {
                 Svc.Log.Warning("Failed to get character resource paths from Penumbra.");
                 return;
             }
 
-            var resolvedPaths = resourcePathsArr[0];
-            if (resolvedPaths == null || resolvedPaths.Count == 0)
-                return;
-
+            // Join the array of dictionaries into a single dictionary
+            // where the keys are the real paths and the values are the game paths.
+            var resolvedPaths = resourcePathsArr
+                .SelectMany(dict => dict)
+                .GroupBy(kvp => kvp.Key, StringComparer.OrdinalIgnoreCase)
+                .ToDictionary(
+                    g => g.Key,
+                    g => g.SelectMany(kvp => kvp.Value).Distinct(StringComparer.OrdinalIgnoreCase).ToHashSet(StringComparer.OrdinalIgnoreCase),
+                    StringComparer.OrdinalIgnoreCase
+                );
+            
             var ct = _penumbraCts.Token;
 
             Task.Run(async () =>
@@ -337,12 +348,11 @@ public class LocalPlayerData : PlayerData
                             continue;
                         if (resolvedPaths.TryGetValue(realPath, out var existing))
                         {
-                            var combined = existing.Union(gamePaths, StringComparer.OrdinalIgnoreCase);
-                            resolvedPaths[realPath] = combined.ToHashSet();
+                            existing.UnionWith(gamePaths);
                         }
                         else
                         {
-                            resolvedPaths[realPath] = gamePaths.ToHashSet();
+                            resolvedPaths[realPath] = gamePaths.ToHashSet(StringComparer.OrdinalIgnoreCase);
                         }
                     }
                     

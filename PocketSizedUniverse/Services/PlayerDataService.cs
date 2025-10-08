@@ -40,9 +40,9 @@ public class PlayerDataService : IUpdatable, IDisposable
     public ConcurrentDictionary<string, RemotePlayerData> RemotePlayerData { get; } = new();
     public Queue<string> PendingReads { get; } = new();
     public Queue<string> PendingApplies { get; } = new();
-    
+
     public ConcurrentDictionary<string, List<string>> MissingPluginsByPlayerName { get; } = new();
-    
+
     public void ReportMissingPlugin(string playerName, string pluginName)
     {
         if (!MissingPluginsByPlayerName.TryGetValue(playerName, out var missingPlugins))
@@ -50,8 +50,10 @@ public class PlayerDataService : IUpdatable, IDisposable
         if (!missingPlugins.Contains(pluginName))
         {
             missingPlugins.Add(pluginName);
-            Svc.Chat.PrintError($"[PSU] {playerName} is sending data that requires the {pluginName} plugin, which you do not have installed. Install it to see them as they see themselves!");
+            Svc.Chat.PrintError(
+                $"[PSU] {playerName} is sending data that requires the {pluginName} plugin, which you do not have installed. Install it to see them as they see themselves!");
         }
+
         MissingPluginsByPlayerName[playerName] = missingPlugins;
     }
 
@@ -105,7 +107,7 @@ public class PlayerDataService : IUpdatable, IDisposable
         {
             if (!RemotePlayerData.TryGetValue(star.StarId, out var remote))
                 RemotePlayerData[star.StarId] = remote = new RemotePlayerData(star);
-            
+
             var rates = PsuPlugin.SyncThingService.GetTransferRates(remote.StarPackReference.StarId);
             bool syncing = rates is { InBps: > 100 };
             if (syncing)
@@ -114,7 +116,8 @@ public class PlayerDataService : IUpdatable, IDisposable
                 continue;
             }
 
-            if (remote.Data == null || DateTime.Now - remote.LastUpdated < TimeSpan.FromSeconds(PsuPlugin.Configuration.RemotePollingSeconds))
+            if (remote.Data == null || DateTime.Now - remote.LastUpdated <
+                TimeSpan.FromSeconds(PsuPlugin.Configuration.RemotePollingSeconds))
                 PendingReads.Enqueue(star.StarId);
 
             remote.Player = nearbyPlayers.FirstOrDefault(p =>
@@ -270,11 +273,30 @@ public class PlayerDataService : IUpdatable, IDisposable
 
     private void OnObjectPathResolved(nint gameObject, string gamePath, string localPath)
     {
-        var realLocalPath = localPath.Split('|').Last();
-        if (LocalPlayerData?.Player?.Address == gameObject)
+        var capturedGameObject = gameObject;
+        var capturedGamePath = gamePath;
+        var capturedLocalPath = localPath;
+        _ = Task.Run(async () =>
         {
-            LocalPlayerData.UpdateTransientData(gamePath, realLocalPath);
-        }
+            try
+            {
+                await Svc.Framework.RunOnFrameworkThread(() =>
+                {
+                    var realLocalPath = capturedLocalPath.Split('|').Last();
+                    var realObj = Svc.Objects.CreateObjectReference(gameObject);
+                    if (realObj == null)
+                        return;
+                    if (LocalPlayerData?.ApplicableObjectIndexes.Contains(realObj.ObjectIndex) ?? false)
+                    {
+                        LocalPlayerData!.UpdateTransientData(capturedGamePath, realLocalPath);
+                    }
+                });
+            }
+            catch (Exception ex)
+            {
+                Svc.Log.Error($"Error in OnObjectPathResolved: {ex}");
+            }
+        });
     }
 
     public void Dispose()

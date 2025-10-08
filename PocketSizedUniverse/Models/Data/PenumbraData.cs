@@ -64,8 +64,9 @@ public class PenumbraData : IDataFile, IEquatable<PenumbraData>
 
         PreparedPaths = paths;
     }
-    
+
     private readonly ConcurrentBag<string> _virusAlertedFiles = new();
+
     private bool IsFileSafeToUse(string localFilePath, string dataPackLabel)
     {
         if (!PsuPlugin.Configuration.EnableVirusScanning)
@@ -75,10 +76,10 @@ public class PenumbraData : IDataFile, IEquatable<PenumbraData>
             return false;
 
         var fileInfo = new FileInfo(localFilePath);
-        if (scanResult.ScanTimeUtc > fileInfo.LastWriteTimeUtc && 
-               scanResult.Result == ScanResult.ResultType.Clean)
+        if (scanResult.ScanTimeUtc > fileInfo.LastWriteTimeUtc &&
+            scanResult.Result == ScanResult.ResultType.Clean)
             return true;
-        if (!_virusAlertedFiles.Contains(localFilePath))
+        if (scanResult.Result == ScanResult.ResultType.Infected && !_virusAlertedFiles.Contains(localFilePath))
         {
             _virusAlertedFiles.Add(localFilePath);
             Svc.Chat.PrintError($"[PSU] CRITICAL ALERT: DataPack {dataPackLabel} contains malware: {localFilePath}");
