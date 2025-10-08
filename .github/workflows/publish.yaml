@@ -58,7 +58,7 @@ jobs:
       - name: Download ClamAV
         run: |
           Invoke-WebRequest -Uri https://oss.netfarm.it/clamav/files/clamav-1.4.2-r1-x64.7z -OutFile clamav.7z
-          7z x clamav.7z -oclamav
+          7z e clamav.7z -oclamav -y
           copy .\clamav\clamscan.exe .\build\
           copy .\clamav\freshclam.exe .\build\
           copy .\clamav\*.dll .\build\
