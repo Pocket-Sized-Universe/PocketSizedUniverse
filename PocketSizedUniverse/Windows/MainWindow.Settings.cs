@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Numerics;
 using Dalamud.Bindings.ImGui;
+using Dalamud.Interface.Colors;
 using Dalamud.Interface.ImGuiFileDialog;
 using ECommons.Configuration;
 using ECommons.DalamudServices;
@@ -69,6 +70,12 @@ public partial class MainWindow
     {
         if (ImGui.CollapsingHeader("Transient Data", ImGuiTreeNodeFlags.DefaultOpen))
         {
+            ImGui.Text("Transient data is data that cannot be resolved to your character consistently, such as VFX and animations.");
+            ImGui.Text("To ensure a consistent syncing experience, transient data is stored permanently. This can can occasionally cause certain mods to not sync as expected.");
+            ImGui.Text("If certain mods are acting weird, you can clear the transient data here to fix it.");
+            ImGui.Text("This is completely safe to do, but may cause extra data transfer to your pairs if you have a lot of VFX or animation mods.");
+            ImGui.Spacing();
+            ImGui.TextColored(ImGuiColors.DalamudYellow, "NOTE: VFX and animation mods will need to be used at least once for the data to be stored again if this button is clicked!");
             if (ImGui.Button("Clear Transient Data"))
             {
                 PsuPlugin.Configuration.TransientFilesData.Clear();

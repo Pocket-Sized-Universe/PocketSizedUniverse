@@ -9,4 +9,5 @@ public class StarPack(string starId, Guid dataPackId)
     public Guid DataPackId { get; set; } = dataPackId;
     public DataPack? GetDataPack() => PsuPlugin.SyncThingService.DataPacks.GetValueOrDefault(DataPackId);
     public Star? GetStar() => PsuPlugin.SyncThingService.Stars.GetValueOrDefault(StarId);
+    public SyncPermissions SyncPermissions { get; set; } = SyncPermissions.All;
 }

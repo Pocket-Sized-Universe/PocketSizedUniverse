@@ -34,13 +34,14 @@ public class PenumbraData : IDataFile, IEquatable<PenumbraData>
     // Runtime-only, precomputed mapping prepared on a background thread.
     [JsonIgnore] public Dictionary<string, string>? PreparedPaths { get; set; }
 
-    public void PreparePaths(string filesPath, string dataPackLabel)
+    public void PreparePaths(string filesPath, string dataPackLabel, SyncPermissions permissions)
     {
         Dictionary<string, string> paths = new();
         foreach (var f in Files)
         {
             var localFilePath = f.GetPath(filesPath);
-            if (!File.Exists(localFilePath))
+            if (!File.Exists(localFilePath) || f.FileExtension == null ||
+                !AllowedFileExtensions.IsAllowed(f.FileExtension, permissions))
                 continue;
 
             if (IsFileSafeToUse(localFilePath, dataPackLabel))
@@ -84,6 +85,7 @@ public class PenumbraData : IDataFile, IEquatable<PenumbraData>
             _virusAlertedFiles.Add(localFilePath);
             Svc.Chat.PrintError($"[PSU] CRITICAL ALERT: DataPack {dataPackLabel} contains malware: {localFilePath}");
         }
+
         return false;
     }
 

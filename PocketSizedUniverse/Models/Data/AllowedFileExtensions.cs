@@ -2,24 +2,39 @@ namespace PocketSizedUniverse.Models.Data;
 
 public static class AllowedFileExtensions
 {
-    // Base set taken from Mare, excluding animations/sound by default
     public static readonly HashSet<string> Normal = new(StringComparer.OrdinalIgnoreCase)
     {
-        ".mdl", ".tex", ".mtrl", ".avfx", ".atex", ".sklb", ".eid", ".phyb", ".pbd", ".skp", ".shpk", ".pap", ".tmb", ".scd"
+        ".mdl", ".tex", ".mtrl", ".sklb", ".eid", ".phyb", ".pbd", ".skp", ".shpk", ".tmb"
     };
 
-    // These are excluded to match Mare’s filtering of pap/tmb/scd for player data
     public static readonly HashSet<string> AlwaysExclude = new(StringComparer.OrdinalIgnoreCase)
     {
         ".exe", ".dll", ".pdb", ".imc"
     };
 
-    // For avfx/atex, Mare allows only for weapon/equipment; enforce same here
-    public static bool IsAllowed(string gamePath, string extension)
+    public static readonly HashSet<string> Visuals = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ".avfx", ".atex"
+    };
+
+    public static readonly HashSet<string> Audio = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ".scd"
+    };
+
+    public static readonly HashSet<string> Animations = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ".pap"
+    };
+
+    public static bool IsAllowed(string extension, SyncPermissions permissions)
     {
         if (string.IsNullOrEmpty(extension)) return false;
         if (AlwaysExclude.Contains(extension)) return false;
-
-        return Normal.Contains(extension);
+        if (Normal.Contains(extension)) return true;
+        if (permissions.HasFlag(SyncPermissions.Visuals) && Visuals.Contains(extension)) return true;
+        if (permissions.HasFlag(SyncPermissions.Sounds) && Audio.Contains(extension)) return true;
+        if (permissions.HasFlag(SyncPermissions.Animations) && Animations.Contains(extension)) return true;
+        return false;
     }
 }

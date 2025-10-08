@@ -206,7 +206,7 @@ public class PlayerDataService : IUpdatable, IDisposable
                             return;
                         }
 
-                        remoteData.PenumbraData.PreparePaths(filesPath, dataPack.Name);
+                        remoteData.PenumbraData.PreparePaths(filesPath, dataPack.Name, remoteData.StarPackReference.SyncPermissions);
                         Svc.Log.Debug($"[DEBUG] Penumbra data changed for {starIdToRead}");
                     }
 

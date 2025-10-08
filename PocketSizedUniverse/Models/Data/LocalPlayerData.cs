@@ -310,31 +310,30 @@ public class LocalPlayerData : PlayerData
         if (Player == null)
             return;
         var ext = Path.GetExtension(realPath);
-        if (AllowedFileExtensions.IsAllowed(gamePath, ext))
+        // ReSharper disable once PossibleUnintendedLinearSearchInSet
+        if (AllowedFileExtensions.AlwaysExclude.Contains(ext, StringComparer.OrdinalIgnoreCase)) return;
+        var normalizedGamePath = NormalizePenumbraPath(gamePath);
+        var normalizedRealPath = NormalizePenumbraPath(realPath);
+        if (normalizedGamePath == null || normalizedRealPath == null)
+            return;
+        if (string.Equals(normalizedRealPath, normalizedGamePath))
+            return;
+        if (PsuPlugin.Configuration.TransientFilesData.TryGetValue(realPath, out var transientData))
         {
-            var normalizedGamePath = NormalizePenumbraPath(gamePath);
-            var normalizedRealPath = NormalizePenumbraPath(realPath);
-            if (normalizedGamePath == null || normalizedRealPath == null)
-                return;
-            if (string.Equals(normalizedRealPath, normalizedGamePath))
-                return;
-            if (PsuPlugin.Configuration.TransientFilesData.TryGetValue(realPath, out var transientData))
-            {
-                transientData.Add(normalizedGamePath);
-                PsuPlugin.Configuration.TransientFilesData[realPath] = transientData;
-            }
-            else
-            {
-                PsuPlugin.Configuration.TransientFilesData[realPath] =
-                    new HashSet<string>(StringComparer.OrdinalIgnoreCase)
-                    {
-                        normalizedGamePath
-                    };
-            }
+            transientData.Add(normalizedGamePath);
+            PsuPlugin.Configuration.TransientFilesData[realPath] = transientData;
+        }
+        else
+        {
+            PsuPlugin.Configuration.TransientFilesData[realPath] =
+                new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+                {
+                    normalizedGamePath
+                };
         }
     }
 
-    public List<ushort> ApplicableObjectIndexes = new List<ushort>();
+    public readonly List<ushort> ApplicableObjectIndexes = new List<ushort>();
 
     public void UpdatePenumbraData()
     {

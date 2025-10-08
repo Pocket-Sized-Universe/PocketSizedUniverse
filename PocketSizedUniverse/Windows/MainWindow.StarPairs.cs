@@ -1,6 +1,7 @@
 using System.Numerics;
 using Dalamud.Bindings.ImGui;
 using Dalamud.Interface;
+using Dalamud.Interface.Colors;
 using Dalamud.Interface.Utility;
 using ECommons.Configuration;
 using ECommons.DalamudServices;
@@ -216,12 +217,43 @@ public partial class MainWindow
         {
             DrawDataPackEditor(dataPack);
         }
+        
+        ImGui.Spacing();
+        ImGui.Separator();
+        
+        //Sync Permissions
+        if (ImGui.CollapsingHeader("Sync Permissions", ImGuiTreeNodeFlags.None))
+        {
+            var permissions = selectedStarPack.SyncPermissions;
+            var audio = permissions.HasFlag(SyncPermissions.Sounds);
+            var vfx = permissions.HasFlag(SyncPermissions.Visuals);
+            var animations = permissions.HasFlag(SyncPermissions.Animations);
+            if (ImGui.Checkbox("Enable Sound", ref audio))
+            {
+                selectedStarPack.SyncPermissions = audio ? permissions | SyncPermissions.Sounds : permissions & ~SyncPermissions.Sounds;
+                EzConfig.Save();
+            }
+
+            if (ImGui.Checkbox("Enable VFX", ref vfx))
+            {
+                selectedStarPack.SyncPermissions = vfx ? permissions | SyncPermissions.Visuals : permissions & ~SyncPermissions.Visuals;
+                EzConfig.Save();
+            }
+            
+            if (ImGui.Checkbox("Enable Animations", ref animations))
+            {
+                selectedStarPack.SyncPermissions = animations ? permissions | SyncPermissions.Animations : permissions & ~SyncPermissions.Animations;
+                EzConfig.Save();
+            }
+
+            if (!permissions.HasFlag(SyncPermissions.All))
+            {
+                ImGui.TextColored(ImGuiColors.DalamudRed, "Some permissions are disabled. Syncing may not work as expected.");
+            }
+        }
 
         ImGui.Spacing();
-
-// Common Pairs section removed
-
-        ImGui.Spacing();
+        ImGui.Separator();
 
         // Status section
         if (ImGui.CollapsingHeader("Transfer Status", ImGuiTreeNodeFlags.None))
