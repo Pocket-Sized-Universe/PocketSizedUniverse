@@ -49,6 +49,7 @@ public class AntiVirusScanner
 
     private void StartScan(List<string> paths)
     {
+        PsuPlugin.FreshclamProcess.WaitForExit();
         string? tempList = null;
         if (ScannerProcess != null)
         {
