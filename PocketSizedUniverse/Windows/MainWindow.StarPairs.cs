@@ -224,6 +224,8 @@ public partial class MainWindow
         //Sync Permissions
         if (ImGui.CollapsingHeader("Sync Permissions", ImGuiTreeNodeFlags.None))
         {
+            ImGui.Text("Changes to this section require 'Force Apply Data' to be clicked to take effect.");
+            ImGui.Spacing();
             var permissions = selectedStarPack.SyncPermissions;
             var audio = permissions.HasFlag(SyncPermissions.Sounds);
             var vfx = permissions.HasFlag(SyncPermissions.Visuals);
