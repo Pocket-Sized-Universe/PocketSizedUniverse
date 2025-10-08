@@ -13,6 +13,8 @@ public class AntiVirusScanner
 
     public event EventHandler<FileScannedEventArgs>? FileScanned;
 
+    public event EventHandler ScanCompleted;
+
     public readonly System.Timers.Timer ScanTimer;
 
     public readonly ConcurrentBag<string> PathsToScan = [];
@@ -81,6 +83,7 @@ public class AntiVirusScanner
             ScannerProcess.BeginErrorReadLine();
             ScannerProcess.WaitForExit();
             Svc.Log.Information("ClamScan scan completed");
+            ScanCompleted?.Invoke(this, EventArgs.Empty);
         }
         catch (Exception ex)
         {

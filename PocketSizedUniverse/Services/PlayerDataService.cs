@@ -32,6 +32,7 @@ public class PlayerDataService : IUpdatable, IDisposable
         //StateChanged.Subscriber(Svc.PluginInterface, OnGlamourerStateChanged).Enable();
         //GameObjectRedrawn.Subscriber(Svc.PluginInterface, OnRedraw).Enable();
         GameObjectResourcePathResolved.Subscriber(Svc.PluginInterface, OnObjectPathResolved).Enable();
+        PsuPlugin.AntiVirusScanner.ScanCompleted += OnScanCompleted;
     }
 
     public TimeSpan UpdateInterval { get; set; } = TimeSpan.FromSeconds(1);
@@ -99,6 +100,16 @@ public class PlayerDataService : IUpdatable, IDisposable
         LocalPlayerData.UpdatePetNameData();
 
         Task.Run(PsuPlugin.SyncThingService.CleanLocalDataPack);
+    }
+    
+    private void OnScanCompleted(object? sender, EventArgs e)
+    {
+        foreach (var star in PsuPlugin.Configuration.StarPacks)
+        {
+            if (!RemotePlayerData.TryGetValue(star.StarId, out _))
+                RemotePlayerData[star.StarId] = new RemotePlayerData(star);
+            PendingReads.Enqueue(star.StarId);
+        }
     }
 
     private void RemoteUpdate(IFramework framework)
