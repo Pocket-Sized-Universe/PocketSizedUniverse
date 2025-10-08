@@ -110,7 +110,7 @@ public partial class MainWindow
             ImGui.Text(displayName);
             ImGui.PopStyleColor();
 
-// Draw additional info on new lines
+            // Draw additional info on new lines
             ImGui.PushStyleColor(ImGuiCol.Text, new Vector4(0.7f, 0.7f, 0.7f, 1.0f));
             var dpName = dataPack?.Name ?? "Unknown";
             if (syncing)
@@ -120,7 +120,7 @@ public partial class MainWindow
             ImGui.PopStyleColor();
 
             // Reset cursor to the original adjusted position for next item
-            ImGui.SetCursorPos(new Vector2(currentPosX, cursorPos.Y));
+            ImGui.SetCursorPos(cursorPos with { X = originalPosX });
 
             return result;
         }
