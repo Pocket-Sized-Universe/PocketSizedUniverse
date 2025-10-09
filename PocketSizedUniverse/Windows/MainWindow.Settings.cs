@@ -78,8 +78,8 @@ public partial class MainWindow
             ImGui.TextColored(ImGuiColors.DalamudYellow, "NOTE: VFX and animation mods will need to be used at least once for the data to be stored again if this button is clicked!");
             if (ImGui.Button("Clear Transient Data"))
             {
-                PsuPlugin.Configuration.TransientFilesData.Clear();
-                EzConfig.Save();
+                PsuPlugin.Database.TransientFilesData.Clear();
+                PsuPlugin.Database.Save();
             }
             ImGuiUtil.HoverTooltip("Click this button if things like VFX and animations are acting weird.");
         }

@@ -73,7 +73,7 @@ public class PenumbraData : IDataFile, IEquatable<PenumbraData>
         if (!PsuPlugin.Configuration.EnableVirusScanning)
             return true;
 
-        if (!PsuPlugin.Configuration.ScanResults.TryGetValue(localFilePath, out var scanResult))
+        if (!PsuPlugin.Database.ScanResults.TryGetValue(localFilePath, out var scanResult))
             return false;
 
         var fileInfo = new FileInfo(localFilePath);

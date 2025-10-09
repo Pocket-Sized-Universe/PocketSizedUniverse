@@ -1,0 +1,83 @@
+using System.Collections.Concurrent;
+using Dalamud.Plugin.Services;
+using ECommons.DalamudServices;
+using ECommons.GameHelpers;
+using Newtonsoft.Json;
+using Penumbra.Api.Enums;
+using PocketSizedUniverse.Interfaces;
+using PocketSizedUniverse.Models;
+
+namespace PocketSizedUniverse;
+
+public class Database : IDisposable
+{
+    private static readonly string _filePath =
+        Path.Combine(Svc.PluginInterface.ConfigDirectory.FullName, "database.json");
+
+    public ConcurrentDictionary<string, (DateTime Recorded, HashSet<string> ApplicablePaths)> TransientFilesData
+    {
+        get;
+        set;
+    } = new();
+
+    public ConcurrentDictionary<string, ScanResult> ScanResults { get; set; } = new();
+
+    public static Database Load()
+    {
+        if (!File.Exists(_filePath))
+            return new Database();
+        var json = File.ReadAllText(_filePath);
+        return JsonConvert.DeserializeObject<Database>(json) ?? new Database();
+    }
+
+    public void Save()
+    {
+        var json = JsonConvert.SerializeObject(this, Formatting.Indented);
+        File.WriteAllText(_filePath, json);
+    }
+
+    public Database()
+    {
+        Svc.Framework.Update += CleanDatabase;
+    }
+
+    private readonly TimeSpan _updateInterval = TimeSpan.FromMinutes(10);
+    public DateTime LastUpdated { get; set; } = DateTime.MinValue;
+
+    private void CleanDatabase(IFramework framework)
+    {
+        if (DateTime.Now - LastUpdated < _updateInterval)
+            return;
+        LastUpdated = DateTime.Now;
+        if (Player.Object == null)
+            return;
+        var activeCollection = PsuPlugin.PenumbraService.GetCollectionForObject.Invoke(Player.Object.ObjectIndex);
+        if (!activeCollection.ObjectValid)
+            return;
+        Dictionary<string, string> enabledMods = new();
+        var allMods = PsuPlugin.PenumbraService.GetModList.Invoke();
+        foreach (var (path, name) in allMods)
+        {
+            var settings =
+                PsuPlugin.PenumbraService.GetCurrentModSettings.Invoke(activeCollection.EffectiveCollection.Id, path,
+                    name);
+            if (settings is { Item1: PenumbraApiEc.Success, Item2.Item1: true })
+            {
+                enabledMods.Add(path, name);
+            }
+        }
+
+        foreach (var (realPath, (recorded, applicablePaths)) in TransientFilesData)
+        {
+            if (enabledMods.Keys.Any(modPath => realPath.Contains(modPath))) continue;
+            TransientFilesData.TryRemove(realPath, out _);
+            Svc.Log.Debug("Removed expired transient file: " + realPath);
+        }
+        Save();
+    }
+
+    public void Dispose()
+    {
+        Svc.Framework.Update -= CleanDatabase;
+    }
+}

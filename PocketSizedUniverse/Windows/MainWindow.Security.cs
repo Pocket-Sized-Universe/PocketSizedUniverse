@@ -22,7 +22,7 @@ public partial class MainWindow
         ImGui.Spacing();
         ImGui.Separator();
 
-        var results = PsuPlugin.Configuration.ScanResults;
+        var results = PsuPlugin.Database.ScanResults;
         var count = results.Count;
         var clean = results.Count(kvp => kvp.Value.Result == ScanResult.ResultType.Clean);
         var infected = results.Count(kvp => kvp.Value.Result == ScanResult.ResultType.Infected);

@@ -24,6 +24,7 @@ public class PenumbraService
         GetModList = new GetModList(Svc.PluginInterface);
         GetChangedItems = new GetChangedItems(Svc.PluginInterface);
         GetPlayerResourcePaths = new GetPlayerResourcePaths(Svc.PluginInterface);
+        GetCurrentModSettings = new GetCurrentModSettings(Svc.PluginInterface);
     }
     public GetChangedItems GetChangedItems { get; }
     public GetModList GetModList { get; }
@@ -41,4 +42,5 @@ public class PenumbraService
     public GetGameObjectResourcePaths GetGameObjectResourcePaths { get; }
     public DeleteTemporaryCollection DeleteTemporaryCollection { get; }
     public GetPlayerResourcePaths GetPlayerResourcePaths { get; }
+    public GetCurrentModSettings GetCurrentModSettings { get; }
 }

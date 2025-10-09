@@ -311,25 +311,24 @@ public class LocalPlayerData : PlayerData
             return;
         var ext = Path.GetExtension(realPath);
         // ReSharper disable once PossibleUnintendedLinearSearchInSet
-        if (AllowedFileExtensions.AlwaysExclude.Contains(ext, StringComparer.OrdinalIgnoreCase)) return;
+        if (AllowedFileExtensions.AlwaysExclude.Contains(ext, StringComparer.OrdinalIgnoreCase) ||
+            AllowedFileExtensions.Normal.Contains(ext)) return;
         var normalizedGamePath = NormalizePenumbraPath(gamePath);
         var normalizedRealPath = NormalizePenumbraPath(realPath);
         if (normalizedGamePath == null || normalizedRealPath == null)
             return;
         if (string.Equals(normalizedRealPath, normalizedGamePath))
             return;
-        if (PsuPlugin.Configuration.TransientFilesData.TryGetValue(realPath, out var transientData))
+        if (PsuPlugin.Database.TransientFilesData.TryGetValue(realPath, out var transientData))
         {
-            transientData.Add(normalizedGamePath);
-            PsuPlugin.Configuration.TransientFilesData[realPath] = transientData;
+            transientData.Recorded = DateTime.UtcNow;
+            transientData.ApplicablePaths.Add(normalizedGamePath);
+            PsuPlugin.Database.TransientFilesData[realPath] = transientData;
         }
         else
         {
-            PsuPlugin.Configuration.TransientFilesData[realPath] =
-                new HashSet<string>(StringComparer.OrdinalIgnoreCase)
-                {
-                    normalizedGamePath
-                };
+            var hashSet = new HashSet<string>(StringComparer.OrdinalIgnoreCase) {normalizedGamePath};
+            PsuPlugin.Database.TransientFilesData[realPath] = (DateTime.UtcNow, hashSet);
         }
     }
 
@@ -382,7 +381,7 @@ public class LocalPlayerData : PlayerData
             {
                 try
                 {
-                    foreach (var (realPath, gamePaths) in PsuPlugin.Configuration.TransientFilesData)
+                    foreach (var (realPath, (recorded, gamePaths)) in PsuPlugin.Database.TransientFilesData)
                     {
                         if (ct.IsCancellationRequested)
                             return;
@@ -439,7 +438,7 @@ public class LocalPlayerData : PlayerData
                     var encoded = Base64Util.ToBase64(PenumbraData);
                     await WriteText(penumbraLoc, encoded);
                     Svc.Log.Debug("Updated penumbra data on disk.");
-                    EzConfig.Save();
+                    PsuPlugin.Database.Save();
                 }
                 catch (OperationCanceledException)
                 {

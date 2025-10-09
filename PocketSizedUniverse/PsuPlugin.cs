@@ -17,6 +17,7 @@ namespace PocketSizedUniverse;
 public class PsuPlugin : IDalamudPlugin
 {
     public static Configuration Configuration;
+    public static Database Database;
     public static PenumbraService PenumbraService;
     public static GlamourerService GlamourerService;
     public static CustomizeService CustomizeService;
@@ -40,6 +41,7 @@ public class PsuPlugin : IDalamudPlugin
     {
         ECommonsMain.Init(dalamudPluginInterface, this, Module.All);
         Configuration = EzConfig.Init<Configuration>();
+        Database = Database.Load();
 
         if (Configuration.UseBuiltInSyncThing && Configuration.SetupComplete)
         {
@@ -99,8 +101,8 @@ public class PsuPlugin : IDalamudPlugin
 
     private void OnFileScanned(object? sender, AntiVirusScanner.FileScannedEventArgs e)
     {
-        Configuration.ScanResults[e.FilePath] = e.Result;
-        EzConfig.Save();
+        Database.ScanResults[e.FilePath] = e.Result;
+        Database.Save();
     }
 
     public static void StartServer()
@@ -139,7 +141,7 @@ public class PsuPlugin : IDalamudPlugin
             return;
         }
         if (string.Equals(args, "clearav", StringComparison.OrdinalIgnoreCase))
-            Configuration.ScanResults.Clear();
+            Database.ScanResults.Clear();
 
         if (Configuration.SetupComplete)
             MainWindow.Toggle();
@@ -150,6 +152,7 @@ public class PsuPlugin : IDalamudPlugin
         StopServer();
         PlayerDataService.Dispose();
         SyncThingService.Dispose();
+        Database.Dispose();
         ECommonsMain.Dispose();
     }
 
