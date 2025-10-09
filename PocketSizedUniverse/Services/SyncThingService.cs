@@ -2,9 +2,11 @@ using System.Collections.Concurrent;
 using System.Diagnostics;
 using Dalamud.Plugin.Services;
 using ECommons.DalamudServices;
+using Newtonsoft.Json;
 using PocketSizedUniverse.Interfaces;
 using PocketSizedUniverse.Models;
 using PocketSizedUniverse.Models.Syncthing.Models.Response;
+using PocketSizedUniverse.Models.Syncthing.Models.Response.EventData;
 using Syncthing;
 using Syncthing.Http;
 using Syncthing.Models.Response;
@@ -23,6 +25,8 @@ public class SyncThingService : ICache, IDisposable
     public DateTime LastRefresh { get; private set; } = DateTime.MinValue;
 
     public bool IsHealthy { get; private set; } = false;
+
+    private int LastSeenEvent { get; set; } = 0;
 
     // Track connection byte totals to compute transfer rates between refreshes
     private class ByteSnapshot
@@ -85,6 +89,7 @@ public class SyncThingService : ICache, IDisposable
         {
             LastUpdated = DateTime.Now;
             RefreshCaches();
+            ProcessEvents();
         }
 
         // Invalidate caches if it's been a while to ensure we reconcile with config changes
@@ -92,6 +97,48 @@ public class SyncThingService : ICache, IDisposable
         {
             InvalidateCaches();
         }
+    }
+
+    private void ProcessEvents()
+    {
+        _ = Task.Run(async () =>
+        {
+            if (_client == null || !IsHealthy)
+                return;
+
+            try
+            {
+                var events = await _client.Config.Events.Get(LastSeenEvent).ConfigureAwait(false);
+                foreach (var ev in events)
+                {
+                    LastSeenEvent = Math.Max(LastSeenEvent, ev.Id);
+                    if (ev.Type == EventType.FolderCompletion)
+                    {
+                        var data = JsonConvert.DeserializeObject<FolderCompletion>(ev.Data.ToString()!);
+                        if (data == null)
+                        {
+                            Svc.Log.Warning("FolderCompletion event has no data");
+                            continue;
+                        }
+                        if (PsuPlugin.Configuration.StarPacks.All(sp => sp.StarId != data.Device)) continue;
+                        if (data.Completion < 100 || data.RemoteState != "valid")
+                        {
+                            Svc.Log.Debug($"FolderCompletion event for folder {data.Folder} from star {data.Device} - not complete");
+                            continue;
+                        }
+                        Svc.Log.Debug($"FolderCompletion event for folder {data.Folder} from star {data.Device}");
+                        if (!PsuPlugin.PlayerDataService.PendingCleanups.Contains(data.Device))
+                            PsuPlugin.PlayerDataService.PendingCleanups.Enqueue(data.Device);
+                        if (!PsuPlugin.PlayerDataService.PendingReads.Contains(data.Device))
+                            PsuPlugin.PlayerDataService.PendingReads.Enqueue(data.Device);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Svc.Log.Error($"Failed to process SyncThing events: {ex}");
+            }
+        });
     }
 
     public void InvalidateCaches()

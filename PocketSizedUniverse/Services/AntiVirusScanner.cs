@@ -30,7 +30,7 @@ public class AntiVirusScanner
 
     public AntiVirusScanner()
     {
-        ScanTimer = new System.Timers.Timer(5000);
+        ScanTimer = new System.Timers.Timer(15000);
         ScanTimer.AutoReset = false;
         ScanTimer.Elapsed += OnTimerElapsed;
     }

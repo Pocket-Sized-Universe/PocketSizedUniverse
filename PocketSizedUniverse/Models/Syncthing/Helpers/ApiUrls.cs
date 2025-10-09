@@ -91,5 +91,10 @@ namespace Syncthing.Helpers
         {
             return "/rest/system/shutdown".FormatUri();
         }
+
+        public static Uri Events(int since = 0, int limit = 100)
+        {
+            return "/rest/events?since={0}&limit={1}".FormatUri(since, limit);
+        }
     }
 }

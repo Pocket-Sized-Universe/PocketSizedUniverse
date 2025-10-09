@@ -1,0 +1,35 @@
+namespace PocketSizedUniverse.Models.Syncthing.Models.Response;
+
+public enum EventType
+{
+    ClusterConfigReceived,
+    ConfigSaved,
+    DeviceConnected,
+    DeviceDisconnected,
+    DeviceDiscovered,
+    DevicePaused,
+    DeviceResumed,
+    DownloadProgress,
+    Failure,
+    FolderCompletion,
+    FolderErrors,
+    FolderPaused,
+    FolderResumed,
+    FolderScanProgress,
+    FolderSummary,
+    FolderWatchStateChanged,
+    ItemFinished,
+    ItemStarted,
+    ListenAddressesChanged,
+    LocalChangeDetected,
+    LocalIndexUpdated,
+    LoginAttempt,
+    PendingDevicesChanged,
+    PendingFoldersChanged,
+    RemoteChangeDetected,
+    RemoteDownloadProgress,
+    RemoteIndexUpdated,
+    Starting,
+    StartupComplete,
+    StateChanged
+}

@@ -20,5 +20,6 @@ namespace Syncthing.Clients
         IStarsClient Stars { get; }
         IPendingFoldersClient PendingFolders { get; }
         ISystemClient System { get; }
+        IEventsClient Events { get; }
     }
 }

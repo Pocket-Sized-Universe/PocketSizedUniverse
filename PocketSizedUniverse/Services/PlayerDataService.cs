@@ -41,6 +41,7 @@ public class PlayerDataService : IUpdatable, IDisposable
     public ConcurrentDictionary<string, RemotePlayerData> RemotePlayerData { get; } = new();
     public Queue<string> PendingReads { get; } = new();
     public Queue<string> PendingApplies { get; } = new();
+    public Queue<string> PendingCleanups { get; } = new();
 
     public ConcurrentBag<string> DeferredApplications { get; } = new();
 
@@ -110,6 +111,7 @@ public class PlayerDataService : IUpdatable, IDisposable
         {
             if (!RemotePlayerData.TryGetValue(star.StarId, out _))
                 RemotePlayerData[star.StarId] = new RemotePlayerData(star);
+            PendingCleanups.Enqueue(star.StarId);
             PendingReads.Enqueue(star.StarId);
         }
     }
@@ -138,7 +140,21 @@ public class PlayerDataService : IUpdatable, IDisposable
                 p.HomeWorld.RowId == remote.Data?.WorldId && p.Name.TextValue == remote.Data?.PlayerName);
             if (remote.Player == null && remote.AssignedCollectionId != null)
             {
-                try
+                PendingCleanups.Enqueue(star.StarId);
+            }
+            else if (remote.Player != null && remote.AssignedCollectionId == null &&
+                     !DeferredApplications.Contains(remote.Player.Name.TextValue))
+            {
+                PendingApplies.Enqueue(star.StarId);
+            }
+        }
+
+        if (PendingCleanups.TryDequeue(out var starIdToCleanup))
+        {
+            var remote = RemotePlayerData[starIdToCleanup];
+            try
+            {
+                if (remote.AssignedCollectionId != null)
                 {
                     var collId = remote.AssignedCollectionId.Value;
                     var penId = remote.PenumbraData?.Id ?? Guid.Empty;
@@ -152,28 +168,23 @@ public class PlayerDataService : IUpdatable, IDisposable
 
                     PsuPlugin.PenumbraService.DeleteTemporaryCollection.Invoke(collId);
                 }
-                catch (Exception ex)
-                {
-                    Svc.Log.Error($"Error cleaning up temporary Penumbra collection (proactive): {ex}");
-                }
-                finally
-                {
-                    remote.AssignedCollectionId = null;
-                    // Clear cached transient data so next appearance triggers full re-apply
-                    remote.Data = null;
-                    remote.PenumbraData = null;
-                    remote.GlamourerData = null;
-                    remote.CustomizeData = null;
-                    remote.HonorificData = null;
-                    remote.MoodlesData = null;
-                    remote.HeelsData = null;
-                    remote.PetNameData = null;
-                }
             }
-            else if (remote.Player != null && remote.AssignedCollectionId == null &&
-                     !DeferredApplications.Contains(remote.Player.Name.TextValue))
+            catch (Exception ex)
             {
-                PendingApplies.Enqueue(star.StarId);
+                Svc.Log.Error($"Error cleaning up temporary Penumbra collection: {ex}");
+            }
+            finally
+            {
+                remote.AssignedCollectionId = null;
+                // Clear cached transient data so next appearance triggers full re-apply
+                remote.Data = null;
+                remote.PenumbraData = null;
+                remote.GlamourerData = null;
+                remote.CustomizeData = null;
+                remote.HonorificData = null;
+                remote.MoodlesData = null;
+                remote.HeelsData = null;
+                remote.PetNameData = null;
             }
         }
 

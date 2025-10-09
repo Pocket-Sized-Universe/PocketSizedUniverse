@@ -31,14 +31,8 @@ public class RemotePlayerData(StarPack starPack) : PlayerData(starPack)
             PrefixColor = 567,
             OnClicked = (a) =>
             {
-                Data = null;
-                GlamourerData = null;
-                PenumbraData = null;
-                CustomizeData = null;
-                HonorificData = null;
-                MoodlesData = null;
+                PsuPlugin.PlayerDataService.PendingCleanups.Enqueue(StarPackReference.StarId);
                 PsuPlugin.PlayerDataService.PendingReads.Enqueue(StarPackReference.StarId);
-                PsuPlugin.PlayerDataService.PendingApplies.Enqueue(StarPackReference.StarId);
                 Notify.Success("Data application enqueued");
             }
         };
