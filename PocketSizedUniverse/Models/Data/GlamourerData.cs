@@ -1,4 +1,6 @@
 using Dalamud.Game.ClientState.Objects.SubKinds;
+using ECommons.ImGuiMethods;
+using Glamourer.Api.Enums;
 using PocketSizedUniverse.Interfaces;
 
 namespace PocketSizedUniverse.Models.Data;
@@ -43,7 +45,13 @@ public class GlamourerData : IDataFile, IEquatable<GlamourerData>
             if (!changed)
                 return (false, string.Empty);
 
-            PsuPlugin.GlamourerService.ApplyState.Invoke(GlamState, player.ObjectIndex, LockKey);
+            var applyRes = PsuPlugin.GlamourerService.ApplyState.Invoke(GlamState, player.ObjectIndex, LockKey);
+            if (applyRes == GlamourerApiEc.InvalidKey && !PsuPlugin.PlayerDataService.DeferredApplications.Contains(player.Name.TextValue))
+            {
+                PsuPlugin.PlayerDataService.DeferredApplications.Add(player.Name.TextValue);
+                Notify.Error("PSU has detected interference from another plugin that is preventing Glamourer data from being applied. Data application has been deferred to the other plugin and syncing will not continue.");
+                return (false, "Failed to apply Glamourer data: Invalid key.");
+            }
             return (true, "Glamourer data applied.");
         }
         catch (Exception ex)

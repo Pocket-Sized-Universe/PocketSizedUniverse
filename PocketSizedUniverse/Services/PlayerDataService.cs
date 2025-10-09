@@ -42,6 +42,8 @@ public class PlayerDataService : IUpdatable, IDisposable
     public Queue<string> PendingReads { get; } = new();
     public Queue<string> PendingApplies { get; } = new();
 
+    public ConcurrentBag<string> DeferredApplications { get; } = new();
+
     public ConcurrentDictionary<string, List<string>> MissingPluginsByPlayerName { get; } = new();
 
     public void ReportMissingPlugin(string playerName, string pluginName)
@@ -101,7 +103,7 @@ public class PlayerDataService : IUpdatable, IDisposable
 
         Task.Run(PsuPlugin.SyncThingService.CleanLocalDataPack);
     }
-    
+
     private void OnScanCompleted(object? sender, EventArgs e)
     {
         foreach (var star in PsuPlugin.Configuration.StarPacks)
@@ -168,7 +170,8 @@ public class PlayerDataService : IUpdatable, IDisposable
                     remote.PetNameData = null;
                 }
             }
-            else if (remote.Player != null && remote.AssignedCollectionId == null)
+            else if (remote.Player != null && remote.AssignedCollectionId == null &&
+                     !DeferredApplications.Contains(remote.Player.Name.TextValue))
             {
                 PendingApplies.Enqueue(star.StarId);
             }
@@ -217,7 +220,8 @@ public class PlayerDataService : IUpdatable, IDisposable
                             return;
                         }
 
-                        remoteData.PenumbraData.PreparePaths(filesPath, dataPack.Name, remoteData.StarPackReference.SyncPermissions);
+                        remoteData.PenumbraData.PreparePaths(filesPath, dataPack.Name,
+                            remoteData.StarPackReference.SyncPermissions);
                         Svc.Log.Debug($"[DEBUG] Penumbra data changed for {starIdToRead}");
                     }
 
@@ -260,7 +264,7 @@ public class PlayerDataService : IUpdatable, IDisposable
                     {
                         remoteData.PetNameData = newPetName;
                         dataChanged = true;
-                        Svc.Log.Debug($"[DEBUG] PetName data changed for {starIdToRead}");   
+                        Svc.Log.Debug($"[DEBUG] PetName data changed for {starIdToRead}");
                     }
 
                     if (dataChanged)
