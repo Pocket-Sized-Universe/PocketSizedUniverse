@@ -46,9 +46,9 @@ public class Database : IDisposable
 
     private void CleanDatabase(IFramework framework)
     {
-        if (DateTime.Now - LastUpdated < _updateInterval)
+        if (DateTime.UtcNow - LastUpdated < _updateInterval)
             return;
-        LastUpdated = DateTime.Now;
+        LastUpdated = DateTime.UtcNow;
         if (Player.Object == null)
             return;
         var activeCollection = PsuPlugin.PenumbraService.GetCollectionForObject.Invoke(Player.Object.ObjectIndex);

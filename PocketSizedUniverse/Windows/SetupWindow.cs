@@ -120,7 +120,7 @@ public class SetupWindow : Window
         // Show connection status if we have configuration but no health
         if (PsuPlugin.Configuration.ApiUri != null && !PsuPlugin.SyncThingService.IsHealthy && _connectionAttempted)
         {
-            var elapsed = (DateTime.Now - _connectionStartTime).TotalSeconds;
+            var elapsed = (DateTime.UtcNow - _connectionStartTime).TotalSeconds;
 
             ImGuiUtil.PrintIcon(FontAwesomeIcon.ExclamationTriangle);
             ImGui.SameLine();
@@ -206,7 +206,7 @@ public class SetupWindow : Window
     private void StartConnection(bool useBuiltIn)
     {
         _connectionAttempted = true;
-        _connectionStartTime = DateTime.Now;
+        _connectionStartTime = DateTime.UtcNow;
 
         // Configure connection based on choice
         if (useBuiltIn)

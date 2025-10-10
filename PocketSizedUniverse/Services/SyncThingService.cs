@@ -85,15 +85,15 @@ public class SyncThingService : ICache, IDisposable
     public void LocalUpdate(IFramework framework)
     {
         // Periodically refresh caches and stats
-        if (DateTime.Now - LastUpdated >= UpdateInterval)
+        if (DateTime.UtcNow - LastUpdated >= UpdateInterval)
         {
-            LastUpdated = DateTime.Now;
+            LastUpdated = DateTime.UtcNow;
             RefreshCaches();
             ProcessEvents();
         }
 
         // Invalidate caches if it's been a while to ensure we reconcile with config changes
-        if (TimeSpan.FromMinutes(1) < DateTime.Now - LastRefresh)
+        if (TimeSpan.FromMinutes(1) < DateTime.UtcNow - LastRefresh)
         {
             InvalidateCaches();
         }
@@ -120,17 +120,27 @@ public class SyncThingService : ICache, IDisposable
                             Svc.Log.Warning("FolderCompletion event has no data");
                             continue;
                         }
-                        if (PsuPlugin.Configuration.StarPacks.All(sp => sp.StarId != data.Device)) continue;
+                        if (data.Folder == PsuPlugin.Configuration.MyStarPack?.DataPackId.ToString())
+                            continue;
+                        if (!PsuPlugin.PlayerDataService.RemotePlayerData.TryGetValue(data.Device, out var remoteData))
+                            continue;
                         if (data.Completion < 100 || data.RemoteState != "valid")
                         {
                             Svc.Log.Debug($"FolderCompletion event for folder {data.Folder} from star {data.Device} - not complete");
                             continue;
                         }
-                        Svc.Log.Debug($"FolderCompletion event for folder {data.Folder} from star {data.Device}");
-                        if (!PsuPlugin.PlayerDataService.PendingCleanups.Contains(data.Device))
-                            PsuPlugin.PlayerDataService.PendingCleanups.Enqueue(data.Device);
-                        if (!PsuPlugin.PlayerDataService.PendingReads.Contains(data.Device))
-                            PsuPlugin.PlayerDataService.PendingReads.Enqueue(data.Device);
+                        if (ev.Time.ToUniversalTime() > remoteData.LastUpdated)
+                        {
+                            Svc.Log.Debug($"FolderCompletion event for folder {data.Folder} from star {data.Device} - application required");
+                            if (!PsuPlugin.PlayerDataService.PendingCleanups.Contains(data.Device))
+                                PsuPlugin.PlayerDataService.PendingCleanups.Enqueue(data.Device);
+                            if (!PsuPlugin.PlayerDataService.PendingReads.Contains(data.Device))
+                                PsuPlugin.PlayerDataService.PendingReads.Enqueue(data.Device);
+                        }
+                        else
+                        {
+                            Svc.Log.Debug($"FolderCompletion event for folder {data.Folder} from star {data.Device} - no action required");
+                        }
                     }
                 }
             }
@@ -596,7 +606,7 @@ public class SyncThingService : ICache, IDisposable
                 }
 
                 Svc.Log.Debug($"Refreshed caches | {DataPacks.Count} DataPacks | {Stars.Count} Stars");
-                LastRefresh = DateTime.Now;
+                LastRefresh = DateTime.UtcNow;
                 HealSyncThing();
             }
             catch (Exception e)

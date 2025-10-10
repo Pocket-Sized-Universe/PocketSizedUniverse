@@ -17,15 +17,7 @@ public class LocalPlayerData : PlayerData
         _semaphoreSlim = new SemaphoreSlim(maxParallel);
         _penumbraCts = new CancellationTokenSource();
     }
-
-    private DateTime _lastMoodlesUpdate = DateTime.MinValue;
-    private DateTime _lastHonorificUpdate = DateTime.MinValue;
-    private DateTime _lastCustomizeUpdate = DateTime.MinValue;
-    private DateTime _lastGlamUpdate = DateTime.MinValue;
-    private DateTime _lastBasicUpdate = DateTime.MinValue;
-    private DateTime _lastPenumbraUpdate = DateTime.MinValue;
-    private DateTime _lastHeelsUpdate = DateTime.MinValue;
-    private DateTime _lastPetNameUpdate = DateTime.MinValue;
+    
     private readonly SemaphoreSlim _semaphoreSlim;
 
     // Penumbra heavy compute job control
@@ -55,9 +47,6 @@ public class LocalPlayerData : PlayerData
         {
             if (Player == null)
                 return;
-            if (DateTime.UtcNow - _lastMoodlesUpdate < TimeSpan.FromMilliseconds(500))
-                return;
-            _lastMoodlesUpdate = DateTime.UtcNow;
             var moodles = PsuPlugin.MoodlesService.GetStatusManager(Player.Address);
             var pack = StarPackReference.GetDataPack();
             if (pack == null) return;
@@ -94,9 +83,6 @@ public class LocalPlayerData : PlayerData
         {
             if (Player == null)
                 return;
-            if (DateTime.UtcNow - _lastPetNameUpdate < TimeSpan.FromMilliseconds(500))
-                return;
-            _lastPetNameUpdate = DateTime.UtcNow;
 
             var petName = PsuPlugin.PetNameService.GetPlayerData();
             var nameData = new PetNameData()
@@ -134,9 +120,6 @@ public class LocalPlayerData : PlayerData
         {
             if (Player == null)
                 return;
-            if (DateTime.UtcNow - _lastHonorificUpdate < TimeSpan.FromMilliseconds(500))
-                return;
-            _lastHonorificUpdate = DateTime.UtcNow;
             var honorific = PsuPlugin.HonorificService.GetLocalCharacterTitle() ?? string.Empty;
             var honorificData = new HonorificData()
             {
@@ -172,9 +155,6 @@ public class LocalPlayerData : PlayerData
         {
             if (Player == null)
                 return;
-            if (DateTime.UtcNow - _lastCustomizeUpdate < TimeSpan.FromMilliseconds(500))
-                return;
-            _lastCustomizeUpdate = DateTime.UtcNow;
             string data = string.Empty;
             var activeProfileId = PsuPlugin.CustomizeService.GetActiveProfileOnCharacter(Player.ObjectIndex);
             if (activeProfileId.Item1 > 0 || activeProfileId.Item2 == null || activeProfileId.Item2 == Guid.Empty)
@@ -229,9 +209,6 @@ public class LocalPlayerData : PlayerData
         {
             if (Player == null)
                 return;
-            if (DateTime.UtcNow - _lastGlamUpdate < TimeSpan.FromMilliseconds(500))
-                return;
-            _lastGlamUpdate = DateTime.UtcNow;
             var glamState = PsuPlugin.GlamourerService.GetStateBase64.Invoke(Player.ObjectIndex);
             if (glamState.Item2 == null)
             {
@@ -271,9 +248,6 @@ public class LocalPlayerData : PlayerData
     {
         if (Player == null)
             return;
-        if (DateTime.UtcNow - _lastBasicUpdate < TimeSpan.FromMilliseconds(500))
-            return;
-        _lastBasicUpdate = DateTime.UtcNow;
         var pack = StarPackReference.GetDataPack();
         if (pack == null) return;
 
@@ -331,18 +305,12 @@ public class LocalPlayerData : PlayerData
             PsuPlugin.Database.TransientFilesData[realPath] = (DateTime.UtcNow, hashSet);
         }
     }
-
-    public readonly List<ushort> ApplicableObjectIndexes = new List<ushort>();
-
     public void UpdatePenumbraData()
     {
         try
         {
             if (Player == null)
                 return;
-            if (DateTime.UtcNow - _lastPenumbraUpdate < TimeSpan.FromMilliseconds(500))
-                return;
-            _lastPenumbraUpdate = DateTime.UtcNow;
 
             // Phase A: gather snapshot on framework thread (no IO)
             var dataPack = StarPackReference.GetDataPack();
@@ -354,8 +322,6 @@ public class LocalPlayerData : PlayerData
             var manips = PsuPlugin.PenumbraService.GetPlayerMetaManipulations.Invoke();
 
             var playerResources = PsuPlugin.PenumbraService.GetPlayerResourcePaths.Invoke();
-            ApplicableObjectIndexes.Clear();
-            ApplicableObjectIndexes.AddRange(playerResources.Keys);
             var resourcePathsArr = playerResources.Values.ToArray();
             if (resourcePathsArr.Length == 0)
             {
@@ -540,9 +506,6 @@ public class LocalPlayerData : PlayerData
         {
             if (Player == null)
                 return;
-            if (DateTime.UtcNow - _lastHeelsUpdate < TimeSpan.FromMilliseconds(500))
-                return;
-            _lastHeelsUpdate = DateTime.UtcNow;
             var heelsState = PsuPlugin.SimpleHeelsService.GetLocalPlayer();
             var pack = StarPackReference.GetDataPack();
             if (pack == null) return;

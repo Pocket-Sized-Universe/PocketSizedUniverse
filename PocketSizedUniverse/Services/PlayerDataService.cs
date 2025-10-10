@@ -75,8 +75,8 @@ public class PlayerDataService : IUpdatable, IDisposable
 
     public void LocalUpdate(IFramework framework)
     {
-        if (DateTime.Now - LastUpdated < TimeSpan.FromSeconds(PsuPlugin.Configuration.LocalPollingSeconds)) return;
-        LastUpdated = DateTime.Now;
+        if (DateTime.UtcNow - LastUpdated < TimeSpan.FromSeconds(PsuPlugin.Configuration.LocalPollingSeconds)) return;
+        LastUpdated = DateTime.UtcNow;
 
         if (!PsuPlugin.Configuration.SetupComplete)
             return;
@@ -132,7 +132,7 @@ public class PlayerDataService : IUpdatable, IDisposable
                 continue;
             }
 
-            if (remote.Data == null || DateTime.Now - remote.LastUpdated <
+            if (remote.Data == null || DateTime.UtcNow - remote.LastUpdated <
                 TimeSpan.FromSeconds(PsuPlugin.Configuration.RemotePollingSeconds))
                 PendingReads.Enqueue(star.StarId);
 
@@ -325,7 +325,8 @@ public class PlayerDataService : IUpdatable, IDisposable
                     var realObj = Svc.Objects.CreateObjectReference(gameObject);
                     if (realObj == null)
                         return;
-                    if (LocalPlayerData?.ApplicableObjectIndexes.Contains(realObj.ObjectIndex) ?? false)
+                    if (realObj.ObjectIndex - 1 == LocalPlayerData?.Player?.ObjectIndex ||
+                        realObj.ObjectIndex == LocalPlayerData?.Player?.ObjectIndex)
                     {
                         LocalPlayerData!.UpdateTransientData(capturedGamePath, realLocalPath);
                     }
