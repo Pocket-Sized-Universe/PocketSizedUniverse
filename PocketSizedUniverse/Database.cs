@@ -30,7 +30,7 @@ public class Database : IDisposable
         return JsonConvert.DeserializeObject<Database>(json) ?? new Database();
     }
 
-    public void Save()
+    private void Save()
     {
         var json = JsonConvert.SerializeObject(this, Formatting.Indented);
         File.WriteAllText(_filePath, json);
@@ -42,10 +42,19 @@ public class Database : IDisposable
     }
 
     private readonly TimeSpan _updateInterval = TimeSpan.FromMinutes(10);
+    private readonly TimeSpan _saveInterval = TimeSpan.FromMinutes(1);
     public DateTime LastUpdated { get; set; } = DateTime.MinValue;
+    private DateTime _lastSaved = DateTime.MinValue;
 
     private void CleanDatabase(IFramework framework)
     {
+        if (DateTime.UtcNow - _lastSaved >= _saveInterval)
+        {
+            _lastSaved = DateTime.UtcNow;
+            Save();
+            Svc.Log.Debug("Saved database.");
+        }
+
         if (DateTime.UtcNow - LastUpdated < _updateInterval)
             return;
         LastUpdated = DateTime.UtcNow;

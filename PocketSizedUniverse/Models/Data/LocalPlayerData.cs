@@ -404,7 +404,6 @@ public class LocalPlayerData : PlayerData
                     var encoded = Base64Util.ToBase64(PenumbraData);
                     await WriteText(penumbraLoc, encoded);
                     Svc.Log.Debug("Updated penumbra data on disk.");
-                    PsuPlugin.Database.Save();
                 }
                 catch (OperationCanceledException)
                 {
