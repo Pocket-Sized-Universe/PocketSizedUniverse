@@ -17,6 +17,15 @@ public class Configuration
     public StarPack? MyStarPack { get; set; }
     public List<StarPack> StarPacks { get; set; } = new();
     public List<GalaxyPack> GalaxyPacks { get; set; } = new();
+
+    public IEnumerable<StarPack> GetAllStarPacks()
+    {
+        foreach (var sp in StarPacks)
+            yield return sp;
+        foreach (var gp in GalaxyPacks)
+            foreach (var sp in gp.AsStarPacks())
+                yield return sp;
+    }
     public List<StarPack> Blocklist { get; set; } = new();
     public bool EnableVirusScanning { get; set; } = true;
     public int LocalPollingSeconds { get; set; } = 30;

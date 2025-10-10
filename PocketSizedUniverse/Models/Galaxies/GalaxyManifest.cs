@@ -7,8 +7,8 @@ namespace PocketSizedUniverse.Models.Galaxies;
 public class GalaxyManifest
 {
     public int Version { get; set; } = 1;
-    public Guid GalaxyId { get; set; } = Guid.NewGuid();
-    public Guid DataPackId { get; set; } = Guid.NewGuid();
+    public Guid GalaxyId { get; set; }
+    public Guid DataPackId { get; set; }
     public string Name { get; set; } = $"{Adjectives.GetRandom()} {Nouns.GetRandom()}";
     public DateTime CreatedUtc { get; set; } = DateTime.UtcNow;
     public List<GalaxyMember> Members { get; set; } = [];

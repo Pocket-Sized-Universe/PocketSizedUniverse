@@ -107,7 +107,7 @@ public class PlayerDataService : IUpdatable, IDisposable
 
     private void OnScanCompleted(object? sender, EventArgs e)
     {
-        foreach (var star in PsuPlugin.Configuration.StarPacks)
+        foreach (var star in PsuPlugin.Configuration.GetAllStarPacks())
         {
             if (!RemotePlayerData.TryGetValue(star.StarId, out _))
                 RemotePlayerData[star.StarId] = new RemotePlayerData(star);
@@ -119,7 +119,7 @@ public class PlayerDataService : IUpdatable, IDisposable
     private void RemoteUpdate(IFramework framework)
     {
         var nearbyPlayers = Svc.Objects.PlayerObjects.Cast<IPlayerCharacter>();
-        foreach (var star in PsuPlugin.Configuration.StarPacks)
+        foreach (var star in PsuPlugin.Configuration.GetAllStarPacks())
         {
             if (!RemotePlayerData.TryGetValue(star.StarId, out var remote))
                 RemotePlayerData[star.StarId] = remote = new RemotePlayerData(star);

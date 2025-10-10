@@ -197,18 +197,23 @@ public class SyncThingService : ICache, IDisposable
 
     private IEnumerable<StarPack> GetEffectivePairs()
     {
-        var blocked =
-            new HashSet<(string, Guid)>(PsuPlugin.Configuration.Blocklist.Select(b => (b.StarId, b.DataPackId)));
-        return PsuPlugin.Configuration.StarPacks.Where(sp => !blocked.Contains((sp.StarId, sp.DataPackId)));
+        var blocked = new HashSet<(string, Guid)>(
+            PsuPlugin.Configuration.Blocklist.Select(b => (b.StarId, b.DataPackId))
+        );
+    
+        foreach (var sp in PsuPlugin.Configuration.GetAllStarPacks())
+        {
+            if (!blocked.Contains((sp.StarId, sp.DataPackId)))
+                yield return sp;
+        }
     }
-
     private async Task EnsurePairedStarsExist()
     {
         var effectivePairs = GetEffectivePairs().ToList();
         Svc.Log.Debug($"[DEBUG] Checking {effectivePairs.Count} configured StarPacks for missing Stars...");
         Svc.Log.Debug($"[DEBUG] Current Stars in cache: {Stars.Count} - [{string.Join(", ", Stars.Keys)}]");
 
-        foreach (var starPack in PsuPlugin.Configuration.StarPacks)
+        foreach (var starPack in PsuPlugin.Configuration.GetAllStarPacks())
         {
             Svc.Log.Debug(
                 $"[DEBUG] Checking StarPack - StarId: {starPack.StarId}, DataPackId: {starPack.DataPackId}");
@@ -395,7 +400,7 @@ public class SyncThingService : ICache, IDisposable
 
             var canonicalId = folderGuid.ToString("D");
 
-            var matchingStars = PsuPlugin.Configuration.StarPacks
+            var matchingStars = PsuPlugin.Configuration.GetAllStarPacks()
                 .Where(sp => sp.DataPackId == folderGuid || pendingFolder.OfferedBy.ContainsKey(sp.StarId)).ToList()
                 .Select(p => p.GetStar()!);
 
