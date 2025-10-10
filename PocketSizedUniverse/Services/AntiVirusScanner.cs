@@ -19,8 +19,6 @@ public class AntiVirusScanner
 
     public readonly ConcurrentBag<string> PathsToScan = [];
 
-    public Process? ScannerProcess;
-
     // Regex to parse clamscan output
     // Captures: Group 1 = file path, Group 2 = status (virus name or "OK")
     private static readonly Regex ScanOutputRegex = new Regex(
@@ -51,20 +49,25 @@ public class AntiVirusScanner
 
     private void StartScan(List<string> paths)
     {
-        PsuPlugin.FreshclamProcess.WaitForExit();
-        string? tempList = null;
-        if (ScannerProcess != null)
+        if (!PsuPlugin.FreshclamProcess.HasExited)
         {
-            Svc.Log.Warning("ClamScan process already running, skipping scan");
+            Svc.Log.Warning("ClamAV database update still running, deferring scan");
+            foreach (var path in paths)
+                PathsToScan.Add(path);
+            ScanTimer.Start();
             return;
         }
+
+        string? tempList = null;
         try
         {
             string fileList = string.Join(Environment.NewLine, paths);
             tempList = Path.GetTempFileName();
             File.WriteAllText(tempList, fileList);
             string args = $"--no-summary --database=\"{PsuPlugin.ClamDbPath}\" --file-list=\"{tempList}\"";
-            ScannerProcess = new Process()
+
+            var tempListPath = tempList; // Capture for closure
+            var process = new Process
             {
                 StartInfo = new ProcessStartInfo(_exePath)
                 {
@@ -76,30 +79,33 @@ public class AntiVirusScanner
                     WorkingDirectory = Svc.PluginInterface.AssemblyLocation.DirectoryName
                 }
             };
-            ScannerProcess.OutputDataReceived += OnOutput;
-            ScannerProcess.ErrorDataReceived += OnError;
-            ScannerProcess.Start();
-            ScannerProcess.BeginOutputReadLine();
-            ScannerProcess.BeginErrorReadLine();
-            ScannerProcess.WaitForExit();
-            Svc.Log.Information("ClamScan scan completed");
-            ScanCompleted?.Invoke(this, EventArgs.Empty);
+
+            process.OutputDataReceived += OnOutput;
+            process.ErrorDataReceived += OnError;
+            process.Exited += (sender, eventArgs) =>
+            {
+                Svc.Log.Information("ClamScan scan completed");
+                if (File.Exists(tempListPath))
+                    File.Delete(tempListPath);
+
+                process.OutputDataReceived -= OnOutput;
+                process.ErrorDataReceived -= OnError;
+                process.Dispose();
+                ScanCompleted?.Invoke(this, EventArgs.Empty);
+            };
+
+            process.EnableRaisingEvents = true;
+            process.Start();
+            process.BeginOutputReadLine();
+            process.BeginErrorReadLine();
         }
         catch (Exception ex)
         {
             Svc.Log.Error($"Failed to start ClamScan: {ex}");
-        }
-        finally
-        {
+
+            // Cleanup on error
             if (tempList != null && File.Exists(tempList))
                 File.Delete(tempList);
-            if (ScannerProcess != null)
-            {
-                ScannerProcess.OutputDataReceived -= OnOutput;
-                ScannerProcess.ErrorDataReceived -= OnError;
-                ScannerProcess.Dispose();
-                ScannerProcess = null;
-            }
         }
     }
 
