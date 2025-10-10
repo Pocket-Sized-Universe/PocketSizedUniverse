@@ -49,19 +49,11 @@ public class PsuPlugin : IDalamudPlugin
         }
 
         FreshclamProcess = new FreshclamProcess();
+        FreshclamProcess.EnableRaisingEvents = true;
+        FreshclamProcess.Exited += OnFreshclamExited;
         FreshclamProcess.Start();
         FreshclamProcess.BeginOutputReadLine();
         FreshclamProcess.BeginErrorReadLine();
-        Task.Run(() =>
-        {
-            FreshclamProcess.WaitForExit();
-            if (FreshclamProcess.ExitCode != 0)
-            {
-                Svc.Log.Error("Failed to update ClamAV database");
-                return;
-            }
-            Svc.Log.Information("ClamAV database updated successfully");
-        });
         AntiVirusScanner = new AntiVirusScanner();
         AntiVirusScanner.FileScanned += OnFileScanned;
 
@@ -102,7 +94,16 @@ public class PsuPlugin : IDalamudPlugin
     private void OnFileScanned(object? sender, AntiVirusScanner.FileScannedEventArgs e)
     {
         Database.ScanResults[e.FilePath] = e.Result;
-        Database.Save();
+    }
+
+    private static void OnFreshclamExited(object? sender, EventArgs e)
+    {
+        if (FreshclamProcess.ExitCode != 0)
+        {
+            Svc.Log.Error($"Failed to update ClamAV database. Exit code: {FreshclamProcess.ExitCode}");
+            return;
+        }
+        Svc.Log.Information("ClamAV database updated successfully");
     }
 
     public static void StartServer()
@@ -150,6 +151,22 @@ public class PsuPlugin : IDalamudPlugin
     public void Dispose()
     {
         StopServer();
+        
+        // Clean up FreshclamProcess
+        try
+        {
+            if (!FreshclamProcess.HasExited)
+            {
+                FreshclamProcess.Kill();
+                FreshclamProcess.WaitForExit(5000); // Wait up to 5 seconds
+            }
+            FreshclamProcess.Dispose();
+        }
+        catch (Exception ex)
+        {
+            Svc.Log.Error($"Error disposing FreshclamProcess: {ex.Message}");
+        }
+
         PlayerDataService.Dispose();
         SyncThingService.Dispose();
         Database.Dispose();
