@@ -62,7 +62,7 @@ public class LocalPlayerData : PlayerData
             if (changed)
             {
                 MoodlesData = moodlesData;
-                var cLoc = MoodlesData.GetPath(pack.DataPath);
+                var cLoc = MoodlesData.GetPath(StarPackReference.GetPathContext().GetDataPath(pack));
                 var encodedMoodles = Base64Util.ToBase64(MoodlesData);
                 Task.Run(async () =>
                 {
@@ -98,7 +98,7 @@ public class LocalPlayerData : PlayerData
             if (changed)
             {
                 PetNameData = nameData;
-                var cLoc = PetNameData.GetPath(pack.DataPath);
+                var cLoc = PetNameData.GetPath(StarPackReference.GetPathContext().GetDataPath(pack));
                 var encodedPetName = Base64Util.ToBase64(PetNameData);
                 Task.Run(async () =>
                     {
@@ -134,7 +134,7 @@ public class LocalPlayerData : PlayerData
             if (changed)
             {
                 HonorificData = honorificData;
-                var cLoc = HonorificData.GetPath(pack.DataPath);
+                var cLoc = HonorificData.GetPath(StarPackReference.GetPathContext().GetDataPath(pack));
                 var encodedHonorific = Base64Util.ToBase64(HonorificData);
                 Task.Run(async () =>
                 {
@@ -188,7 +188,7 @@ public class LocalPlayerData : PlayerData
             if (changed)
             {
                 CustomizeData = cData;
-                var cLoc = CustomizeData.GetPath(pack.DataPath);
+                var cLoc = CustomizeData.GetPath(StarPackReference.GetPathContext().GetDataPath(pack));
                 var encodedCustomize = Base64Util.ToBase64(CustomizeData);
                 Task.Run(async () =>
                 {
@@ -229,7 +229,7 @@ public class LocalPlayerData : PlayerData
             if (changed)
             {
                 GlamourerData = glamData;
-                var glamourerLoc = GlamourerData.GetPath(pack.DataPath);
+                var glamourerLoc = GlamourerData.GetPath(StarPackReference.GetPathContext().GetDataPath(pack));
                 var encodedGlamourer = Base64Util.ToBase64(GlamourerData);
                 Task.Run(async () =>
                 {
@@ -261,7 +261,7 @@ public class LocalPlayerData : PlayerData
         if (changed)
         {
             Data = newBasic;
-            var playerDataLoc = Data.GetPath(pack.DataPath);
+            var playerDataLoc = Data.GetPath(StarPackReference.GetPathContext().GetDataPath(pack));
             var encodedData = Base64Util.ToBase64(Data);
             Task.Run(async () =>
             {
@@ -317,7 +317,7 @@ public class LocalPlayerData : PlayerData
             if (dataPack == null)
                 return;
             var filesPath = dataPack.FilesPath;
-            var dataPath = dataPack.DataPath;
+            var dataPath = StarPackReference.GetPathContext().GetDataPath(dataPack);
 
             var manips = PsuPlugin.PenumbraService.GetPlayerMetaManipulations.Invoke();
 
