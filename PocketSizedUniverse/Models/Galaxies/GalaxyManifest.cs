@@ -1,5 +1,6 @@
 using ECommons.DalamudServices;
 using Newtonsoft.Json;
+using PocketSizedUniverse.Models.Data;
 using PocketSizedUniverse.Windows.ViewModels;
 
 namespace PocketSizedUniverse.Models.Galaxies;
@@ -13,6 +14,7 @@ public class GalaxyManifest
     public DateTime CreatedUtc { get; init; } = DateTime.UtcNow;
     public List<GalaxyMember> Members { get; set; } = [];
     public List<ManifestChange> ChangeLog { get; set; } = [];
+    public List<GalaxyInvite> Invites { get; set; } = [];
     [JsonIgnore] public string CurrentSignature { get; private set; } = string.Empty;
     public SyncPermissions DefaultPermissions { get; set; } = SyncPermissions.All;
 
@@ -73,8 +75,8 @@ public class GalaxyManifest
             var signature = myCert.SignData(CanonicalJson);
 
             CurrentSignature = signature;
-            var json = JsonConvert.SerializeObject(this);
-            File.WriteAllText(path, json);
+            var base64 = Base64Util.ToBase64(this);
+            File.WriteAllText(path, base64);
             var sigPath = path + ".sig";
             File.WriteAllText(sigPath, signature);
             return true;

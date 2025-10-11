@@ -8,9 +8,10 @@ public class GalaxyMember(string starId, Guid galaxyDataPackId)
     };
 
     public string StarId { get; set; } = starId;
-    public GalaxyRole Role { get; set; }
+    public GalaxyRole Role { get; set; } = GalaxyRole.Member;
     public DateTime Joined { get; set; } = DateTime.UtcNow;
     public string PublicCertPem { get; set; } = string.Empty;
     public string CertFingerprint { get; set; } = string.Empty;
     public DateTime CertExpiry { get; set; } = DateTime.MinValue;
+    public MemberStatus Status { get; set; } = MemberStatus.Active;
 }
