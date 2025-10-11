@@ -7,28 +7,30 @@ namespace PocketSizedUniverse.Models.Galaxies;
 public class GalaxyManifest
 {
     public int Version { get; set; } = 1;
-    public Guid GalaxyId { get; set; }
-    public Guid DataPackId { get; set; }
+    public Guid GalaxyId { get; init; }
+    public Guid DataPackId { get; init; }
     public string Name { get; set; } = $"{Adjectives.GetRandom()} {Nouns.GetRandom()}";
-    public DateTime CreatedUtc { get; set; } = DateTime.UtcNow;
+    public DateTime CreatedUtc { get; init; } = DateTime.UtcNow;
     public List<GalaxyMember> Members { get; set; } = [];
     public List<ManifestChange> ChangeLog { get; set; } = [];
     [JsonIgnore] public string CurrentSignature { get; private set; } = string.Empty;
     public SyncPermissions DefaultPermissions { get; set; } = SyncPermissions.All;
-    
+
     [JsonIgnore]
     public string CanonicalJson => JsonConvert.SerializeObject(new
     {
         GalaxyId,
+        DataPackId,
         Name,
         CreatedUtc,
         Members,
         DefaultPermissions,
         Version
-    }, Formatting.None, new JsonSerializerSettings 
-    { 
-        DefaultValueHandling = DefaultValueHandling.Include 
+    }, Formatting.None, new JsonSerializerSettings
+    {
+        DefaultValueHandling = DefaultValueHandling.Include
     });
+
     public static string GetPath(string dataPackDataPath) => Path.Combine(dataPackDataPath, "GalaxyManifest.json");
 
     public static GalaxyManifest? LoadFromDisk(string dataPackDataPath)
@@ -50,6 +52,7 @@ public class GalaxyManifest
             {
                 loaded.CurrentSignature = File.ReadAllText(sigPath);
             }
+
             return loaded;
         }
         catch (Exception e)
@@ -92,9 +95,10 @@ public class GalaxyManifest
                 Svc.Log.Warning("Manifest has no signature");
                 return false;
             }
+
             bool isValid = PsuCertificate.VerifySignature(publicCert, CanonicalJson, CurrentSignature);
             if (!isValid)
-                Svc.Log.Warning("Invalid signature from {starId}", starId);
+                Svc.Log.Warning($"Invalid signature from {starId}");
             else
                 Svc.Log.Debug($"Valid signature from {starId}");
             return isValid;
