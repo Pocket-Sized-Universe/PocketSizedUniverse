@@ -5,6 +5,7 @@ using Dalamud.Interface.Colors;
 using Dalamud.Interface.ImGuiFileDialog;
 using ECommons.Configuration;
 using ECommons.DalamudServices;
+using Octokit;
 using OtterGui;
 using PocketSizedUniverse.Models;
 using PocketSizedUniverse.Models.Data;
@@ -24,6 +25,8 @@ public partial class MainWindow
         DrawSyncThingSettings();
         ImGui.Spacing();
 
+        DrawAuthenticationSettings();
+
         DrawGeneralSettings();
 
         DrawTransientDataSettings();
@@ -40,6 +43,118 @@ public partial class MainWindow
         }
     }
 
+    private Task<OauthDeviceFlowResponse?>? _deviceCodeTask;
+    private Task<string?>? _tokenTask;
+
+    private void DrawAuthenticationSettings()
+    {
+        if (ImGui.CollapsingHeader("Authentication", ImGuiTreeNodeFlags.DefaultOpen))
+        {
+            var token = PsuPlugin.Configuration.GitHubToken;
+            if (string.IsNullOrWhiteSpace(token))
+                ImGui.Text("You have not authenticated with GitHub yet.");
+            else
+                ImGui.Text("GitHub Login Successful");
+            if (ImGui.Button("Authenticate with GitHub"))
+            {
+                ImGui.OpenPopup("GitHub Authentication");
+            }
+        }
+
+        if (ImGui.BeginPopupModal("GitHub Authentication", ImGuiWindowFlags.AlwaysAutoResize))
+        {
+            ImGui.BeginChild("GitHubAuthChild", new Vector2(400, 200));
+
+            if (_tokenTask != null && _tokenTask.IsCompletedSuccessfully)
+            {
+                var token = _tokenTask.Result;
+                if (token == null)
+                {
+                    ImGui.Text("Failed to get access token.");
+                    ImGui.Spacing();
+                    if (ImGui.Button("Try Again"))
+                    {
+                        _deviceCodeTask = null;
+                        _tokenTask = null;
+                    }
+                }
+                else
+                {
+                    PsuPlugin.Configuration.GitHubToken = token;
+                    EzConfig.Save();
+                    _deviceCodeTask = null;
+                    _tokenTask = null;
+                    ImGui.CloseCurrentPopup();
+                }
+            }
+            else if (_deviceCodeTask == null || _deviceCodeTask.IsFaulted)
+            {
+                if (ImGui.Button("Authenticate with GitHub"))
+                {
+                    _deviceCodeTask = Task.Run(PsuPlugin.GitHubService.StartDeviceOAuthFlow);
+                }
+            }
+            else if (!_deviceCodeTask.IsCompletedSuccessfully)
+            {
+                ImGui.Text("Requesting device code...");
+            }
+            else if (_deviceCodeTask.IsCompletedSuccessfully)
+            {
+                var code = _deviceCodeTask.Result;
+                if (code == null)
+                {
+                    ImGui.Text("Failed to start device code flow.");
+                    ImGui.Spacing();
+                    if (ImGui.Button("Try Again"))
+                    {
+                        _deviceCodeTask = null;
+                        _tokenTask = null;
+                    }
+                }
+                else
+                {
+                    // Start token task if not already started
+                    if (_tokenTask == null)
+                    {
+                        _tokenTask = Task.Run(() => PsuPlugin.GitHubService.WaitForAccessToken(code));
+                    }
+
+                    ImGui.Text($"Your Device Code: {code.UserCode}");
+                    ImGui.SameLine();
+                    if (ImGui.Button("Copy"))
+                    {
+                        ImGui.SetClipboardText(code.UserCode);
+                    }
+
+                    ImGui.Text($"Login URL: {code.VerificationUri}");
+                    ImGui.SameLine();
+                    if (ImGui.Button("Open in Browser"))
+                    {
+                        try
+                        {
+                            var psi = new ProcessStartInfo
+                            {
+                                FileName = code.VerificationUri,
+                                UseShellExecute = true
+                            };
+                            Process.Start(psi);
+                        }
+                        catch (Exception ex)
+                        {
+                            Svc.Log.Error($"Failed to open GitHub link: {ex}");
+                        }
+                    }
+
+                    ImGui.Spacing();
+                    ImGui.Text("Waiting for authentication...");
+                }
+            }
+
+            ImGui.EndChild();
+            ImGui.EndPopup();
+        }
+    }
+
     private void DrawPollingSettings()
     {
         if (ImGui.CollapsingHeader("Polling Intervals", ImGuiTreeNodeFlags.DefaultOpen))
@@ -52,8 +167,9 @@ public partial class MainWindow
                 PsuPlugin.Configuration.LocalPollingSeconds = localSeconds;
                 EzConfig.Save();
             }
+
             ImGuiUtil.HoverTooltip("How often to check for changes to the data applied to your current character.");
-            
+
             var remoteSeconds = PsuPlugin.Configuration.RemotePollingSeconds;
             SetInputWidth(100);
             if (ImGui.InputInt("Remote Polling Interval (seconds)", ref remoteSeconds, 1, 5))
@@ -62,6 +178,7 @@ public partial class MainWindow
                 PsuPlugin.Configuration.RemotePollingSeconds = remoteSeconds;
                 EzConfig.Save();
             }
+
             ImGuiUtil.HoverTooltip("How often to check for changes to Stars you are paired with.");
         }
     }
@@ -70,16 +187,21 @@ public partial class MainWindow
     {
         if (ImGui.CollapsingHeader("Transient Data", ImGuiTreeNodeFlags.DefaultOpen))
         {
-            ImGui.Text("Transient data is data that cannot be resolved to your character consistently, such as VFX and animations.");
-            ImGui.Text("To ensure a consistent syncing experience, transient data is stored permanently. This can can occasionally cause certain mods to not sync as expected.");
+            ImGui.Text(
+                "Transient data is data that cannot be resolved to your character consistently, such as VFX and animations.");
+            ImGui.Text(
+                "To ensure a consistent syncing experience, transient data is stored permanently. This can can occasionally cause certain mods to not sync as expected.");
             ImGui.Text("If certain mods are acting weird, you can clear the transient data here to fix it.");
-            ImGui.Text("This is completely safe to do, but may cause extra data transfer to your pairs if you have a lot of VFX or animation mods.");
+            ImGui.Text(
+                "This is completely safe to do, but may cause extra data transfer to your pairs if you have a lot of VFX or animation mods.");
             ImGui.Spacing();
-            ImGui.TextColored(ImGuiColors.DalamudYellow, "NOTE: VFX and animation mods will need to be used at least once for the data to be stored again if this button is clicked!");
+            ImGui.TextColored(ImGuiColors.DalamudYellow,
+                "NOTE: VFX and animation mods will need to be used at least once for the data to be stored again if this button is clicked!");
             if (ImGui.Button("Clear Transient Data"))
             {
                 PsuPlugin.Database.TransientFilesData.Clear();
             }
+
             ImGuiUtil.HoverTooltip("Click this button if things like VFX and animations are acting weird.");
         }
     }
@@ -201,6 +323,7 @@ public partial class MainWindow
             ImGui.TextColored(new Vector4(0.6f, 0.6f, 0.6f, 1.0f),
                 $"DataPacks will be created in: {config.DefaultDataPackDirectory}");
         }
+
         var maxSize = config.MaxDataPackSizeGb;
         SetInputWidth(100);
         if (ImGui.InputInt("Max Data Pack Size (GB)", ref maxSize, 1, 5))

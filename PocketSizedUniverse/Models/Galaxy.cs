@@ -10,7 +10,7 @@ public class Galaxy(string path)
     public string RepoPath { get; init; } = path;
     
     [JsonIgnore]
-    private Repository Repo => new Repository(RepoPath);
+    private Repository Repo => new(RepoPath);
     private string MembersPath => Path.Combine(RepoPath, "members");
     
     [JsonIgnore]
@@ -27,7 +27,8 @@ public class Galaxy(string path)
             _name = value;
             File.WriteAllText(NamePath, value);
             Commands.Stage(Repo, NamePath);
-            Commit($"Changed name to {value}");
+            if (!TryCommitAndPush($"Changed name to {value}"))
+                RevertLastCommit();
         }
     }
     
@@ -45,7 +46,8 @@ public class Galaxy(string path)
             _description = value;
             File.WriteAllText(DescriptionPath, value);
             Commands.Stage(Repo, DescriptionPath);
-            Commit($"Changed description to {value}");
+            if (!TryCommitAndPush($"Changed description to {value}"))
+                RevertLastCommit();
         }
     }
 
@@ -100,16 +102,11 @@ public class Galaxy(string path)
             return false;
         }
 
-        if (Repo == null)
-        {
-            Svc.Log.Error("Cannot add member: Repository not initialized");
-            return false;
-        }
-
         var path = Path.Combine(MembersPath, starPack.StarId + ".dat");
         File.WriteAllText(path, starPack.DataPackId.ToString());
         Commands.Stage(Repo, path);
-        Commit("Added member");
+        if (!TryCommitAndPush($"Added member {starPack.StarId}"))
+            RevertLastCommit();
         return true;
     }
 
@@ -122,34 +119,48 @@ public class Galaxy(string path)
             return false;
         }
         
-        if (Repo == null)
-        {
-            Svc.Log.Error("Cannot remove member: Repository not initialized");
-            return false;
-        }
-        
         Commands.Remove(Repo, path);
         Commands.Stage(Repo, path);
-        Commit("Removed member");
+        if (!TryCommitAndPush($"Removed member {starPack.StarId}"))
+            RevertLastCommit();
         return true;
     }
 
-    private void Commit(string message = "Commit")
+    private bool TryCommitAndPush(string message)
     {
-        if (Repo == null)
-        {
-            Svc.Log.Warning($"Cannot commit: Repository not initialized");
-            return;
-        }
-        
         try
         {
+            if (Repo.Head.IsCurrentRepositoryHead && !Repo.Head.IsTracking)
+            {
+                Svc.Log.Warning("Repository is in detached HEAD state or branch has no upstream");
+                return false;
+            }
             var signature = new Signature("PSU_User", "email@email.org", DateTimeOffset.UtcNow);
             Repo.Commit(message, signature, signature, new CommitOptions());
+            
+            var remote = Repo.Network.Remotes["origin"];
+            if (remote == null)
+            {
+                Svc.Log.Error("No remote named origin found.");
+                return false;
+            }
+            var pushOptions = new PushOptions
+            {
+                CredentialsProvider = (url, user, cred) => new DefaultCredentials()
+            };
+            
+            Repo.Network.Push(remote, Repo.Head.CanonicalName, pushOptions);
+            return true;
         }
-        catch (Exception ex)
+        catch (LibGit2SharpException ex)
         {
-            Svc.Log.Error($"Failed to commit: {ex.Message}");
+            Svc.Log.Error($"Failed to push: {ex.Message}");
+            return false;
         }
+    }
+    
+    private void RevertLastCommit()
+    {
+        Repo.Reset(ResetMode.Hard, Repo.Head.Commits.Skip(1).First());
     }
 }

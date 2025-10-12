@@ -29,6 +29,7 @@ public class PsuPlugin : IDalamudPlugin
     public static SetupWindow SetupWindow;
     public static ProgressWindow ProgressWindow;
     public static SyncThingService SyncThingService;
+    public static GitHubService GitHubService;
     public static MoodlesService MoodlesService;
     public static PlayerDataService PlayerDataService;
     public static ContextMenuService ContextMenuService;
@@ -66,6 +67,7 @@ public class PsuPlugin : IDalamudPlugin
         PetNameService = new PetNameService();
 
         SyncThingService = new SyncThingService();
+        GitHubService = new GitHubService();
 
         PlayerDataService = new PlayerDataService();
 
