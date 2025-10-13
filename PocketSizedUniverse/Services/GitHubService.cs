@@ -1,3 +1,4 @@
+using ECommons.Configuration;
 using ECommons.DalamudServices;
 using Octokit;
 
@@ -6,7 +7,13 @@ namespace PocketSizedUniverse.Services;
 public class GitHubService
 {
     private const string ClientId = "Ov23liBCewI0TrBHOvPQ";
-    private readonly GitHubClient _client = new(new ProductHeaderValue("PocketSizedUniverse"));
+    private const string ProductHeader = "PocketSizedUniverse";
+    private GitHubClient AnonymousClient => new(new ProductHeaderValue(ProductHeader));
+
+    private GitHubClient AuthenticatedClient => new(new ProductHeaderValue(ProductHeader))
+    {
+        Credentials = new Credentials(PsuPlugin.Configuration.GitHubToken)
+    };
 
     public async Task<OauthDeviceFlowResponse?> StartDeviceOAuthFlow()
     {
@@ -16,7 +23,7 @@ public class GitHubService
             {
                 Scopes = { "public_repo" }
             };
-            var deviceCode = await _client.Oauth.InitiateDeviceFlow(flowRequest);
+            var deviceCode = await AnonymousClient.Oauth.InitiateDeviceFlow(flowRequest);
             return deviceCode;
         }
         catch (Exception ex)
@@ -35,8 +42,12 @@ public class GitHubService
             {
                 try
                 {
-                    var token = await _client.Oauth.CreateAccessTokenForDeviceFlow(ClientId, deviceCode);
+                    var token = await AnonymousClient.Oauth.CreateAccessTokenForDeviceFlow(ClientId, deviceCode);
+                    if (token == null)
+                        throw new Exception("Failed to get token.");
                     Svc.Log.Info("GitHub authentication successful.");
+                    PsuPlugin.Configuration.GitHubToken = token.AccessToken;
+                    EzConfig.Save();
                     return token.AccessToken;
                 }
                 catch (ApiException ex) when (ex.Message.Contains("authorization_pending"))
@@ -58,5 +69,38 @@ public class GitHubService
             Svc.Log.Error("Authentication failed: " + ex);
             return null;       
         }
+    }
+
+    public async Task<Repository?> GetRepository(string owner, string repo)
+    {
+        try
+        {
+            return await AuthenticatedClient.Repository.Get(owner, repo);
+        }
+        catch (Exception ex)
+        {
+            Svc.Log.Error($"Failed to get repository {owner}/{repo}: {ex}");
+            return null;
+        }   
+    }
+
+    public async Task<string?> CreateRepository(string name)
+    {
+        try
+        {
+            var repository = new NewRepository(name);
+            var createdRepo = await AuthenticatedClient.Repository.Create(repository);
+            if (createdRepo == null)
+            {
+                Svc.Log.Error("Failed to create repository.");
+                return null;
+            }
+            return createdRepo.CloneUrl;
+        }
+        catch (Exception ex)
+        {
+            Svc.Log.Error($"Failed to create repository {name}: {ex}");
+            return null;
+        }  
     }
 }

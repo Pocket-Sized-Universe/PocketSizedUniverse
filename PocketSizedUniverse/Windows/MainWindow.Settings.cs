@@ -43,9 +43,6 @@ public partial class MainWindow
         }
     }
 
-    private Task<OauthDeviceFlowResponse?>? _deviceCodeTask;
-    private Task<string?>? _tokenTask;
-
     private void DrawAuthenticationSettings()
     {
         if (ImGui.CollapsingHeader("Authentication", ImGuiTreeNodeFlags.DefaultOpen))
@@ -57,101 +54,8 @@ public partial class MainWindow
                 ImGui.Text("GitHub Login Successful");
             if (ImGui.Button("Authenticate with GitHub"))
             {
-                ImGui.OpenPopup("GitHub Authentication");
+                PsuPlugin.GitHubLoginWindow.IsOpen = true;
             }
-        }
-
-        if (ImGui.BeginPopupModal("GitHub Authentication", ImGuiWindowFlags.AlwaysAutoResize))
-        {
-            ImGui.BeginChild("GitHubAuthChild", new Vector2(400, 200));
-
-            if (_tokenTask != null && _tokenTask.IsCompletedSuccessfully)
-            {
-                var token = _tokenTask.Result;
-                if (token == null)
-                {
-                    ImGui.Text("Failed to get access token.");
-                    ImGui.Spacing();
-                    if (ImGui.Button("Try Again"))
-                    {
-                        _deviceCodeTask = null;
-                        _tokenTask = null;
-                    }
-                }
-                else
-                {
-                    PsuPlugin.Configuration.GitHubToken = token;
-                    EzConfig.Save();
-                    _deviceCodeTask = null;
-                    _tokenTask = null;
-                    ImGui.CloseCurrentPopup();
-                }
-            }
-            else if (_deviceCodeTask == null || _deviceCodeTask.IsFaulted)
-            {
-                if (ImGui.Button("Authenticate with GitHub"))
-                {
-                    _deviceCodeTask = Task.Run(PsuPlugin.GitHubService.StartDeviceOAuthFlow);
-                }
-            }
-            else if (!_deviceCodeTask.IsCompletedSuccessfully)
-            {
-                ImGui.Text("Requesting device code...");
-            }
-            else if (_deviceCodeTask.IsCompletedSuccessfully)
-            {
-                var code = _deviceCodeTask.Result;
-                if (code == null)
-                {
-                    ImGui.Text("Failed to start device code flow.");
-                    ImGui.Spacing();
-                    if (ImGui.Button("Try Again"))
-                    {
-                        _deviceCodeTask = null;
-                        _tokenTask = null;
-                    }
-                }
-                else
-                {
-                    // Start token task if not already started
-                    if (_tokenTask == null)
-                    {
-                        _tokenTask = Task.Run(() => PsuPlugin.GitHubService.WaitForAccessToken(code));
-                    }
-
-                    ImGui.Text($"Your Device Code: {code.UserCode}");
-                    ImGui.SameLine();
-                    if (ImGui.Button("Copy"))
-                    {
-                        ImGui.SetClipboardText(code.UserCode);
-                    }
-
-                    ImGui.Text($"Login URL: {code.VerificationUri}");
-                    ImGui.SameLine();
-                    if (ImGui.Button("Open in Browser"))
-                    {
-                        try
-                        {
-                            var psi = new ProcessStartInfo
-                            {
-                                FileName = code.VerificationUri,
-                                UseShellExecute = true
-                            };
-                            Process.Start(psi);
-                        }
-                        catch (Exception ex)
-                        {
-                            Svc.Log.Error($"Failed to open GitHub link: {ex}");
-                        }
-                    }
-
-                    ImGui.Spacing();
-                    ImGui.Text("Waiting for authentication...");
-                }
-            }
-
-            ImGui.EndChild();
-            ImGui.EndPopup();
         }
     }
 

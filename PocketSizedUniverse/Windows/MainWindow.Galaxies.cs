@@ -1,11 +1,14 @@
 using System.Globalization;
 using System.Numerics;
 using Dalamud.Bindings.ImGui;
+using Dalamud.Interface;
+using Dalamud.Interface.Colors;
 using ECommons.Configuration;
 using ECommons.ImGuiMethods;
 using LibGit2Sharp;
 using OtterGui;
 using OtterGui.Raii;
+using OtterGui.Text;
 using PocketSizedUniverse.Models;
 using PocketSizedUniverse.Windows.ViewModels;
 
@@ -16,67 +19,20 @@ public partial class MainWindow
     private GalaxySelector? _galaxySelector;
     private class GalaxySelector(IList<Galaxy> items) : ItemSelector<Galaxy>(items, Flags.Delete | Flags.Filter)
     {
-        private bool _createGalaxyPopupOpen = false;
-        private string _galaxyName = string.Empty;
-        private bool _joinGalaxyPopupOpen = false;
         public new void Draw(float width)
         {
             using var id = ImRaii.PushId("GalaxySelector-Outer");
             using var group = ImRaii.Group();
             if (ImGui.Button("Import Galaxy Code", new Vector2(width - 5, 0)))
             {
-                _joinGalaxyPopupOpen = true;
                 ImGui.OpenPopup("Join Galaxy");
             }
             if (ImGui.Button("Create New Galaxy", new Vector2(width - 5, 0)))
             {
-                _createGalaxyPopupOpen = true;
-                _galaxyName = $"{Adjectives.GetRandom()} {Nouns.GetRandom()}";
-                ImGui.OpenPopup("Create New Galaxy");           
+                
             }
             ImGui.Separator();
             base.Draw(width);
-            if (ImGui.BeginPopupModal("Create New Galaxy", ref _createGalaxyPopupOpen, ImGuiWindowFlags.AlwaysAutoResize))
-            {
-                ImGui.SetWindowSize(new Vector2(400, 200));
-                ImGui.InputText("Galaxy Name", ref _galaxyName, 256);
-                ImGui.Spacing();
-                if (ImGui.Button("Create Galaxy", new Vector2(120, 0)))
-                {
-                    var name = _galaxyName.Trim();
-                    var basePath = Path.Combine(PsuPlugin.Configuration.DefaultDataPackDirectory!, "Galaxies");
-                    if (!Directory.Exists(basePath))
-                        Directory.CreateDirectory(basePath);
-                    var path = Path.Combine(basePath, name);
-                    if (!Directory.Exists(path))
-                        Directory.CreateDirectory(path);
-                    Repository.Init(path);
-                    var galaxy = new Galaxy(path)
-                    {
-                        Name = name,
-                        Description = "My new Galaxy!"
-                    };
-                    galaxy.EnsureDirectories();
-                    galaxy.TryAddMember(PsuPlugin.Configuration.MyStarPack!);
-                    PsuPlugin.Configuration.Galaxies.Add(galaxy);
-                    EzConfig.Save();
-                    ImGui.CloseCurrentPopup();
-                    _createGalaxyPopupOpen = false;
-                    Notify.Info("Galaxy created. Please allow up to 30 seconds for data propagation.");
-                }
-                ImGui.SameLine();
-                if (ImGui.Button("Cancel", new Vector2(120, 0)))
-                {
-                    ImGui.CloseCurrentPopup();
-                    _createGalaxyPopupOpen = false;
-                }
-                ImGui.EndPopup();
-            }
-
-            if (ImGui.BeginPopupModal("Join Galaxy", ref _joinGalaxyPopupOpen, ImGuiWindowFlags.AlwaysAutoResize))
-            {
-                
-            }
         }
 
         protected override bool OnDraw(int idx)
@@ -101,7 +57,7 @@ public partial class MainWindow
             var galaxy = Items[idx];
             PsuPlugin.Configuration.Galaxies.Remove(galaxy);
             EzConfig.Save();
-            Notify.Info("Galaxy deleted.");
+            Notify.Info("Galaxy removed.");
             return true;
         }
     }
@@ -129,7 +85,10 @@ public partial class MainWindow
             ImGui.EndChild();
         }
     }
-    
+    private string _editNameString = string.Empty;
+    private string _editDescriptionString = string.Empty;
+    private string _repoName = string.Empty;
+    private Task? _repoCreateTask;
     private void DrawGalaxyDetails()
     {
         var selectedGalaxy = _galaxySelector?.Current;
@@ -138,8 +97,112 @@ public partial class MainWindow
             ImGui.TextColored(new Vector4(0.6f, 0.6f, 0.6f, 1.0f), "Select or create a Galaxy to view details");
             return;
         }
-        ImGui.Text($"Editing: {selectedGalaxy.Name}");
+        ImGui.PushID("GalaxyName");
+        ImGui.Text($"{selectedGalaxy.Name}");
+        ImGui.SameLine();
+        if (ImUtf8.IconButton(FontAwesomeIcon.Clipboard))
+        {
+            _editNameString = selectedGalaxy.Name;
+            ImGui.OpenPopup("Edit String");
+        }
+        if (ImGui.BeginPopup("Edit String"))
+        {
+            ImGui.SetNextItemWidth(400);
+            ImGui.InputText("##EditString", ref _editNameString, 256);
+            if (ImGui.Button("Save"))
+            {
+                selectedGalaxy.Name = _editNameString;
+                ImGui.CloseCurrentPopup();
+            }
+            ImGui.EndPopup();
+        }
+        ImGui.PopID();
         ImGui.Separator();
         ImGui.Spacing();
+        ImGui.PushID("GalaxyDescription");
+        ImGui.TextWrapped(selectedGalaxy.Description);
+        ImGui.SameLine();
+        if (ImUtf8.IconButton(FontAwesomeIcon.Clipboard))
+        {
+            _editDescriptionString = selectedGalaxy.Description;
+            ImGui.OpenPopup("Edit String");
+        }
+        
+        if (ImGui.BeginPopup("Edit String"))
+        {
+            ImGui.SetNextItemWidth(400);
+            ImGui.InputTextMultiline("##EditString", ref _editDescriptionString, 1024, new Vector2(400, 100));
+            if (ImGui.Button("Save"))
+            {
+                selectedGalaxy.Description = _editDescriptionString;
+                ImGui.CloseCurrentPopup();
+            }
+            ImGui.EndPopup();
+        }
+        ImGui.PopID();
+        ImGui.Spacing();
+        ImGui.Separator();
+        ImGui.Spacing();
+        if (ImGuiUtil.GenericEnumCombo("Remote Origin Type", 100f, selectedGalaxy.OriginType, out var newOriginType))
+        {
+            selectedGalaxy.OriginType = newOriginType;
+            EzConfig.Save();
+        }
+        ImGui.SameLine();
+        ImUtf8.Icon(FontAwesomeIcon.QuestionCircle);
+        ImGuiUtil.HoverTooltip("Since a Galaxy is a specialized git repository, it must be hosted on a remote server to be used by other people.\nThis setting determines how the Galaxy is accessed.\nYou can choose to use a custom git server, or use GitHub and let PSU manage your Galaxy for you.");
+        ImGui.Spacing();
+        if (selectedGalaxy.OriginType == GalaxyOriginType.GitHub && PsuPlugin.Configuration.GitHubToken == null)
+        {
+            ImGui.TextColored(ImGuiColors.DalamudOrange, "You must be logged into GitHub to use this option.");
+            if (ImGui.Button("Authenticate with GitHub"))
+            {
+                PsuPlugin.GitHubLoginWindow.IsOpen = true;
+            }
+        }
+        else if (selectedGalaxy.OriginType == GalaxyOriginType.GitHub && selectedGalaxy.GetOrigin() == null)
+        {
+            ImGui.TextColored(ImGuiColors.DalamudOrange, "This repository has not been initialized on GitHub yet.");
+            ImGui.InputText("GitHub Repository Name", ref _repoName);
+            if (_repoCreateTask != null && !_repoCreateTask.IsCompleted)
+            {
+                ImGui.Text("Creating repository...");
+            }
+            else
+            {
+                if (ImGui.Button("Initialize on GitHub"))
+                {
+                    if (string.IsNullOrEmpty(_repoName))
+                    {
+                        Notify.Error("You must specify a repository name.");
+                        return;
+                    }
+                    _repoCreateTask = Task.Run(async () =>
+                    {
+                        var origin = await PsuPlugin.GitHubService.CreateRepository(_repoName);
+                        if (origin == null)
+                        {
+                            Notify.Error("Failed to create repository.");
+                            return;
+                        }
+                        selectedGalaxy.SetOrigin(origin);
+                        Notify.Info("Repository created.");
+                    });
+                }
+            }
+        }
+        else if (selectedGalaxy.GetOrigin() != null)
+        {
+            ImGui.Text($"Origin: {selectedGalaxy.GetOrigin()!.Url}");
+            if (ImGui.Button("Copy to Clipboard"))
+            {
+                ImGui.SetClipboardText(selectedGalaxy.GetOrigin()!.Url);
+            }
+
+            if (ImGui.Button("Push Changes"))
+            {
+                selectedGalaxy.TryPush();
+            }
+        }
     }
 }

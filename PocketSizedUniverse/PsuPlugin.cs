@@ -28,6 +28,7 @@ public class PsuPlugin : IDalamudPlugin
     public static MainWindow MainWindow;
     public static SetupWindow SetupWindow;
     public static ProgressWindow ProgressWindow;
+    public static GitHubLoginWindow GitHubLoginWindow;
     public static SyncThingService SyncThingService;
     public static GitHubService GitHubService;
     public static MoodlesService MoodlesService;
@@ -77,9 +78,11 @@ public class PsuPlugin : IDalamudPlugin
         MainWindow = new MainWindow();
         SetupWindow = new SetupWindow();
         ProgressWindow = new ProgressWindow();
+        GitHubLoginWindow = new GitHubLoginWindow();
         WindowSystem.AddWindow(MainWindow);
         WindowSystem.AddWindow(SetupWindow);
         WindowSystem.AddWindow(ProgressWindow);
+        WindowSystem.AddWindow(GitHubLoginWindow);
 
         if (!Configuration.SetupComplete)
         {

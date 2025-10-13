@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using ECommons.DalamudServices;
+using LibGit2Sharp;
 using PocketSizedUniverse.Models;
 
 namespace PocketSizedUniverse;
@@ -20,6 +21,18 @@ public class Configuration
     public int LocalPollingSeconds { get; set; } = 30;
     public int RemotePollingSeconds { get; set; } = 10;
     public int MaxDataPackSizeGb { get; set; } = 5;
-    
     public string? GitHubToken { get; set; }
+
+    public Credentials GetGitCredentials(string url, string usernameFromUrl, SupportedCredentialTypes types)
+    {
+        if (url.Contains("github.com") && GitHubToken != null)
+        {
+            return new UsernamePasswordCredentials()
+            {
+                Username = "psu_user",
+                Password = GitHubToken
+            };
+        }
+        return new DefaultCredentials();
+    }
 }

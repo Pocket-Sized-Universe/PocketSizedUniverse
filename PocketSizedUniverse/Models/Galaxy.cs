@@ -8,6 +8,8 @@ namespace PocketSizedUniverse.Models;
 public class Galaxy(string path)
 {
     public string RepoPath { get; init; } = path;
+
+    public GalaxyOriginType OriginType { get; set; } = GalaxyOriginType.GitHub;
     
     [JsonIgnore]
     private Repository Repo => new(RepoPath);
@@ -31,6 +33,10 @@ public class Galaxy(string path)
                 RevertLastCommit();
         }
     }
+    
+    public Remote? GetOrigin() => Repo.Network.Remotes["origin"];
+    
+    public void SetOrigin(string url) => Repo.Network.Remotes.Add("origin", url);
     
     [JsonIgnore]
     private string? _description;
@@ -138,6 +144,20 @@ public class Galaxy(string path)
             var signature = new Signature("PSU_User", "email@email.org", DateTimeOffset.UtcNow);
             Repo.Commit(message, signature, signature, new CommitOptions());
             
+            
+            return TryPush();
+        }
+        catch (LibGit2SharpException ex)
+        {
+            Svc.Log.Error($"Failed to push: {ex.Message}");
+            return false;
+        }
+    }
+
+    public bool TryPush()
+    {
+        try
+        {
             var remote = Repo.Network.Remotes["origin"];
             if (remote == null)
             {
@@ -146,15 +166,14 @@ public class Galaxy(string path)
             }
             var pushOptions = new PushOptions
             {
-                CredentialsProvider = (url, user, cred) => new DefaultCredentials()
+                CredentialsProvider = (url, user, cred) => PsuPlugin.Configuration.GetGitCredentials(url, user, cred)
             };
-            
             Repo.Network.Push(remote, Repo.Head.CanonicalName, pushOptions);
             return true;
         }
         catch (LibGit2SharpException ex)
         {
-            Svc.Log.Error($"Failed to push: {ex.Message}");
+            Svc.Log.Error($"Failed to push: {ex}");
             return false;
         }
     }
@@ -162,5 +181,61 @@ public class Galaxy(string path)
     private void RevertLastCommit()
     {
         Repo.Reset(ResetMode.Hard, Repo.Head.Commits.Skip(1).First());
+    }
+
+    public bool HasWriteAccess()
+    {
+        try
+        {
+            var remote = Repo.Network.Remotes["origin"];
+            if (remote == null)
+                return false;
+            var refSpecs = remote.FetchRefSpecs.Select(x => x.Specification);
+
+            var fetchOptions = new FetchOptions
+            {
+                CredentialsProvider = (url, user, cred) => PsuPlugin.Configuration.GetGitCredentials(url, user, cred)
+            };
+            Commands.Fetch(Repo, remote.Name, refSpecs, fetchOptions, null);
+
+            var pushOptions = new PushOptions()
+            {
+                CredentialsProvider = (url, user, cred) => PsuPlugin.Configuration.GetGitCredentials(url, user, cred)
+            };
+            try
+            {
+                Repo.Network.Push(remote, $"refs/heads/credTest-{Guid.NewGuid()}", pushOptions);
+            }
+            catch (NonFastForwardException)
+            {
+                return true;
+            }
+            catch (LibGit2SharpException ex) when (
+                ex.Message.Contains("no match") || 
+                ex.Message.Contains("does not exist"))
+            {
+                // We tried to push a non-existent branch and server accepted the attempt
+                // This means we have write permission
+                return true;
+            }
+            catch (LibGit2SharpException ex) when (
+                ex.Message.Contains("403") ||
+                ex.Message.Contains("denied") ||
+                ex.Message.Contains("permission") ||
+                ex.Message.Contains("unauthorized") ||
+                ex.Message.Contains("forbidden"))
+            {
+                // Permission error - no write access
+                return false;
+            }
+        
+            // If we got here without errors, we likely have access
+            return true;
+        }
+        catch (Exception ex)
+        {
+            Svc.Log.Error($"Failed to check write access: {ex.Message}");
+            return false;
+        }
     }
 }
