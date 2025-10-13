@@ -110,7 +110,7 @@ public class Galaxy(string path)
     public bool TryRemoveMember(StarPack starPack)
     {
         var path = Path.Combine(MembersPath, starPack.StarId + ".dat");
-        if (!GetMembers().ToList().Contains(starPack) || !File.Exists(path))
+        if (!GetMembers().ToList().Select(s => s.StarId).Contains(starPack.StarId) || !File.Exists(path))
         {
             Svc.Log.Warning("Cannot remove member from a galaxy they're not a part of.");
             return false;

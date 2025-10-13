@@ -353,10 +353,12 @@ public partial class MainWindow
                 ImGui.PushID(star.StarId);
                 if (ImGui.CollapsingHeader(realStar.Name, ImGuiTreeNodeFlags.DefaultOpen))
                 {
-                    if (ImGui.Button($"Remove##{realStar.StarId}"))
+                    if (!string.Equals(PsuPlugin.Configuration.MyStarPack!.StarId, realStar.StarId) && ImGui.Button($"Remove##{realStar.StarId}"))
                     {
-                        selectedGalaxy.TryRemoveMember(star);
-                        Notify.Info($"Removed {realStar.Name} from Galaxy {selectedGalaxy.Name}!");
+                        if (selectedGalaxy.TryRemoveMember(star))
+                            Notify.Info($"Removed {realStar.Name} from Galaxy {selectedGalaxy.Name}!");
+                        else
+                            Notify.Error($"Failed to remove {realStar.Name} from Galaxy {selectedGalaxy.Name}!");
                     }
                     ImGui.Indent();
                     DrawStarEditor(realStar);

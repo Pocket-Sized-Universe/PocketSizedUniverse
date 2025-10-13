@@ -354,7 +354,6 @@ public class SyncThingService : ICache, IDisposable
             }
 
             var effectivePairs = GetEffectivePairs().ToList();
-            var effectiveDataPackIds = new HashSet<Guid>(effectivePairs.Select(p => p.DataPackId));
 
 // Check each pending folder against our paired star DataPack IDs
             foreach (var kvp in pendingFolders.Folders)
@@ -447,6 +446,8 @@ public class SyncThingService : ICache, IDisposable
 
                 // Step 3: Accept any PendingFolder requests if their IDs match a paired star's DataPack ID
                 await AcceptMatchingPendingFolders();
+                
+                await RemoveUnpairedStarsAndDataPacks();
 
                 Svc.Log.Debug("HealSyncThing completed successfully");
             }
@@ -455,6 +456,65 @@ public class SyncThingService : ICache, IDisposable
                 Svc.Log.Error($"HealSyncThing failed: {ex}");
             }
         });
+    }
+
+    public async Task RemoveUnpairedStarsAndDataPacks()
+    {
+        if (!PsuPlugin.Configuration.UseBuiltInSyncThing)
+        {
+            Svc.Log.Debug("Easy Mode Disabled, cleanup must be manual");
+            return;
+        }
+        if (PsuPlugin.Configuration.MyStarPack == null)
+            return;
+        var effectivePairs = GetEffectivePairs().ToList();
+        effectivePairs.Add(PsuPlugin.Configuration.MyStarPack);
+        Svc.Log.Debug($"[DEBUG] Checking {effectivePairs.Count} configured StarPacks for unpaired Stars...");
+        Svc.Log.Debug($"[DEBUG] Current Stars in cache: {Stars.Count} - [{string.Join(", ", Stars.Keys)}]");
+        Svc.Log.Debug($"[DEBUG] Current DataPacks in cache: {DataPacks.Count} - [{string.Join(", ", DataPacks.Keys)}]");
+        foreach (var dataPack in DataPacks.Values)
+        {
+            if (effectivePairs.All(sp => sp.DataPackId != dataPack.Id))
+            {
+                Svc.Log.Debug($"[DEBUG] DataPack {dataPack.Id} is not paired with any configured StarPacks");
+                await RemoveDataPack(dataPack.Id);
+            }
+        }
+
+        foreach (var star in Stars.Values)
+        {
+            if (effectivePairs.All(sp => sp.StarId != star.StarId))
+            {
+                Svc.Log.Debug($"[DEBUG] Star {star.StarId} is not paired with any configured StarPacks");
+                await RemoveStar(star.StarId);
+            }
+        }
+    }
+
+    public async Task RemoveStar(string starId)
+    {
+        try
+        {
+            await _client.Config.Stars.Delete(starId);
+            Svc.Log.Debug($"Successfully removed star: {starId}");
+        }
+        catch (Exception e)
+        {
+            Svc.Log.Error($"Failed to remove star {starId}: {e}");
+        }
+    }
+    
+    public async Task RemoveDataPack(Guid dataPackId)
+    {
+        try
+        {
+            await _client.Config.Folders.Delete(dataPackId.ToString());
+            Svc.Log.Debug($"Successfully removed DataPack: {dataPackId}");
+        }
+        catch (Exception e)
+        {
+            Svc.Log.Error($"Failed to remove DataPack {dataPackId}: {e}");
+        }
     }
 
     public async Task PostNewStar(Star star)
