@@ -326,7 +326,8 @@ public class PlayerDataService : IUpdatable, IDisposable
                     if (realObj == null)
                         return;
                     if (realObj.ObjectIndex - 1 == LocalPlayerData?.Player?.ObjectIndex ||
-                        realObj.ObjectIndex == LocalPlayerData?.Player?.ObjectIndex)
+                        realObj.ObjectIndex == LocalPlayerData?.Player?.ObjectIndex ||
+                        realObj.OwnerId == LocalPlayerData?.Player?.EntityId)
                     {
                         LocalPlayerData!.UpdateTransientData(capturedGamePath, realLocalPath);
                     }
