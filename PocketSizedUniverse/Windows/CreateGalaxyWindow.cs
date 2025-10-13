@@ -17,8 +17,8 @@ public class CreateGalaxyWindow : Window
 {
     public CreateGalaxyWindow() : base("Create Galaxy")
     {
-        Size = new Vector2(400, 500);
-        SizeCondition = ImGuiCond.FirstUseEver;
+        Size = new Vector2(400, 300);
+        SizeCondition = ImGuiCond.Always;
         _fileDialogManager = new FileDialogManager();
         _galaxyName = $"{Adjectives.GetRandom()} {Nouns.GetRandom()}";
         _description = "My new Galaxy!";

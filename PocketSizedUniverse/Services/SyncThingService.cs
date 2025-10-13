@@ -261,6 +261,17 @@ public class SyncThingService : ICache, IDisposable
 
         var effectivePairs = GetEffectivePairs().ToList();
         Svc.Log.Debug($"[DEBUG] Processing {effectivePairs.Count} configured StarPacks...");
+        
+        var starsToRemove = myDataPack.Stars.Where(s => effectivePairs.All(sp => sp.StarId != s.StarId)).ToList();
+        if (starsToRemove.Count != 0)
+        {
+            Svc.Log.Debug($"[DEBUG] Removing {starsToRemove.Count} stars from MyDataPack");
+            foreach (var star in starsToRemove)
+            {
+                myDataPack.Stars.Remove(star);
+                modified = true;
+            }
+        }
 
 // Add all paired stars that exist in the API to the local DataPack
         foreach (var starPack in effectivePairs)

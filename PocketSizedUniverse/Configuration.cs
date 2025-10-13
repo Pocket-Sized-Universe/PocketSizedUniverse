@@ -40,8 +40,19 @@ public class Configuration
     {
         foreach (var sp in StarPacks)
             yield return sp;
-        foreach (var g in Galaxies)
-            foreach (var sp in g.GetMembers())
-                yield return sp;
+    
+        if (MyStarPack != null)
+        {
+            foreach (var g in Galaxies)
+            {
+                var members = g.GetMembers().ToList();
+            
+                if (members.Any(m => m.StarId == MyStarPack.StarId))
+                {
+                    foreach (var sp in members.Where(sp => sp.StarId != MyStarPack.StarId))
+                        yield return sp;
+                }
+            }
+        }
     }
 }

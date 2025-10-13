@@ -199,7 +199,7 @@ public class Galaxy(string path)
                 Svc.Log.Error("Merge conflicts detected. Aborting.");
                 return false;
             }
-
+            ClearCachedData();
             return true;
         }
         catch (Exception ex)
@@ -246,7 +246,8 @@ public class Galaxy(string path)
             }
             catch (LibGit2SharpException ex) when (
                 ex.Message.Contains("no match") ||
-                ex.Message.Contains("does not exist"))
+                ex.Message.Contains("does not exist") ||
+                ex.Message.Contains("does not match"))
             {
                 // We tried to push a non-existent branch and server accepted the attempt
                 // This means we have write permission
@@ -271,5 +272,11 @@ public class Galaxy(string path)
             Svc.Log.Error($"Failed to check write access: {ex.Message}");
             return false;
         }
+    }
+
+    public void ClearCachedData()
+    {
+        _name = null;
+        _description = null;
     }
 }
