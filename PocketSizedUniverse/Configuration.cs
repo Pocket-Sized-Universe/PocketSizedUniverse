@@ -35,4 +35,13 @@ public class Configuration
         }
         return new DefaultCredentials();
     }
+
+    public IEnumerable<StarPack> GetAllStarPacks()
+    {
+        foreach (var sp in StarPacks)
+            yield return sp;
+        foreach (var g in Galaxies)
+            foreach (var sp in g.GetMembers())
+                yield return sp;
+    }
 }

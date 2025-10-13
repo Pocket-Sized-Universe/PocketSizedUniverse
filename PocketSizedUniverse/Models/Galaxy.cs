@@ -10,15 +10,13 @@ public class Galaxy(string path)
     public string RepoPath { get; init; } = path;
 
     public GalaxyOriginType OriginType { get; set; } = GalaxyOriginType.GitHub;
-    
-    [JsonIgnore]
-    private Repository Repo => new(RepoPath);
+
+    [JsonIgnore] private Repository Repo => new(RepoPath);
     private string MembersPath => Path.Combine(RepoPath, "members");
-    
-    [JsonIgnore]
-    private string? _name;
+
+    [JsonIgnore] private string? _name;
     private string NamePath => Path.Combine(RepoPath, "name.txt");
-    
+
     [JsonIgnore]
     public string Name
     {
@@ -29,19 +27,16 @@ public class Galaxy(string path)
             _name = value;
             File.WriteAllText(NamePath, value);
             Commands.Stage(Repo, NamePath);
-            if (!TryCommitAndPush($"Changed name to {value}"))
-                RevertLastCommit();
         }
     }
-    
+
     public Remote? GetOrigin() => Repo.Network.Remotes["origin"];
-    
+
     public void SetOrigin(string url) => Repo.Network.Remotes.Add("origin", url);
-    
-    [JsonIgnore]
-    private string? _description;
+
+    [JsonIgnore] private string? _description;
     private string DescriptionPath => Path.Combine(RepoPath, "description.txt");
-    
+
     [JsonIgnore]
     public string Description
     {
@@ -52,8 +47,6 @@ public class Galaxy(string path)
             _description = value;
             File.WriteAllText(DescriptionPath, value);
             Commands.Stage(Repo, DescriptionPath);
-            if (!TryCommitAndPush($"Changed description to {value}"))
-                RevertLastCommit();
         }
     }
 
@@ -64,7 +57,7 @@ public class Galaxy(string path)
         if (!Directory.Exists(MembersPath))
             Directory.CreateDirectory(MembersPath);
     }
-    
+
     public IEnumerable<StarPack> GetMembers()
     {
         if (!Directory.Exists(MembersPath))
@@ -111,8 +104,6 @@ public class Galaxy(string path)
         var path = Path.Combine(MembersPath, starPack.StarId + ".dat");
         File.WriteAllText(path, starPack.DataPackId.ToString());
         Commands.Stage(Repo, path);
-        if (!TryCommitAndPush($"Added member {starPack.StarId}"))
-            RevertLastCommit();
         return true;
     }
 
@@ -124,28 +115,19 @@ public class Galaxy(string path)
             Svc.Log.Warning("Cannot remove member from a galaxy they're not a part of.");
             return false;
         }
-        
+
         Commands.Remove(Repo, path);
         Commands.Stage(Repo, path);
-        if (!TryCommitAndPush($"Removed member {starPack.StarId}"))
-            RevertLastCommit();
         return true;
     }
 
-    private bool TryCommitAndPush(string message)
+    public bool TryCommit(string message)
     {
         try
         {
-            if (Repo.Head.IsCurrentRepositoryHead && !Repo.Head.IsTracking)
-            {
-                Svc.Log.Warning("Repository is in detached HEAD state or branch has no upstream");
-                return false;
-            }
             var signature = new Signature("PSU_User", "email@email.org", DateTimeOffset.UtcNow);
             Repo.Commit(message, signature, signature, new CommitOptions());
-            
-            
-            return TryPush();
+            return true;
         }
         catch (LibGit2SharpException ex)
         {
@@ -164,6 +146,7 @@ public class Galaxy(string path)
                 Svc.Log.Error("No remote named origin found.");
                 return false;
             }
+
             var pushOptions = new PushOptions
             {
                 CredentialsProvider = (url, user, cred) => PsuPlugin.Configuration.GetGitCredentials(url, user, cred)
@@ -177,7 +160,55 @@ public class Galaxy(string path)
             return false;
         }
     }
-    
+
+    public bool TryFetchAndMerge()
+    {
+        try
+        {
+            var remote = Repo.Network.Remotes["origin"];
+            if (remote == null)
+            {
+                Svc.Log.Error("No remote named origin found.");
+                return false;
+            }
+
+            var fetchOptions = new FetchOptions
+            {
+                CredentialsProvider = (url, user, cred) => PsuPlugin.Configuration.GetGitCredentials(url, user, cred)
+            };
+
+            var refSpecs = remote.FetchRefSpecs.Select(x => x.Specification);
+            Commands.Fetch(Repo, remote.Name, refSpecs, fetchOptions, null);
+
+            var trackedBranch = Repo.Head.TrackedBranch;
+            if (trackedBranch == null)
+            {
+                Svc.Log.Warning("Current branch has no tracked remote branch");
+                return false;
+            }
+
+            var signature = new Signature("PSU_User", "email@email.org", DateTimeOffset.UtcNow);
+            var mergeResult = Repo.Merge(trackedBranch, signature, new MergeOptions
+            {
+                FastForwardStrategy = FastForwardStrategy.Default,
+                FileConflictStrategy = CheckoutFileConflictStrategy.Ours
+            });
+
+            if (mergeResult.Status == MergeStatus.Conflicts)
+            {
+                Svc.Log.Error("Merge conflicts detected. Aborting.");
+                return false;
+            }
+
+            return true;
+        }
+        catch (Exception ex)
+        {
+            Svc.Log.Error($"Failed to fetch and merge: {ex.Message}");
+            return false;
+        }
+    }
+
     private void RevertLastCommit()
     {
         Repo.Reset(ResetMode.Hard, Repo.Head.Commits.Skip(1).First());
@@ -189,7 +220,10 @@ public class Galaxy(string path)
         {
             var remote = Repo.Network.Remotes["origin"];
             if (remote == null)
+            {
                 return false;
+            }
+
             var refSpecs = remote.FetchRefSpecs.Select(x => x.Specification);
 
             var fetchOptions = new FetchOptions
@@ -211,7 +245,7 @@ public class Galaxy(string path)
                 return true;
             }
             catch (LibGit2SharpException ex) when (
-                ex.Message.Contains("no match") || 
+                ex.Message.Contains("no match") ||
                 ex.Message.Contains("does not exist"))
             {
                 // We tried to push a non-existent branch and server accepted the attempt
@@ -228,7 +262,7 @@ public class Galaxy(string path)
                 // Permission error - no write access
                 return false;
             }
-        
+
             // If we got here without errors, we likely have access
             return true;
         }
