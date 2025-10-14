@@ -307,7 +307,7 @@ public partial class MainWindow
             _hasWriteAccessTask = Task.Run(selectedGalaxy.HasWriteAccess);
         }
 
-        var hasWriteAccess = _hasWriteAccessTask is { IsCompletedSuccessfully: true, Result: true };
+        var hasWriteAccess = selectedGalaxy.GetOrigin() != null && _hasWriteAccessTask is { IsCompletedSuccessfully: true, Result: true };
         ImGui.Text("Commands:");
         if (ImGuiUtil.DrawDisabledButton("Fetch Changes", new Vector2(0, 0),
                 "Fetch and merge changes from remote repository.",
@@ -326,15 +326,21 @@ public partial class MainWindow
 
         ImGui.SameLine();
         if (ImGuiUtil.DrawDisabledButton("Submit Changes", new Vector2(0, 0), "Push changes to remote repository.",
-                (_repoPushTask != null && !_repoPushTask.IsCompleted) || !hasWriteAccess))
+                (_repoPushTask != null && !_repoPushTask.IsCompleted) || !hasWriteAccess || selectedGalaxy.GetOrigin() == null))
         {
             _repoPushTask = Task.Run(selectedGalaxy.TryPush);
         }
 
-        if (!hasWriteAccess)
+        if (selectedGalaxy.GetOrigin() == null)
+        {
+            ImGui.TextColored(ImGuiColors.DalamudYellow, "This Galaxy has not been fully initialized yet.");
+            ImGui.TextColored(ImGuiColors.DalamudYellow, "You must set up a remote origin in the Settings tab before this Galaxy can be used.");
+        }
+        else if (!hasWriteAccess)
         {
             ImGui.TextColored(ImGuiColors.DalamudYellow, "You do not have permissions to edit this Galaxy.");
         }
+
         ImGui.Spacing();
         ImGui.Separator();
         ImGui.Spacing();
@@ -365,7 +371,7 @@ public partial class MainWindow
 
     private void DrawSettingsTab(Galaxy selectedGalaxy, bool hasWriteAccess)
     {
-        ImGui.BeginDisabled(!hasWriteAccess);
+        ImGui.BeginDisabled(!hasWriteAccess && selectedGalaxy.GetOrigin() != null);
         if (ImGuiUtil.GenericEnumCombo("Remote Origin Type", 100f, selectedGalaxy.OriginType, out var newOriginType))
         {
             selectedGalaxy.OriginType = newOriginType;
@@ -420,15 +426,34 @@ public partial class MainWindow
                 }
             }
         }
-        else if (selectedGalaxy.GetOrigin() != null)
+        else if (selectedGalaxy.GetOrigin() != null || selectedGalaxy.OriginType == GalaxyOriginType.Custom)
         {
-            ImGui.Text($"Origin: {selectedGalaxy.GetOrigin()!.Url}");
+            ImGui.Text($"Origin: {selectedGalaxy.GetOrigin()?.Url}");
             if (ImGui.Button("Copy to Clipboard"))
             {
                 ImGui.SetClipboardText(selectedGalaxy.GetOrigin()!.Url);
             }
+            ImGui.SameLine();
+            if (ImGui.Button("Edit Origin"))
+            {
+                ImGui.OpenPopup("Edit String");
+            }
+            if (ImGui.BeginPopup("Edit String"))
+            {
+                ImGui.SetNextItemWidth(400);
+                ImGui.InputText("##EditString", ref _editOriginString, 256);
+                if (ImGui.Button("Save"))
+                {
+                    selectedGalaxy.SetOrigin(_editOriginString);
+                    _hasWriteAccessTask = Task.Run(selectedGalaxy.HasWriteAccess);
+                    ImGui.CloseCurrentPopup();
+                }
+                ImGui.EndPopup();
+            }
         }
     }
+    
+    private string _editOriginString = string.Empty;
 
     private void DrawMembersTab(Galaxy selectedGalaxy, bool hasWriteAccess)
     {
