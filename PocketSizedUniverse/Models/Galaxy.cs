@@ -5,13 +5,14 @@ using Syncthing.Models.Response;
 
 namespace PocketSizedUniverse.Models;
 
-public class Galaxy(string path)
+public class Galaxy(string path) : IDisposable
 {
     public string RepoPath { get; init; } = path;
 
     public GalaxyOriginType OriginType { get; set; } = GalaxyOriginType.GitHub;
 
-    [JsonIgnore] private readonly Repository _repo = new(path);
+    [JsonIgnore] private Repository? _repo;
+    [JsonIgnore] private Repository Repo => _repo ??= new Repository(RepoPath);
     private string MembersPath => Path.Combine(RepoPath, "members");
 
     [JsonIgnore] private string? _name;
@@ -26,15 +27,15 @@ public class Galaxy(string path)
             if (value == _name) return;
             _name = value;
             File.WriteAllText(NamePath, value);
-            Commands.Stage(_repo, NamePath);
+            Commands.Stage(Repo, NamePath);
         }
     }
 
     public SyncPermissions Permissions { get; set; } = SyncPermissions.All;
 
-    public Remote? GetOrigin() => _repo.Network.Remotes["origin"];
+    public Remote? GetOrigin() => Repo.Network.Remotes["origin"];
 
-    public void SetOrigin(string url) => _repo.Network.Remotes.Add("origin", url);
+    public void SetOrigin(string url) => Repo.Network.Remotes.Add("origin", url);
 
     [JsonIgnore] private string? _description;
     private string DescriptionPath => Path.Combine(RepoPath, "description.txt");
@@ -48,7 +49,7 @@ public class Galaxy(string path)
             if (value == _description) return;
             _description = value;
             File.WriteAllText(DescriptionPath, value);
-            Commands.Stage(_repo, DescriptionPath);
+            Commands.Stage(Repo, DescriptionPath);
         }
     }
 
@@ -108,7 +109,7 @@ public class Galaxy(string path)
 
         var path = Path.Combine(MembersPath, starPack.StarId + ".dat");
         File.WriteAllText(path, starPack.DataPackId.ToString());
-        Commands.Stage(_repo, path);
+        Commands.Stage(Repo, path);
         return true;
     }
 
@@ -121,8 +122,8 @@ public class Galaxy(string path)
             return false;
         }
 
-        Commands.Remove(_repo, path);
-        Commands.Stage(_repo, path);
+        Commands.Remove(Repo, path);
+        Commands.Stage(Repo, path);
         return true;
     }
 
@@ -131,7 +132,7 @@ public class Galaxy(string path)
         try
         {
             var signature = new Signature("PSU_User", "email@email.org", DateTimeOffset.UtcNow);
-            _repo.Commit(message, signature, signature, new CommitOptions());
+            Repo.Commit(message, signature, signature, new CommitOptions());
             return true;
         }
         catch (LibGit2SharpException ex)
@@ -145,7 +146,7 @@ public class Galaxy(string path)
     {
         try
         {
-            var remote = _repo.Network.Remotes["origin"];
+            var remote = Repo.Network.Remotes["origin"];
             if (remote == null)
             {
                 Svc.Log.Error("No remote named origin found.");
@@ -156,7 +157,7 @@ public class Galaxy(string path)
             {
                 CredentialsProvider = (url, user, cred) => PsuPlugin.Configuration.GetGitCredentials(url, user, cred)
             };
-            _repo.Network.Push(remote, _repo.Head.CanonicalName, pushOptions);
+            Repo.Network.Push(remote, Repo.Head.CanonicalName, pushOptions);
             return true;
         }
         catch (LibGit2SharpException ex)
@@ -166,14 +167,21 @@ public class Galaxy(string path)
         }
     }
 
-    public bool TryFetchAndMerge()
+    public bool TryFetch()
     {
         try
         {
-            var remote = _repo.Network.Remotes["origin"];
+            var remote = Repo.Network.Remotes["origin"];
             if (remote == null)
             {
                 Svc.Log.Error("No remote named origin found.");
+                return false;
+            }
+            
+            var localCommit = Repo.Head.Tip?.Sha;
+            if (localCommit == null)
+            {
+                Svc.Log.Warning("No local commits found");
                 return false;
             }
 
@@ -181,29 +189,22 @@ public class Galaxy(string path)
             {
                 CredentialsProvider = (url, user, cred) => PsuPlugin.Configuration.GetGitCredentials(url, user, cred)
             };
+            
+            var remoteRefs = Repo.Network.ListReferences(remote);
+            var remoteRef = remoteRefs.FirstOrDefault(r => r.CanonicalName == Repo.Head.CanonicalName);
+            if (remoteRef == null)
+            {
+                Svc.Log.Warning("No remote ref found");
+                return false;
+            }
+
+            if (remoteRef.TargetIdentifier == localCommit)
+            {
+                return true;
+            }
 
             var refSpecs = remote.FetchRefSpecs.Select(x => x.Specification);
-            Commands.Fetch(_repo, remote.Name, refSpecs, fetchOptions, null);
-
-            var trackedBranch = _repo.Head.TrackedBranch;
-            if (trackedBranch == null)
-            {
-                Svc.Log.Warning("Current branch has no tracked remote branch");
-                return false;
-            }
-
-            var signature = new Signature("PSU_User", "email@email.org", DateTimeOffset.UtcNow);
-            var mergeResult = _repo.Merge(trackedBranch, signature, new MergeOptions
-            {
-                FastForwardStrategy = FastForwardStrategy.Default,
-                FileConflictStrategy = CheckoutFileConflictStrategy.Ours
-            });
-
-            if (mergeResult.Status == MergeStatus.Conflicts)
-            {
-                Svc.Log.Error("Merge conflicts detected. Aborting.");
-                return false;
-            }
+            Commands.Fetch(Repo, remote.Name, refSpecs, fetchOptions, null);
             ClearCachedData();
             return true;
         }
@@ -216,14 +217,14 @@ public class Galaxy(string path)
 
     private void RevertLastCommit()
     {
-        _repo.Reset(ResetMode.Hard, _repo.Head.Commits.Skip(1).First());
+        Repo.Reset(ResetMode.Hard, Repo.Head.Commits.Skip(1).First());
     }
 
     public bool HasWriteAccess()
     {
         try
         {
-            var remote = _repo.Network.Remotes["origin"];
+            var remote = Repo.Network.Remotes["origin"];
             if (remote == null)
             {
                 return false;
@@ -235,7 +236,7 @@ public class Galaxy(string path)
             {
                 CredentialsProvider = (url, user, cred) => PsuPlugin.Configuration.GetGitCredentials(url, user, cred)
             };
-            Commands.Fetch(_repo, remote.Name, refSpecs, fetchOptions, null);
+            Commands.Fetch(Repo, remote.Name, refSpecs, fetchOptions, null);
 
             var pushOptions = new PushOptions()
             {
@@ -243,7 +244,7 @@ public class Galaxy(string path)
             };
             try
             {
-                _repo.Network.Push(remote, $"refs/heads/credTest-{Guid.NewGuid()}", pushOptions);
+                Repo.Network.Push(remote, $"refs/heads/credTest-{Guid.NewGuid()}", pushOptions);
             }
             catch (NonFastForwardException)
             {
@@ -283,5 +284,11 @@ public class Galaxy(string path)
     {
         _name = null;
         _description = null;
+    }
+
+    public void Dispose()
+    {
+        _repo?.Dispose();
+        _repo = null;
     }
 }

@@ -90,6 +90,11 @@ public class SyncThingService : ICache, IDisposable
             LastUpdated = DateTime.UtcNow;
             RefreshCaches();
             ProcessEvents();
+            RemoveUnpairedStarsAndDataPacks();
+            foreach (var galaxy in PsuPlugin.Configuration.Galaxies)
+            {
+                _ = Task.Run(galaxy.TryFetch);
+            }
         }
 
         // Invalidate caches if it's been a while to ensure we reconcile with config changes
@@ -438,14 +443,6 @@ public class SyncThingService : ICache, IDisposable
 
                 // Step 3: Accept any PendingFolder requests if their IDs match a paired star's DataPack ID
                 await AcceptMatchingPendingFolders();
-                
-                await RemoveUnpairedStarsAndDataPacks();
-
-                foreach (var galaxy in PsuPlugin.Configuration.Galaxies)
-                {
-                    Svc.Log.Debug($"[DEBUG] Fetching latest Galaxy data for {galaxy.Name}...");
-                    await Task.Run(galaxy.TryFetchAndMerge);
-                }
 
                 Svc.Log.Debug("HealSyncThing completed successfully");
             }
@@ -456,44 +453,48 @@ public class SyncThingService : ICache, IDisposable
         });
     }
 
-    public async Task RemoveUnpairedStarsAndDataPacks()
+    public void RemoveUnpairedStarsAndDataPacks()
     {
-        if (!PsuPlugin.Configuration.UseBuiltInSyncThing)
+        _ = Task.Run(async () =>
         {
-            Svc.Log.Debug("Easy Mode Disabled, cleanup must be manual");
-            return;
-        }
-        if (PsuPlugin.Configuration.MyStarPack == null)
-            return;
-        var effectivePairs = PsuPlugin.Configuration.GetEffectivePairs().ToList();
-        effectivePairs.Add(PsuPlugin.Configuration.MyStarPack);
-        Svc.Log.Debug($"[DEBUG] Checking {effectivePairs.Count} configured StarPacks for unpaired Stars...");
-        Svc.Log.Debug($"[DEBUG] Current Stars in cache: {Stars.Count} - [{string.Join(", ", Stars.Keys)}]");
-        Svc.Log.Debug($"[DEBUG] Current DataPacks in cache: {DataPacks.Count} - [{string.Join(", ", DataPacks.Keys)}]");
-        foreach (var dataPack in DataPacks.Values)
-        {
-            if (effectivePairs.All(sp => sp.DataPackId != dataPack.Id))
+            if (!PsuPlugin.Configuration.UseBuiltInSyncThing)
             {
-                Svc.Log.Debug($"[DEBUG] DataPack {dataPack.Id} is not paired with any configured StarPacks");
-                await RemoveDataPack(dataPack.Id);
+                Svc.Log.Debug("Easy Mode Disabled, cleanup must be manual");
+                return;
             }
-        }
+            if (PsuPlugin.Configuration.MyStarPack == null)
+                return;
+            var effectivePairs = PsuPlugin.Configuration.GetEffectivePairs().ToList();
+            effectivePairs.Add(PsuPlugin.Configuration.MyStarPack);
+            Svc.Log.Debug($"[DEBUG] Checking {effectivePairs.Count} configured StarPacks for unpaired Stars...");
+            Svc.Log.Debug($"[DEBUG] Current Stars in cache: {Stars.Count} - [{string.Join(", ", Stars.Keys)}]");
+            Svc.Log.Debug($"[DEBUG] Current DataPacks in cache: {DataPacks.Count} - [{string.Join(", ", DataPacks.Keys)}]");
+            foreach (var dataPack in DataPacks.Values)
+            {
+                if (effectivePairs.All(sp => sp.DataPackId != dataPack.Id))
+                {
+                    Svc.Log.Debug($"[DEBUG] DataPack {dataPack.Id} is not paired with any configured StarPacks");
+                    await RemoveDataPack(dataPack.Id);
+                }
+            }
 
-        foreach (var star in Stars.Values)
-        {
-            if (effectivePairs.All(sp => sp.StarId != star.StarId))
+            foreach (var star in Stars.Values)
             {
-                Svc.Log.Debug($"[DEBUG] Star {star.StarId} is not paired with any configured StarPacks");
-                await RemoveStar(star.StarId);
+                if (effectivePairs.All(sp => sp.StarId != star.StarId))
+                {
+                    Svc.Log.Debug($"[DEBUG] Star {star.StarId} is not paired with any configured StarPacks");
+                    await RemoveStar(star.StarId);
+                }
             }
-        }
+        });
     }
 
-    public async Task RemoveStar(string starId)
+    private async Task RemoveStar(string starId)
     {
         try
         {
             await _client.Config.Stars.Delete(starId);
+            Stars.TryRemove(starId, out _);
             Svc.Log.Debug($"Successfully removed star: {starId}");
         }
         catch (Exception e)
@@ -502,11 +503,12 @@ public class SyncThingService : ICache, IDisposable
         }
     }
     
-    public async Task RemoveDataPack(Guid dataPackId)
+    private async Task RemoveDataPack(Guid dataPackId)
     {
         try
         {
             await _client.Config.Folders.Delete(dataPackId.ToString());
+            DataPacks.TryRemove(dataPackId, out _);
             Svc.Log.Debug($"Successfully removed DataPack: {dataPackId}");
         }
         catch (Exception e)

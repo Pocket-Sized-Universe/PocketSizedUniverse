@@ -197,8 +197,11 @@ public partial class MainWindow
                         {
                             var tempPath = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
                             Repository.Clone(_joinGalaxyUrl, tempPath);
-                            var tempGalaxy = new Galaxy(tempPath);
-                            var galaxyName = tempGalaxy.Name;
+                            string galaxyName;
+                            using (var tempGalaxy = new Galaxy(tempPath))
+                            {
+                                galaxyName = tempGalaxy.Name;
+                            }
                             var galaxiesDir = Path.Combine(PsuPlugin.Configuration.DefaultDataPackDirectory!, "Galaxies");
                             if (!Directory.Exists(galaxiesDir))
                                 Directory.CreateDirectory(galaxiesDir);
@@ -254,6 +257,7 @@ public partial class MainWindow
                 return false;
 
             var galaxy = Items[idx];
+            galaxy.Dispose();
             PsuPlugin.Configuration.Galaxies.Remove(galaxy);
             EzConfig.Save();
             Notify.Info("Galaxy removed.");
@@ -317,7 +321,7 @@ public partial class MainWindow
                 "Fetch and merge changes from remote repository.",
                 _repoPullTask != null && !_repoPullTask.IsCompleted))
         {
-            _repoPullTask = Task.Run(selectedGalaxy.TryFetchAndMerge);
+            _repoPullTask = Task.Run(selectedGalaxy.TryFetch);
             _hasWriteAccessTask = Task.Run(selectedGalaxy.HasWriteAccess);
         }
 
