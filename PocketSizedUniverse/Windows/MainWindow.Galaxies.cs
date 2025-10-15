@@ -177,9 +177,6 @@ public partial class MainWindow
     {
         private string _joinGalaxyUrl = string.Empty;
 
-        private string _joinGalaxyPath =
-            Path.Combine(PsuPlugin.Configuration.DefaultDataPackDirectory!, "Galaxies", "New Galaxy");
-
         public new void Draw(float width)
         {
             using var id = ImRaii.PushId("GalaxySelector-Outer");
@@ -192,20 +189,27 @@ public partial class MainWindow
             if (ImGui.BeginPopup("Join Galaxy", ImGuiWindowFlags.AlwaysAutoResize))
             {
                 ImGui.InputText("Galaxy URL", ref _joinGalaxyUrl);
-                ImGui.InputText("Storage Path", ref _joinGalaxyPath);
-                if (Directory.Exists(_joinGalaxyPath))
-                    ImGui.TextColored(ImGuiColors.DalamudOrange, "This directory already exists.");
                 if (ImGui.Button("Join"))
                 {
                     _ = Task.Run(() =>
                     {
                         try
                         {
-                            Repository.Clone(_joinGalaxyUrl, _joinGalaxyPath);
-                            var galaxy = new Galaxy(_joinGalaxyPath);
-                            PsuPlugin.Configuration.Galaxies.Add(galaxy);
+                            var tempPath = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
+                            Repository.Clone(_joinGalaxyUrl, tempPath);
+                            var tempGalaxy = new Galaxy(tempPath);
+                            var galaxyName = tempGalaxy.Name;
+                            var galaxiesDir = Path.Combine(PsuPlugin.Configuration.DefaultDataPackDirectory!, "Galaxies");
+                            if (!Directory.Exists(galaxiesDir))
+                                Directory.CreateDirectory(galaxiesDir);
+                            var galaxyPath = Path.Combine(galaxiesDir, galaxyName);
+                            if (Directory.Exists(galaxyPath))
+                                galaxyPath += $"-{Guid.NewGuid().ToString().Take(6)}";
+                            Repository.Clone(_joinGalaxyUrl, galaxyPath);
+                            var realGalaxy = new Galaxy(galaxyPath);
+                            PsuPlugin.Configuration.Galaxies.Add(realGalaxy);
                             EzConfig.Save();
-                            Notify.Info("Galaxy joined!");
+                            Notify.Success("Galaxy joined!");
                         }
                         catch (Exception ex)
                         {
@@ -520,7 +524,7 @@ public partial class MainWindow
         if (ImGui.BeginPopup("Edit String"))
         {
             ImGui.SetNextItemWidth(400);
-            ImGui.InputText("##EditString", ref _editNameString, 256);
+            ImGui.InputText("##EditString", ref _editNameString, 32);
             if (ImGui.Button("Save"))
             {
                 selectedGalaxy.Name = _editNameString;
