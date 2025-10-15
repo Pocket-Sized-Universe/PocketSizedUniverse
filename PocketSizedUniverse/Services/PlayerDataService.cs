@@ -132,7 +132,7 @@ public class PlayerDataService : IUpdatable, IDisposable
                 continue;
             }
 
-            if (remote.Data == null || DateTime.UtcNow - remote.LastUpdated <
+            if (remote.Data == null || DateTime.UtcNow - remote.LastUpdated >
                 TimeSpan.FromSeconds(PsuPlugin.Configuration.RemotePollingSeconds))
                 PendingReads.Enqueue(star.StarId);
 
