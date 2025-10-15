@@ -194,17 +194,9 @@ public class SyncThingService : ICache, IDisposable
         return existingStar;
     }
 
-
-    private IEnumerable<StarPack> GetEffectivePairs()
-    {
-        var blocked =
-            new HashSet<(string, Guid)>(PsuPlugin.Configuration.Blocklist.Select(b => (b.StarId, b.DataPackId)));
-        return PsuPlugin.Configuration.GetAllStarPacks().Where(sp => !blocked.Contains((sp.StarId, sp.DataPackId)));
-    }
-
     private async Task EnsurePairedStarsExist()
     {
-        var effectivePairs = GetEffectivePairs().ToList();
+        var effectivePairs = PsuPlugin.Configuration.GetEffectivePairs().ToList();
         Svc.Log.Debug($"[DEBUG] Checking {effectivePairs.Count} configured StarPacks for missing Stars...");
         Svc.Log.Debug($"[DEBUG] Current Stars in cache: {Stars.Count} - [{string.Join(", ", Stars.Keys)}]");
 
@@ -259,7 +251,7 @@ public class SyncThingService : ICache, IDisposable
         bool modified = false;
         myDataPack.Stars ??= new List<Star>();
 
-        var effectivePairs = GetEffectivePairs().ToList();
+        var effectivePairs = PsuPlugin.Configuration.GetEffectivePairs().ToList();
         Svc.Log.Debug($"[DEBUG] Processing {effectivePairs.Count} configured StarPacks...");
         
         var starsToRemove = myDataPack.Stars.Where(s => effectivePairs.All(sp => sp.StarId != s.StarId)).ToList();
@@ -353,7 +345,7 @@ public class SyncThingService : ICache, IDisposable
                 return;
             }
 
-            var effectivePairs = GetEffectivePairs().ToList();
+            var effectivePairs = PsuPlugin.Configuration.GetEffectivePairs().ToList();
 
 // Check each pending folder against our paired star DataPack IDs
             foreach (var kvp in pendingFolders.Folders)
@@ -473,7 +465,7 @@ public class SyncThingService : ICache, IDisposable
         }
         if (PsuPlugin.Configuration.MyStarPack == null)
             return;
-        var effectivePairs = GetEffectivePairs().ToList();
+        var effectivePairs = PsuPlugin.Configuration.GetEffectivePairs().ToList();
         effectivePairs.Add(PsuPlugin.Configuration.MyStarPack);
         Svc.Log.Debug($"[DEBUG] Checking {effectivePairs.Count} configured StarPacks for unpaired Stars...");
         Svc.Log.Debug($"[DEBUG] Current Stars in cache: {Stars.Count} - [{string.Join(", ", Stars.Keys)}]");

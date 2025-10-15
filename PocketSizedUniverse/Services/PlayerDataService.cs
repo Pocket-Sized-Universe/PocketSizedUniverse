@@ -119,10 +119,17 @@ public class PlayerDataService : IUpdatable, IDisposable
     private void RemoteUpdate(IFramework framework)
     {
         var nearbyPlayers = Svc.Objects.PlayerObjects.Cast<IPlayerCharacter>();
+        var effectivePairs = PsuPlugin.Configuration.GetEffectivePairs().ToList();
         foreach (var star in PsuPlugin.Configuration.GetAllStarPacks())
         {
             if (!RemotePlayerData.TryGetValue(star.StarId, out var remote))
                 RemotePlayerData[star.StarId] = remote = new RemotePlayerData(star);
+
+            if (effectivePairs.All(sp => sp.StarId != star.StarId))
+            {
+                PendingCleanups.Enqueue(star.StarId);
+                continue;
+            }
 
             var rates = PsuPlugin.SyncThingService.GetTransferRates(remote.StarPackReference.StarId);
             bool syncing = rates is { InBps: > 100 };
@@ -185,6 +192,10 @@ public class PlayerDataService : IUpdatable, IDisposable
                 remote.MoodlesData = null;
                 remote.HeelsData = null;
                 remote.PetNameData = null;
+                if (effectivePairs.All(sp => sp.StarId != starIdToCleanup))
+                {
+                    RemotePlayerData.TryRemove(starIdToCleanup, out _);
+                }
             }
         }
 

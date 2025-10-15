@@ -33,6 +33,7 @@ public class Configuration
                 Password = GitHubToken
             };
         }
+
         return new DefaultCredentials();
     }
 
@@ -40,13 +41,13 @@ public class Configuration
     {
         foreach (var sp in StarPacks)
             yield return sp;
-    
+
         if (MyStarPack != null)
         {
             foreach (var g in Galaxies)
             {
                 var members = g.GetMembers().ToList();
-            
+
                 if (members.Any(m => m.StarId == MyStarPack.StarId))
                 {
                     foreach (var sp in members.Where(sp => sp.StarId != MyStarPack.StarId))
@@ -54,5 +55,12 @@ public class Configuration
                 }
             }
         }
+    }
+
+    public IEnumerable<StarPack> GetEffectivePairs()
+    {
+        var blocked =
+            new HashSet<(string, Guid)>(Blocklist.Select(b => (b.StarId, b.DataPackId)));
+        return GetAllStarPacks().Where(sp => !blocked.Contains((sp.StarId, sp.DataPackId)));
     }
 }
