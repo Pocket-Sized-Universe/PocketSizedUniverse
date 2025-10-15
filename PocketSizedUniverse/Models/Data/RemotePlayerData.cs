@@ -2,6 +2,7 @@ using System;
 using Dalamud.Game.ClientState.Objects.SubKinds;
 using Dalamud.Game.Gui.ContextMenu;
 using Dalamud.Game.Text.SeStringHandling;
+using ECommons.Configuration;
 using ECommons.ImGuiMethods;
 using PocketSizedUniverse.Windows.ViewModels;
 
@@ -36,6 +37,23 @@ public class RemotePlayerData(StarPack starPack) : PlayerData(starPack)
                 Notify.Success("Data application enqueued");
             }
         };
+        SeStringBuilder banBuilder = new SeStringBuilder();
+        var banString = banBuilder.AddText("Add to Blocklist").Build();
+        MenuItem banMenuItem = new MenuItem()
+        {
+            Name = banString,
+            UseDefaultPrefix = false,
+            PrefixChar = 'U',
+            PrefixColor = 567,
+            OnClicked = (a) =>
+            {
+                PsuPlugin.Configuration.Blocklist.Add(StarPackReference);
+                EzConfig.Save();
+                PsuPlugin.PlayerDataService.PendingCleanups.Enqueue(StarPackReference.StarId);
+                Notify.Success("Added to blocklist");
+            }
+        };
         args.AddMenuItem(menuItem);
+        args.AddMenuItem(banMenuItem);
     }
 }
