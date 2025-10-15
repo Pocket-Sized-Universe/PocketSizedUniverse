@@ -17,6 +17,7 @@ public class CreateGalaxyWindow : Window
 {
     public CreateGalaxyWindow() : base("Create Galaxy")
     {
+        Flags |= ImGuiWindowFlags.NoResize;
         Size = new Vector2(400, 300);
         SizeCondition = ImGuiCond.Always;
         _fileDialogManager = new FileDialogManager();
@@ -24,7 +25,7 @@ public class CreateGalaxyWindow : Window
         _description = "My new Galaxy!";
         _localPath = Path.Combine(PsuPlugin.Configuration.DefaultDataPackDirectory!, "Galaxies", _galaxyName);
     }
-    private FileDialogManager _fileDialogManager;
+    private readonly FileDialogManager _fileDialogManager;
     private string _galaxyName;
     private string _description;
     private string _localPath;
