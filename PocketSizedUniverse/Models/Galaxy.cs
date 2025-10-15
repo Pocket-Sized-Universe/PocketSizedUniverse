@@ -11,7 +11,7 @@ public class Galaxy(string path)
 
     public GalaxyOriginType OriginType { get; set; } = GalaxyOriginType.GitHub;
 
-    [JsonIgnore] private Repository Repo => new(RepoPath);
+    [JsonIgnore] private readonly Repository _repo = new(path);
     private string MembersPath => Path.Combine(RepoPath, "members");
 
     [JsonIgnore] private string? _name;
@@ -26,13 +26,15 @@ public class Galaxy(string path)
             if (value == _name) return;
             _name = value;
             File.WriteAllText(NamePath, value);
-            Commands.Stage(Repo, NamePath);
+            Commands.Stage(_repo, NamePath);
         }
     }
 
-    public Remote? GetOrigin() => Repo.Network.Remotes["origin"];
+    public SyncPermissions Permissions { get; set; } = SyncPermissions.All;
 
-    public void SetOrigin(string url) => Repo.Network.Remotes.Add("origin", url);
+    public Remote? GetOrigin() => _repo.Network.Remotes["origin"];
+
+    public void SetOrigin(string url) => _repo.Network.Remotes.Add("origin", url);
 
     [JsonIgnore] private string? _description;
     private string DescriptionPath => Path.Combine(RepoPath, "description.txt");
@@ -46,7 +48,7 @@ public class Galaxy(string path)
             if (value == _description) return;
             _description = value;
             File.WriteAllText(DescriptionPath, value);
-            Commands.Stage(Repo, DescriptionPath);
+            Commands.Stage(_repo, DescriptionPath);
         }
     }
 
@@ -74,7 +76,10 @@ public class Galaxy(string path)
                 if (Guid.TryParse(content, out var dataPackId))
                 {
                     var starId = Path.GetFileNameWithoutExtension(filePath);
-                    member = new StarPack(starId, dataPackId);
+                    member = new StarPack(starId, dataPackId)
+                    {
+                        SyncPermissions = Permissions
+                    };
                 }
                 else
                 {
@@ -103,7 +108,7 @@ public class Galaxy(string path)
 
         var path = Path.Combine(MembersPath, starPack.StarId + ".dat");
         File.WriteAllText(path, starPack.DataPackId.ToString());
-        Commands.Stage(Repo, path);
+        Commands.Stage(_repo, path);
         return true;
     }
 
@@ -116,8 +121,8 @@ public class Galaxy(string path)
             return false;
         }
 
-        Commands.Remove(Repo, path);
-        Commands.Stage(Repo, path);
+        Commands.Remove(_repo, path);
+        Commands.Stage(_repo, path);
         return true;
     }
 
@@ -126,7 +131,7 @@ public class Galaxy(string path)
         try
         {
             var signature = new Signature("PSU_User", "email@email.org", DateTimeOffset.UtcNow);
-            Repo.Commit(message, signature, signature, new CommitOptions());
+            _repo.Commit(message, signature, signature, new CommitOptions());
             return true;
         }
         catch (LibGit2SharpException ex)
@@ -140,7 +145,7 @@ public class Galaxy(string path)
     {
         try
         {
-            var remote = Repo.Network.Remotes["origin"];
+            var remote = _repo.Network.Remotes["origin"];
             if (remote == null)
             {
                 Svc.Log.Error("No remote named origin found.");
@@ -151,7 +156,7 @@ public class Galaxy(string path)
             {
                 CredentialsProvider = (url, user, cred) => PsuPlugin.Configuration.GetGitCredentials(url, user, cred)
             };
-            Repo.Network.Push(remote, Repo.Head.CanonicalName, pushOptions);
+            _repo.Network.Push(remote, _repo.Head.CanonicalName, pushOptions);
             return true;
         }
         catch (LibGit2SharpException ex)
@@ -165,7 +170,7 @@ public class Galaxy(string path)
     {
         try
         {
-            var remote = Repo.Network.Remotes["origin"];
+            var remote = _repo.Network.Remotes["origin"];
             if (remote == null)
             {
                 Svc.Log.Error("No remote named origin found.");
@@ -178,9 +183,9 @@ public class Galaxy(string path)
             };
 
             var refSpecs = remote.FetchRefSpecs.Select(x => x.Specification);
-            Commands.Fetch(Repo, remote.Name, refSpecs, fetchOptions, null);
+            Commands.Fetch(_repo, remote.Name, refSpecs, fetchOptions, null);
 
-            var trackedBranch = Repo.Head.TrackedBranch;
+            var trackedBranch = _repo.Head.TrackedBranch;
             if (trackedBranch == null)
             {
                 Svc.Log.Warning("Current branch has no tracked remote branch");
@@ -188,7 +193,7 @@ public class Galaxy(string path)
             }
 
             var signature = new Signature("PSU_User", "email@email.org", DateTimeOffset.UtcNow);
-            var mergeResult = Repo.Merge(trackedBranch, signature, new MergeOptions
+            var mergeResult = _repo.Merge(trackedBranch, signature, new MergeOptions
             {
                 FastForwardStrategy = FastForwardStrategy.Default,
                 FileConflictStrategy = CheckoutFileConflictStrategy.Ours
@@ -211,14 +216,14 @@ public class Galaxy(string path)
 
     private void RevertLastCommit()
     {
-        Repo.Reset(ResetMode.Hard, Repo.Head.Commits.Skip(1).First());
+        _repo.Reset(ResetMode.Hard, _repo.Head.Commits.Skip(1).First());
     }
 
     public bool HasWriteAccess()
     {
         try
         {
-            var remote = Repo.Network.Remotes["origin"];
+            var remote = _repo.Network.Remotes["origin"];
             if (remote == null)
             {
                 return false;
@@ -230,7 +235,7 @@ public class Galaxy(string path)
             {
                 CredentialsProvider = (url, user, cred) => PsuPlugin.Configuration.GetGitCredentials(url, user, cred)
             };
-            Commands.Fetch(Repo, remote.Name, refSpecs, fetchOptions, null);
+            Commands.Fetch(_repo, remote.Name, refSpecs, fetchOptions, null);
 
             var pushOptions = new PushOptions()
             {
@@ -238,7 +243,7 @@ public class Galaxy(string path)
             };
             try
             {
-                Repo.Network.Push(remote, $"refs/heads/credTest-{Guid.NewGuid()}", pushOptions);
+                _repo.Network.Push(remote, $"refs/heads/credTest-{Guid.NewGuid()}", pushOptions);
             }
             catch (NonFastForwardException)
             {

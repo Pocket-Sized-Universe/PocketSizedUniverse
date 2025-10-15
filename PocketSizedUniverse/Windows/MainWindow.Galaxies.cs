@@ -455,6 +455,39 @@ public partial class MainWindow
                 ImGui.EndPopup();
             }
         }
+        
+        //Sync Permissions
+        if (ImGui.CollapsingHeader("Sync Permissions", ImGuiTreeNodeFlags.None))
+        {
+            ImGui.Text("Changes to this section require 'Force Apply Data' to be clicked to take effect.");
+            ImGui.Spacing();
+            var permissions = selectedGalaxy.Permissions;
+            var audio = permissions.HasFlag(SyncPermissions.Sounds);
+            var vfx = permissions.HasFlag(SyncPermissions.Visuals);
+            var animations = permissions.HasFlag(SyncPermissions.Animations);
+            if (ImGui.Checkbox("Enable Sound", ref audio))
+            {
+                selectedGalaxy.Permissions = audio ? permissions | SyncPermissions.Sounds : permissions & ~SyncPermissions.Sounds;
+                EzConfig.Save();
+            }
+
+            if (ImGui.Checkbox("Enable VFX", ref vfx))
+            {
+                selectedGalaxy.Permissions = vfx ? permissions | SyncPermissions.Visuals : permissions & ~SyncPermissions.Visuals;
+                EzConfig.Save();
+            }
+            
+            if (ImGui.Checkbox("Enable Animations", ref animations))
+            {
+                selectedGalaxy.Permissions = animations ? permissions | SyncPermissions.Animations : permissions & ~SyncPermissions.Animations;
+                EzConfig.Save();
+            }
+
+            if (!permissions.HasFlag(SyncPermissions.All))
+            {
+                ImGui.TextColored(ImGuiColors.DalamudRed, "Some permissions are disabled. Syncing may not work as expected.");
+            }
+        }
     }
     
     private string _editOriginString = string.Empty;
