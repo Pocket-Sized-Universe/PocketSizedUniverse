@@ -449,6 +449,12 @@ public class SyncThingService : ICache, IDisposable
                 
                 await RemoveUnpairedStarsAndDataPacks();
 
+                foreach (var galaxy in PsuPlugin.Configuration.Galaxies)
+                {
+                    Svc.Log.Debug($"[DEBUG] Fetching latest Galaxy data for {galaxy.Name}...");
+                    await Task.Run(galaxy.TryFetchAndMerge);
+                }
+
                 Svc.Log.Debug("HealSyncThing completed successfully");
             }
             catch (Exception ex)
