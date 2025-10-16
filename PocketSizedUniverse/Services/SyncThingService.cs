@@ -79,7 +79,7 @@ public class SyncThingService : ICache, IDisposable
         }
     }
 
-    public TimeSpan UpdateInterval { get; set; } = TimeSpan.FromSeconds(10);
+    public TimeSpan UpdateInterval { get; set; } = TimeSpan.FromSeconds(60);
     public DateTime LastUpdated { get; set; } = DateTime.MinValue;
 
     public void LocalUpdate(IFramework framework)
@@ -160,7 +160,6 @@ public class SyncThingService : ICache, IDisposable
     {
         DataPacks.Clear();
         Stars.Clear();
-        InitializeClient(); // Reinitialize client with updated configuration
         RefreshCaches();
     }
 
@@ -603,7 +602,7 @@ public class SyncThingService : ICache, IDisposable
                 // Folders - Only process folders with GUID-based IDs (PSU folders)
                 if (_client?.Config.Folders != null)
                 {
-                    var allFolders = _client.Config.Folders.Get().ConfigureAwait(false).GetAwaiter().GetResult();
+                    var allFolders = await _client.Config.Folders.Get();
                     foreach (var folder in allFolders)
                     {
                         // Only process folders with GUID-based IDs - ignore external SyncThing folders
@@ -619,11 +618,14 @@ public class SyncThingService : ICache, IDisposable
                     }
                 }
 
-                // Stars
-                var stars = _client?.Config.Stars.Get().ConfigureAwait(false).GetAwaiter().GetResult();
-                foreach (var pair in stars)
+                if (_client?.Config.Stars != null)
                 {
-                    Stars.AddOrUpdate(pair.StarId, pair, (_, _) => pair);
+                    // Stars
+                    var stars = await _client.Config.Stars.Get();
+                    foreach (var pair in stars)
+                    {
+                        Stars.AddOrUpdate(pair.StarId, pair, (_, _) => pair);
+                    }
                 }
 
                 Svc.Log.Debug($"Refreshed caches | {DataPacks.Count} DataPacks | {Stars.Count} Stars");

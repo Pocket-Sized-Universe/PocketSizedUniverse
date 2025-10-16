@@ -8,12 +8,27 @@ public class GitHubService
 {
     private const string ClientId = "Ov23liBCewI0TrBHOvPQ";
     private const string ProductHeader = "PocketSizedUniverse";
-    private GitHubClient AnonymousClient => new(new ProductHeaderValue(ProductHeader));
+    
+    private GitHubClient? _anonymousClient;
+    private GitHubClient AnonymousClient => _anonymousClient ??= new GitHubClient(new ProductHeaderValue(ProductHeader));
 
-    private GitHubClient AuthenticatedClient => new(new ProductHeaderValue(ProductHeader))
+    private GitHubClient? _authenticatedClient;
+    private string? _lastToken;
+    private GitHubClient AuthenticatedClient
     {
-        Credentials = new Credentials(PsuPlugin.Configuration.GitHubToken)
-    };
+        get
+        {
+            if (_authenticatedClient == null || _lastToken != PsuPlugin.Configuration.GitHubToken)
+            {
+                _lastToken = PsuPlugin.Configuration.GitHubToken;
+                _authenticatedClient = new GitHubClient(new ProductHeaderValue(ProductHeader))
+                {
+                    Credentials = new Credentials(PsuPlugin.Configuration.GitHubToken)
+                };
+            }
+            return _authenticatedClient;
+        }
+    }
 
     public async Task<OauthDeviceFlowResponse?> StartDeviceOAuthFlow()
     {
