@@ -230,72 +230,44 @@ public class SyncThingService : ICache, IDisposable
             Svc.Log.Warning("MyStarPack is null - cannot share local DataPack");
             return;
         }
-
-        Svc.Log.Debug(
-            $"[DEBUG] MyStarPack - StarId: {PsuPlugin.Configuration.MyStarPack.StarId}, DataPackId: {PsuPlugin.Configuration.MyStarPack.DataPackId}");
-
         var myDataPack = PsuPlugin.Configuration.MyStarPack.GetDataPack();
         if (myDataPack == null)
         {
             Svc.Log.Warning($"MyStarPack DataPack not found: {PsuPlugin.Configuration.MyStarPack.DataPackId}");
             return;
         }
-
-        Svc.Log.Debug(
-            $"[DEBUG] MyDataPack - Id: {myDataPack.Id}, Type: {myDataPack.Type}, Path: {myDataPack.Path}");
-        Svc.Log.Debug($"[DEBUG] MyDataPack current Stars count: {myDataPack.Stars?.Count ?? 0}");
-
-        if (myDataPack.Stars != null)
-        {
-            foreach (var existingStar in myDataPack.Stars)
-            {
-                Svc.Log.Debug($"[DEBUG] MyDataPack existing Star: {existingStar.StarId}");
-            }
-        }
-
         bool modified = false;
         myDataPack.Stars ??= new List<Star>();
 
         var effectivePairs = PsuPlugin.Configuration.GetEffectivePairs().ToList();
-        Svc.Log.Debug($"[DEBUG] Processing {effectivePairs.Count} configured StarPacks...");
+        effectivePairs.Add(PsuPlugin.Configuration.MyStarPack); //Syncthing technically considers you to be sharing your own folder. Stupid....
         
-        var starsToRemove = myDataPack.Stars.Where(s => effectivePairs.All(sp => sp.StarId != s.StarId)).ToList();
-        if (starsToRemove.Count != 0)
+        var currentStarIds = new HashSet<string>(myDataPack.Stars.Select(s => s.StarId));
+        var expectedStarIds = new HashSet<string>(effectivePairs.Select(sp => sp.StarId));
+        
+        var starsToAdd = expectedStarIds.Except(currentStarIds).ToList();
+        var starsToRemove = currentStarIds.Except(expectedStarIds).ToList();
+        
+        if (starsToRemove.Count == 0 && starsToAdd.Count == 0)
         {
-            Svc.Log.Debug($"[DEBUG] Removing {starsToRemove.Count} stars from MyDataPack");
-            foreach (var star in starsToRemove)
-            {
-                myDataPack.Stars.Remove(star);
-                modified = true;
-            }
+            return; // Early exit - no changes needed
+        }
+        
+        Svc.Log.Debug($"[DEBUG] Stars to add: {starsToAdd.Count}, Stars to remove: {starsToRemove.Count}");
+        
+        if (starsToRemove.Count > 0)
+        {
+            myDataPack.Stars.RemoveAll(s => starsToRemove.Contains(s.StarId));
+            modified = true;
         }
 
-// Add all paired stars that exist in the API to the local DataPack
-        foreach (var starPack in effectivePairs)
+        foreach (var starId in starsToAdd)
         {
-            Svc.Log.Debug(
-                $"[DEBUG] Processing StarPack - StarId: {starPack.StarId}, DataPackId: {starPack.DataPackId}");
-
-            if (Stars.TryGetValue(starPack.StarId, out var star))
+            if (Stars.TryGetValue(starId, out var star))
             {
-                Svc.Log.Debug(
-                    $"[DEBUG] Found Star in cache - StarId: {star.StarId}, Name: {star.Name ?? "<null>"}, AutoAcceptFolders: {star.AutoAcceptFolders}");
-
-                if (myDataPack.Stars.All(s => s.StarId != star.StarId))
-                {
-                    myDataPack.Stars.Add(star);
-                    modified = true;
-                    Svc.Log.Debug($"[DEBUG] Added Star to MyDataPack: {star.StarId}");
-                }
-                else
-                {
-                    Svc.Log.Debug($"[DEBUG] Star already in MyDataPack: {star.StarId}");
-                }
-            }
-            else
-            {
-                Svc.Log.Warning($"[DEBUG] Star NOT found in cache: {starPack.StarId}");
-                Svc.Log.Debug($"[DEBUG] Available Stars in cache: {string.Join(", ", Stars.Keys)}");
+                myDataPack.Stars.Add(star);
+                modified = true;
+                Svc.Log.Debug($"[DEBUG] Added Star to MyDataPack: {star.StarId}");
             }
         }
 
@@ -307,25 +279,6 @@ public class SyncThingService : ICache, IDisposable
 
             await _client!.Config.Folders.Put(myDataPack).ConfigureAwait(false);
             Svc.Log.Debug($"Updated local DataPack sharing with {myDataPack.Stars.Count} stars");
-
-            // Let's also verify the update took effect by reading it back
-            try
-            {
-                var updatedDataPack = await _client.Config.Folders.Get(myDataPack.Id.ToString()).ConfigureAwait(false);
-                Svc.Log.Debug(
-                    $"[DEBUG] Verified - Updated DataPack has {updatedDataPack.Stars?.Count ?? 0} stars after PUT");
-                if (updatedDataPack.Stars != null)
-                {
-                    foreach (var verifiedStar in updatedDataPack.Stars)
-                    {
-                        Svc.Log.Debug($"[DEBUG] Verified Star in DataPack: {verifiedStar.StarId}");
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                Svc.Log.Warning($"[DEBUG] Failed to verify DataPack update: {ex.Message}");
-            }
         }
         else
         {
@@ -466,9 +419,6 @@ public class SyncThingService : ICache, IDisposable
                 return;
             var effectivePairs = PsuPlugin.Configuration.GetEffectivePairs().ToList();
             effectivePairs.Add(PsuPlugin.Configuration.MyStarPack);
-            Svc.Log.Debug($"[DEBUG] Checking {effectivePairs.Count} configured StarPacks for unpaired Stars...");
-            Svc.Log.Debug($"[DEBUG] Current Stars in cache: {Stars.Count} - [{string.Join(", ", Stars.Keys)}]");
-            Svc.Log.Debug($"[DEBUG] Current DataPacks in cache: {DataPacks.Count} - [{string.Join(", ", DataPacks.Keys)}]");
             foreach (var dataPack in DataPacks.Values)
             {
                 if (effectivePairs.All(sp => sp.DataPackId != dataPack.Id))
