@@ -20,6 +20,7 @@ public class Configuration
     public bool EnableVirusScanning { get; set; } = true;
     public int LocalPollingSeconds { get; set; } = 30;
     public int RemotePollingSeconds { get; set; } = 10;
+    public int GalaxyPollingSeconds { get; set; } = 60;
     public int MaxDataPackSizeGb { get; set; } = 5;
     public string? GitHubToken { get; set; }
 

@@ -81,9 +81,12 @@ public class SyncThingService : ICache, IDisposable
 
     public TimeSpan UpdateInterval { get; set; } = TimeSpan.FromSeconds(60);
     public DateTime LastUpdated { get; set; } = DateTime.MinValue;
+    public DateTime LastGalaxyUpdate { get; set; } = DateTime.MinValue;
 
     public void LocalUpdate(IFramework framework)
     {
+        if (_client == null)
+            InitializeClient();
         // Periodically refresh caches and stats
         if (DateTime.UtcNow - LastUpdated >= UpdateInterval)
         {
@@ -91,10 +94,14 @@ public class SyncThingService : ICache, IDisposable
             RefreshCaches();
             ProcessEvents();
             RemoveUnpairedStarsAndDataPacks();
-            foreach (var galaxy in PsuPlugin.Configuration.Galaxies)
-            {
-                _ = Task.Run(galaxy.TryFetch);
-            }
+            // if (TimeSpan.FromSeconds(PsuPlugin.Configuration.GalaxyPollingSeconds) < DateTime.UtcNow - LastGalaxyUpdate)
+            // {
+            //     LastGalaxyUpdate = DateTime.UtcNow;
+            //     foreach (var galaxy in PsuPlugin.Configuration.Galaxies)
+            //     {
+            //         _ = Task.Run(galaxy.TryFetch);
+            //     }
+            // }
         }
 
         // Invalidate caches if it's been a while to ensure we reconcile with config changes

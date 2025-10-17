@@ -61,11 +61,11 @@ public partial class MainWindow
 
     private void DrawPollingSettings()
     {
-        if (ImGui.CollapsingHeader("Polling Intervals", ImGuiTreeNodeFlags.DefaultOpen))
+        if (ImGui.CollapsingHeader("Refresh Intervals", ImGuiTreeNodeFlags.DefaultOpen))
         {
             var localSeconds = PsuPlugin.Configuration.LocalPollingSeconds;
             SetInputWidth(100);
-            if (ImGui.InputInt("Local Polling Interval (seconds)", ref localSeconds, 1, 5))
+            if (ImGui.InputInt("Local Data Refresh Interval (seconds)", ref localSeconds, 1, 5))
             {
                 if (localSeconds < 1) localSeconds = 1;
                 PsuPlugin.Configuration.LocalPollingSeconds = localSeconds;
@@ -76,7 +76,7 @@ public partial class MainWindow
 
             var remoteSeconds = PsuPlugin.Configuration.RemotePollingSeconds;
             SetInputWidth(100);
-            if (ImGui.InputInt("Remote Polling Interval (seconds)", ref remoteSeconds, 1, 5))
+            if (ImGui.InputInt("Remote Data Refresh Interval (seconds)", ref remoteSeconds, 1, 5))
             {
                 if (remoteSeconds < 1) remoteSeconds = 1;
                 PsuPlugin.Configuration.RemotePollingSeconds = remoteSeconds;
@@ -84,6 +84,16 @@ public partial class MainWindow
             }
 
             ImGuiUtil.HoverTooltip("How often to check for changes to Stars you are paired with.");
+
+            var galaxySeconds = PsuPlugin.Configuration.GalaxyPollingSeconds;
+            SetInputWidth(100);
+            if (ImGui.InputInt("Galaxy Data Refresh Interval (seconds)", ref galaxySeconds, 1, 5))
+            {
+                if (galaxySeconds < 1) galaxySeconds = 1;
+                PsuPlugin.Configuration.GalaxyPollingSeconds = galaxySeconds;
+                EzConfig.Save();
+            }
+            ImGuiUtil.HoverTooltip("How often to check for changes to Galaxies.");
         }
     }
 
