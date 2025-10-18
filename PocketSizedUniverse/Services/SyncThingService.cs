@@ -94,14 +94,14 @@ public class SyncThingService : ICache, IDisposable
             RefreshCaches();
             ProcessEvents();
             RemoveUnpairedStarsAndDataPacks();
-            // if (TimeSpan.FromSeconds(PsuPlugin.Configuration.GalaxyPollingSeconds) < DateTime.UtcNow - LastGalaxyUpdate)
-            // {
-            //     LastGalaxyUpdate = DateTime.UtcNow;
-            //     foreach (var galaxy in PsuPlugin.Configuration.Galaxies)
-            //     {
-            //         _ = Task.Run(galaxy.TryFetch);
-            //     }
-            // }
+            if (!PsuPlugin.IsRunningUnderWine() && TimeSpan.FromSeconds(PsuPlugin.Configuration.GalaxyPollingSeconds) < DateTime.UtcNow - LastGalaxyUpdate)
+            {
+                LastGalaxyUpdate = DateTime.UtcNow;
+                foreach (var galaxy in PsuPlugin.Configuration.Galaxies)
+                {
+                    _ = Task.Run(galaxy.TryFetch);
+                }
+            }
         }
 
         // Invalidate caches if it's been a while to ensure we reconcile with config changes

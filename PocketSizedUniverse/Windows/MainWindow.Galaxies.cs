@@ -339,6 +339,11 @@ public partial class MainWindow
             _repoPushTask = Task.Run(selectedGalaxy.TryPush);
         }
 
+        if (PsuPlugin.IsRunningUnderWine())
+        {
+            ImGui.TextColored(ImGuiColors.DalamudYellow, "Due to a Wine bug, Galaxies must be manually refreshed using the Fetch Changes button.");
+        }
+
         if (selectedGalaxy.GetOrigin() == null)
         {
             ImGui.TextColored(ImGuiColors.DalamudYellow, "This Galaxy has not been fully initialized yet.");
