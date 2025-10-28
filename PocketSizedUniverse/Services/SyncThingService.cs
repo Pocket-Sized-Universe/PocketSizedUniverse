@@ -25,7 +25,8 @@ public class SyncThingService : ICache, IDisposable
     public DateTime LastRefresh { get; private set; } = DateTime.MinValue;
 
     public bool IsHealthy { get; private set; } = false;
-
+    
+    public bool LockRefresh { get; set; } = false;
     private int LastSeenEvent { get; set; } = 0;
 
     // Track connection byte totals to compute transfer rates between refreshes
@@ -88,7 +89,7 @@ public class SyncThingService : ICache, IDisposable
         if (_client == null)
             InitializeClient();
         // Periodically refresh caches and stats
-        if (DateTime.UtcNow - LastUpdated >= UpdateInterval)
+        if (DateTime.UtcNow - LastUpdated >= UpdateInterval && !LockRefresh)
         {
             LastUpdated = DateTime.UtcNow;
             RefreshCaches();

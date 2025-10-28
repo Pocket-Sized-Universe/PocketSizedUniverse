@@ -56,4 +56,12 @@ public partial class MainWindow : Window
     }
 
     public override bool DrawConditions() => PsuPlugin.Configuration.SetupComplete;
+
+    public override void OnClose()
+    {
+        PsuPlugin.SyncThingService.LockRefresh = false;
+        _dataPackEditorChanged = false;
+        _starEditorChanged = false;
+        base.OnClose();
+    }
 }

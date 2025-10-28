@@ -201,70 +201,6 @@ public partial class MainWindow
         // Header
         var displayName = star?.Name ?? $"Star-{selectedStarPack.StarId[..8]}";
         ImGui.Text($"Editing: {displayName}");
-        ImGui.Separator();
-        ImGui.Spacing();
-
-        // Star settings
-        if (ImGui.CollapsingHeader("Star Settings", ImGuiTreeNodeFlags.None))
-        {
-            DrawStarEditor(star);
-        }
-
-        ImGui.Spacing();
-
-        // DataPack settings
-        if (ImGui.CollapsingHeader("DataPack Settings", ImGuiTreeNodeFlags.None))
-        {
-            DrawDataPackEditor(dataPack);
-        }
-        
-        ImGui.Spacing();
-        ImGui.Separator();
-        
-        //Sync Permissions
-        if (ImGui.CollapsingHeader("Sync Permissions", ImGuiTreeNodeFlags.None))
-        {
-            ImGui.Text("Changes to this section require 'Force Apply Data' to be clicked to take effect.");
-            ImGui.Spacing();
-            var permissions = selectedStarPack.SyncPermissions;
-            var audio = permissions.HasFlag(SyncPermissions.Sounds);
-            var vfx = permissions.HasFlag(SyncPermissions.Visuals);
-            var animations = permissions.HasFlag(SyncPermissions.Animations);
-            if (ImGui.Checkbox("Enable Sound", ref audio))
-            {
-                selectedStarPack.SyncPermissions = audio ? permissions | SyncPermissions.Sounds : permissions & ~SyncPermissions.Sounds;
-                EzConfig.Save();
-            }
-
-            if (ImGui.Checkbox("Enable VFX", ref vfx))
-            {
-                selectedStarPack.SyncPermissions = vfx ? permissions | SyncPermissions.Visuals : permissions & ~SyncPermissions.Visuals;
-                EzConfig.Save();
-            }
-            
-            if (ImGui.Checkbox("Enable Animations", ref animations))
-            {
-                selectedStarPack.SyncPermissions = animations ? permissions | SyncPermissions.Animations : permissions & ~SyncPermissions.Animations;
-                EzConfig.Save();
-            }
-
-            if (!permissions.HasFlag(SyncPermissions.All))
-            {
-                ImGui.TextColored(ImGuiColors.DalamudRed, "Some permissions are disabled. Syncing may not work as expected.");
-            }
-        }
-
-        ImGui.Spacing();
-        ImGui.Separator();
-
-        // Status section
-        if (ImGui.CollapsingHeader("Transfer Status", ImGuiTreeNodeFlags.None))
-        {
-            DrawTransferStatus(selectedStarPack);
-        }
-
-        ImGui.Spacing();
-        ImGui.Separator();
 
         // Save button
         if (_starEditorChanged || _dataPackEditorChanged)
@@ -283,9 +219,65 @@ public partial class MainWindow
             ImGui.Button("No Changes", new Vector2(120, 0));
             ImGui.EndDisabled();
         }
-    }
+        
+        ImGui.Separator();
+        ImGui.Spacing();
 
-// Common Pairs removed
+        if (ImGui.BeginTabBar("PairSettingsTabs"))
+        {
+            if (ImGui.BeginTabItem("Star"))
+            {
+                DrawStarEditor(star);
+                ImGui.EndTabItem();
+            }
+
+            if (ImGui.BeginTabItem("DataPack"))
+            {
+                DrawDataPackEditor(dataPack);
+                ImGui.EndTabItem();
+            }
+
+            if (ImGui.BeginTabItem("Permissions"))
+            {
+                ImGui.Text("Changes to this section require 'Force Apply Data' to be clicked to take effect.");
+                ImGui.Spacing();
+                var permissions = selectedStarPack.SyncPermissions;
+                var audio = permissions.HasFlag(SyncPermissions.Sounds);
+                var vfx = permissions.HasFlag(SyncPermissions.Visuals);
+                var animations = permissions.HasFlag(SyncPermissions.Animations);
+                if (ImGui.Checkbox("Enable Sound", ref audio))
+                {
+                    selectedStarPack.SyncPermissions = audio ? permissions | SyncPermissions.Sounds : permissions & ~SyncPermissions.Sounds;
+                    EzConfig.Save();
+                }
+
+                if (ImGui.Checkbox("Enable VFX", ref vfx))
+                {
+                    selectedStarPack.SyncPermissions = vfx ? permissions | SyncPermissions.Visuals : permissions & ~SyncPermissions.Visuals;
+                    EzConfig.Save();
+                }
+            
+                if (ImGui.Checkbox("Enable Animations", ref animations))
+                {
+                    selectedStarPack.SyncPermissions = animations ? permissions | SyncPermissions.Animations : permissions & ~SyncPermissions.Animations;
+                    EzConfig.Save();
+                }
+
+                if (!permissions.HasFlag(SyncPermissions.All))
+                {
+                    ImGui.TextColored(ImGuiColors.DalamudRed, "Some permissions are disabled. Syncing may not work as expected.");
+                }
+                ImGui.EndTabItem();
+            }
+
+            if (ImGui.BeginTabItem("Status"))
+            {
+                DrawTransferStatus(selectedStarPack);
+                ImGui.EndTabItem();
+            }
+            ImGui.EndTabBar();
+        }
+    }
 
     private void DrawTransferStatus(StarPack selectedStarPack)
     {
