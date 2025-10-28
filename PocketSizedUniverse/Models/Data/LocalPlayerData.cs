@@ -45,9 +45,10 @@ public class LocalPlayerData : PlayerData
     {
         try
         {
-            if (Player == null)
+            var player = GetPlayer();
+            if (player == null)
                 return;
-            var moodles = PsuPlugin.MoodlesService.GetStatusManager(Player.Address);
+            var moodles = PsuPlugin.MoodlesService.GetStatusManager(player.Address);
             var pack = StarPackReference.GetDataPack();
             if (pack == null) return;
 
@@ -81,7 +82,8 @@ public class LocalPlayerData : PlayerData
     {
         try
         {
-            if (Player == null)
+            var player = GetPlayer();
+            if (player == null)
                 return;
 
             var petName = PsuPlugin.PetNameService.GetPlayerData();
@@ -118,7 +120,8 @@ public class LocalPlayerData : PlayerData
     {
         try
         {
-            if (Player == null)
+            var player = GetPlayer();
+            if (player == null)
                 return;
             var honorific = PsuPlugin.HonorificService.GetLocalCharacterTitle() ?? string.Empty;
             var honorificData = new HonorificData()
@@ -153,10 +156,11 @@ public class LocalPlayerData : PlayerData
     {
         try
         {
-            if (Player == null)
+            var player = GetPlayer();
+            if (player == null)
                 return;
             string data = string.Empty;
-            var activeProfileId = PsuPlugin.CustomizeService.GetActiveProfileOnCharacter(Player.ObjectIndex);
+            var activeProfileId = PsuPlugin.CustomizeService.GetActiveProfileOnCharacter(player.ObjectIndex);
             if (activeProfileId.Item1 > 0 || activeProfileId.Item2 == null || activeProfileId.Item2 == Guid.Empty)
             {
                 Svc.Log.Debug("Failed to get active C+ profile.");
@@ -207,9 +211,10 @@ public class LocalPlayerData : PlayerData
     {
         try
         {
-            if (Player == null)
+            var player = GetPlayer();
+            if (player == null)
                 return;
-            var glamState = PsuPlugin.GlamourerService.GetStateBase64.Invoke(Player.ObjectIndex);
+            var glamState = PsuPlugin.GlamourerService.GetStateBase64.Invoke(player.ObjectIndex);
             if (glamState.Item2 == null)
             {
                 Svc.Log.Warning("Failed to get glamourer state.");
@@ -246,15 +251,16 @@ public class LocalPlayerData : PlayerData
 
     public void UpdateBasicData()
     {
-        if (Player == null)
+        var player = GetPlayer();
+        if (player == null)
             return;
         var pack = StarPackReference.GetDataPack();
         if (pack == null) return;
 
         var newBasic = new BasicData
         {
-            PlayerName = Player.Name.TextValue,
-            WorldId = Player.HomeWorld.RowId
+            PlayerName = player.Name.TextValue,
+            WorldId = player.HomeWorld.RowId
         };
 
         var changed = Data?.PlayerName != newBasic.PlayerName || Data?.WorldId != newBasic.WorldId;
@@ -281,7 +287,8 @@ public class LocalPlayerData : PlayerData
 
     public void UpdateTransientData(string gamePath, string realPath)
     {
-        if (Player == null)
+        var player = GetPlayer();
+        if (player == null)
             return;
         var ext = Path.GetExtension(realPath);
         // ReSharper disable once PossibleUnintendedLinearSearchInSet
@@ -309,7 +316,8 @@ public class LocalPlayerData : PlayerData
     {
         try
         {
-            if (Player == null)
+            var player = GetPlayer();
+            if (player == null)
                 return;
 
             // Phase A: gather snapshot on framework thread (no IO)
@@ -503,7 +511,8 @@ public class LocalPlayerData : PlayerData
     {
         try
         {
-            if (Player == null)
+            var player = GetPlayer();
+            if (player == null)
                 return;
             var heelsState = PsuPlugin.SimpleHeelsService.GetLocalPlayer();
             var pack = StarPackReference.GetDataPack();
@@ -563,5 +572,5 @@ public class LocalPlayerData : PlayerData
         }
     }
 
-    public sealed override IPlayerCharacter? Player { get; set; }
+    public sealed override IPlayerCharacter? GetPlayer() => Svc.ClientState.LocalPlayer;
 }

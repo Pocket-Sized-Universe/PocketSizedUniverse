@@ -9,17 +9,20 @@ namespace PocketSizedUniverse.Models.Data;
 
 public class RemotePlayerData(StarPack starPack) : PlayerData(starPack)
 {
-    public sealed override IPlayerCharacter? Player { get; set; }
+    public sealed override IPlayerCharacter? GetPlayer() => Svc.Objects.PlayerObjects.Cast<IPlayerCharacter>()
+        .FirstOrDefault(p => p.Name.TextValue == Data?.PlayerName && p.HomeWorld.RowId == Data?.WorldId);
 
     public Guid? AssignedCollectionId { get; set; }
 
     public Guid? AssignedCustomizeProfileId { get; set; }
-    
+
     public DateTime LastUpdated { get; set; } = DateTime.MinValue;
 
     public void AddContextMenu(IMenuOpenedArgs args)
     {
-        if (Player == null || (args.Target is not MenuTargetDefault target) || target.TargetObject?.GameObjectId != Player.GameObjectId)
+        var player = GetPlayer();
+        if (player == null || (args.Target is not MenuTargetDefault target) ||
+            target.TargetObject?.GameObjectId != player.GameObjectId)
             return;
         SeStringBuilder builder = new SeStringBuilder();
         var seString = builder.AddText("Force Apply Data").Build();
