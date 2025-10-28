@@ -78,7 +78,7 @@ public partial class MainWindow
             {
                 if (item.StarId == PsuPlugin.Configuration.MyStarPack!.StarId)
                 {
-                    var localPlayer = PsuPlugin.PlayerDataService.LocalPlayerData?.Player;
+                    var localPlayer = PsuPlugin.PlayerDataService.LocalPlayerData?.GetPlayer();
                     if (localPlayer == null)
                         return "You";
                     return localPlayer.Name.TextValue + "@" + localPlayer.HomeWorld.Value.Name.ExtractText();
@@ -86,7 +86,7 @@ public partial class MainWindow
 
                 if (PsuPlugin.PlayerDataService.RemotePlayerData.TryGetValue(item.StarId, out var playerData))
                 {
-                    var player = playerData.Player;
+                    var player = playerData.GetPlayer();
                     if (player == null)
                         return "Unknown";
                     return player.Name.TextValue + "@" + player.HomeWorld.Value.Name.ExtractText();

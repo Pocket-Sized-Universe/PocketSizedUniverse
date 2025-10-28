@@ -56,7 +56,7 @@ public abstract class PlayerData(StarPack starPack)
         return ak.SequenceEqual(bk, StringComparer.Ordinal);
     }
 
-    public abstract IPlayerCharacter? Player { get; set; }
+    public abstract IPlayerCharacter? GetPlayer();
 
     public BasicData? Data { get; set; }
 

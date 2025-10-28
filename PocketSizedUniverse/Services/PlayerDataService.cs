@@ -90,7 +90,6 @@ public class PlayerDataService : IUpdatable, IDisposable
         if (!GenericHelpers.IsScreenReady())
             return;
         LocalPlayerData ??= new LocalPlayerData(PsuPlugin.Configuration.MyStarPack);
-        LocalPlayerData.Player = Svc.ClientState.LocalPlayer; // refresh before writing
 
         // Fire-and-forget local writes (disk IO off-thread)
         LocalPlayerData.UpdateBasicData();
@@ -129,14 +128,13 @@ public class PlayerDataService : IUpdatable, IDisposable
                 TimeSpan.FromSeconds(PsuPlugin.Configuration.RemotePollingSeconds))
                 PendingReads.Enqueue(star.StarId);
 
-            remote.Player = nearbyPlayers.FirstOrDefault(p =>
-                p.HomeWorld.RowId == remote.Data?.WorldId && p.Name.TextValue == remote.Data?.PlayerName);
-            if (remote.Player == null && remote.AssignedCollectionId != null)
+            var player = remote.GetPlayer();
+            if (player == null && remote.AssignedCollectionId != null)
             {
                 PendingCleanups.Enqueue(star.StarId);
             }
-            else if (remote.Player != null && remote.AssignedCollectionId == null &&
-                     !DeferredApplications.Contains(remote.Player.Name.TextValue))
+            else if (player != null && remote.AssignedCollectionId == null &&
+                     !DeferredApplications.Contains(player.Name.TextValue))
             {
                 PendingApplies.Enqueue(star.StarId);
             }
@@ -189,7 +187,9 @@ public class PlayerDataService : IUpdatable, IDisposable
                 remote.PetNameData = null;
                 if (effectivePairs.All(sp => sp.StarId != starIdToCleanup))
                 {
-                    PsuPlugin.PenumbraService.RedrawObject.Invoke(remote.Player!.ObjectIndex);
+                    var player = remote.GetPlayer();
+                    if (player != null)
+                        PsuPlugin.PenumbraService.RedrawObject.Invoke(player.ObjectIndex);
                     RemotePlayerData.TryRemove(starIdToCleanup, out _);
                 }
             }
@@ -302,16 +302,17 @@ public class PlayerDataService : IUpdatable, IDisposable
         {
             if (!RemotePlayerData.TryGetValue(starIdToApply, out var remote))
                 return;
-            if (remote.Player == null)
+            var player = remote.GetPlayer();
+            if (player == null)
                 return;
-            var basicApply = remote.Data?.ApplyData(remote.Player);
-            var glamApply = remote.GlamourerData?.ApplyData(remote.Player);
-            var penApply = remote.PenumbraData?.ApplyData(remote.Player, remote.AssignedCollectionId);
-            var customizeApply = remote.CustomizeData?.ApplyData(remote.Player);
-            var honorificApply = remote.HonorificData?.ApplyData(remote.Player);
-            var moodlesApply = remote.MoodlesData?.ApplyData(remote.Player);
-            var heelsApply = remote.HeelsData?.ApplyData(remote.Player);
-            var petNameApply = remote.PetNameData?.ApplyData(remote.Player);
+            var basicApply = remote.Data?.ApplyData(player);
+            var glamApply = remote.GlamourerData?.ApplyData(player);
+            var penApply = remote.PenumbraData?.ApplyData(player, remote.AssignedCollectionId);
+            var customizeApply = remote.CustomizeData?.ApplyData(player);
+            var honorificApply = remote.HonorificData?.ApplyData(player);
+            var moodlesApply = remote.MoodlesData?.ApplyData(player);
+            var heelsApply = remote.HeelsData?.ApplyData(player);
+            var petNameApply = remote.PetNameData?.ApplyData(player);
             if (penApply is not { Applied: true }) return;
             var collectionId = Guid.Parse(penApply.Value.Result);
             remote.AssignedCollectionId = collectionId;
@@ -332,11 +333,12 @@ public class PlayerDataService : IUpdatable, IDisposable
                 {
                     var realLocalPath = capturedLocalPath.Split('|').Last();
                     var realObj = Svc.Objects.CreateObjectReference(gameObject);
-                    if (realObj == null)
+                    var player = LocalPlayerData?.GetPlayer();
+                    if (realObj == null || player == null)
                         return;
-                    if (realObj.ObjectIndex - 1 == LocalPlayerData?.Player?.ObjectIndex ||
-                        realObj.ObjectIndex == LocalPlayerData?.Player?.ObjectIndex ||
-                        realObj.OwnerId == LocalPlayerData?.Player?.EntityId)
+                    if (realObj.ObjectIndex - 1 == player.ObjectIndex ||
+                        realObj.ObjectIndex == player.ObjectIndex ||
+                        realObj.OwnerId == player.EntityId)
                     {
                         LocalPlayerData!.UpdateTransientData(capturedGamePath, realLocalPath);
                     }
