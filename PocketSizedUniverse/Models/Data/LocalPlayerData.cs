@@ -305,11 +305,13 @@ public class LocalPlayerData : PlayerData
             transientData.Recorded = DateTime.UtcNow;
             transientData.ApplicablePaths.Add(normalizedGamePath);
             PsuPlugin.Database.TransientFilesData[realPath] = transientData;
+            PsuPlugin.Database.SaveNeeded = true;
         }
         else
         {
             var hashSet = new HashSet<string>(StringComparer.OrdinalIgnoreCase) {normalizedGamePath};
             PsuPlugin.Database.TransientFilesData[realPath] = (DateTime.UtcNow, hashSet);
+            PsuPlugin.Database.SaveNeeded = true;
         }
     }
     public void UpdatePenumbraData()
