@@ -113,6 +113,7 @@ public class PlayerDataService : IUpdatable, IDisposable
             PendingCleanups.Enqueue(star.StarId);
             PendingReads.Enqueue(star.StarId);
         }
+        PsuPlugin.Database.SaveNeeded = true;
     }
 
     private void RemoteUpdate(IFramework framework)
