@@ -300,17 +300,17 @@ public class LocalPlayerData : PlayerData
             return;
         if (string.Equals(normalizedRealPath, normalizedGamePath))
             return;
-        if (PsuPlugin.Database.TransientFilesData.TryGetValue(realPath, out var transientData))
+        if (PsuPlugin.Database.TransientFilesDataSimple.TryGetValue(realPath, out var transientData))
         {
-            transientData.Recorded = DateTime.UtcNow;
-            transientData.ApplicablePaths.Add(normalizedGamePath);
-            PsuPlugin.Database.TransientFilesData[realPath] = transientData;
+            if (!transientData.Add(normalizedGamePath))
+                return;
+            PsuPlugin.Database.TransientFilesDataSimple[realPath] = transientData;
             PsuPlugin.Database.SaveNeeded = true;
         }
         else
         {
             var hashSet = new HashSet<string>(StringComparer.OrdinalIgnoreCase) {normalizedGamePath};
-            PsuPlugin.Database.TransientFilesData[realPath] = (DateTime.UtcNow, hashSet);
+            PsuPlugin.Database.TransientFilesDataSimple[realPath] = hashSet;
             PsuPlugin.Database.SaveNeeded = true;
         }
     }
@@ -357,7 +357,7 @@ public class LocalPlayerData : PlayerData
             {
                 try
                 {
-                    foreach (var (realPath, (recorded, gamePaths)) in PsuPlugin.Database.TransientFilesData)
+                    foreach (var (realPath, gamePaths) in PsuPlugin.Database.TransientFilesDataSimple)
                     {
                         if (ct.IsCancellationRequested)
                             return;

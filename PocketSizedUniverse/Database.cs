@@ -13,17 +13,12 @@ public class Database : IDisposable
 {
     private static readonly string _filePath =
         Path.Combine(Svc.PluginInterface.ConfigDirectory.FullName, "database.json");
-    
-    public ConcurrentDictionary<string, (DateTime Recorded, HashSet<string> ApplicablePaths)> TransientFilesData
-    {
-        get;
-        set;
-    } = new();
-    
+
+    public ConcurrentDictionary<string, HashSet<string>> TransientFilesDataSimple { get; set; } = new();
+
     public ConcurrentDictionary<string, ScanResult> ScanResults { get; set; } = new();
 
-    [JsonIgnore]
-    public bool SaveNeeded = false;
+    [JsonIgnore] public bool SaveNeeded = false;
 
     public static Database Load()
     {
@@ -45,9 +40,8 @@ public class Database : IDisposable
     }
 
     private readonly TimeSpan _updateInterval = TimeSpan.FromMinutes(10);
-    
-    [JsonIgnore]
-    public DateTime LastUpdated = DateTime.UtcNow + TimeSpan.FromSeconds(5);
+
+    [JsonIgnore] public DateTime LastUpdated = DateTime.UtcNow + TimeSpan.FromSeconds(5);
 
     private void CleanDatabase(IFramework framework)
     {
@@ -79,10 +73,10 @@ public class Database : IDisposable
             }
         }
 
-        foreach (var (realPath, (recorded, applicablePaths)) in TransientFilesData)
+        foreach (var (realPath, applicablePaths) in TransientFilesDataSimple)
         {
             if (enabledMods.Keys.Any(modPath => realPath.Contains(modPath))) continue;
-            TransientFilesData.TryRemove(realPath, out _);
+            TransientFilesDataSimple.TryRemove(realPath, out _);
             Svc.Log.Debug("Removed expired transient file: " + realPath);
             SaveNeeded = true;
         }
