@@ -113,7 +113,7 @@ public partial class MainWindow
                 "NOTE: VFX and animation mods will need to be used at least once for the data to be stored again if this button is clicked!");
             if (ImGui.Button("Clear Transient Data"))
             {
-                PsuPlugin.Database.TransientFilesData.Clear();
+                PsuPlugin.Database.TransientFilesDataSimple.Clear();
                 PsuPlugin.Database.SaveNeeded = true;
             }
 
