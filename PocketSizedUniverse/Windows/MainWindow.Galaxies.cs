@@ -202,6 +202,11 @@ public partial class MainWindow
                             {
                                 galaxyName = tempGalaxy.Name;
                             }
+                            foreach (var invalid in Path.GetInvalidFileNameChars().Concat(Path.GetInvalidPathChars()))
+                            {
+                                if (galaxyName.Contains(invalid))
+                                    galaxyName = galaxyName.Replace(invalid, '_');
+                            }
                             var galaxiesDir = Path.Combine(PsuPlugin.Configuration.DefaultDataPackDirectory!, "Galaxies");
                             if (!Directory.Exists(galaxiesDir))
                                 Directory.CreateDirectory(galaxiesDir);
