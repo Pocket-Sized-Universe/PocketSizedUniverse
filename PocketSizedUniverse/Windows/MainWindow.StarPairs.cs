@@ -55,6 +55,10 @@ public partial class MainWindow
                             Notify.Info("Imported Star Pair successfully!");
                         }
                     }
+                    else
+                    {
+                        Notify.Error("Failed to import Star Pair. Invalid format.");
+                    }
                 }
                 catch (Exception ex)
                 {
