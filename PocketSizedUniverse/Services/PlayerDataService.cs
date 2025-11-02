@@ -118,7 +118,6 @@ public class PlayerDataService : IUpdatable, IDisposable
 
     private void RemoteUpdate(IFramework framework)
     {
-        var nearbyPlayers = Svc.Objects.PlayerObjects.Cast<IPlayerCharacter>();
         var effectivePairs = PsuPlugin.Configuration.GetEffectivePairs().ToList();
         foreach (var star in PsuPlugin.Configuration.GetAllStarPacks())
         {
