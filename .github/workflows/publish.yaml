@@ -59,7 +59,7 @@ jobs:
         run: |
           Invoke-WebRequest -Uri https://oss.netfarm.it/clamav/files/clamav-1.5.0-x64.7z -OutFile clamav.7z
           7z x clamav.7z -oclamav -y
-          Copy-Item -Path .\clamav\* -Destination .\build\ -Recurse -Force
+          Copy-Item -Path .\clamav\clamav-1.5.0-x64\* -Destination .\build\ -Recurse -Force -Exclude *.conf -Verbose
 
       - name: Zip Plugin
         run: Compress-Archive -Path .\build\* -DestinationPath .\build\PocketSizedUniverse.zip
