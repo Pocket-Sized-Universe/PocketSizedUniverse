@@ -35,15 +35,35 @@ jobs:
           Invoke-WebRequest -Uri https://goatcorp.github.io/dalamud-distrib/stg/latest.zip -OutFile latest.zip
           Expand-Archive -Force latest.zip "$env:AppData\\XIVLauncher\\addon\\Hooks\\dev"
 
-      - name: Download SyncThing v2.0.9
+      - name: Download latest Syncthing
+        shell: pwsh
         run: |
-          $download_url = "https://github.com/syncthing/syncthing/releases/download/v2.0.9/syncthing-windows-amd64-v2.0.9.zip"
-          Write-Host "Downloading SyncThing v2.0.9 from: $download_url"
-          Invoke-WebRequest -Uri $download_url -OutFile "syncthing-v2.0.9.zip"
-          Expand-Archive -Path "syncthing-v2.0.9.zip" -DestinationPath "syncthing-extracted"
-          # The ZIP contains syncthing-windows-amd64-v2.0.9/syncthing.exe
-          Copy-Item -Path "syncthing-extracted\syncthing-windows-amd64-v2.0.9\syncthing.exe" -Destination "syncthing.exe"
-          Write-Host "SyncThing v2.0.9 binary ready"
+          $ErrorActionPreference = 'Stop'
+          
+          $api = 'https://api.github.com/repos/syncthing/syncthing/releases/latest'
+          $headers = @{ 'User-Agent' = 'github-actions'; 'Accept' = 'application/vnd.github+json' }
+          if ($env:GITHUB_TOKEN) { $headers['Authorization'] = "Bearer $($env:GITHUB_TOKEN)" }
+          
+          $release = Invoke-RestMethod -Uri $api -Headers $headers
+          $version = $release.tag_name
+          if (-not $version) { throw "Could not determine latest Syncthing version from GitHub API." }
+          Write-Host "Latest Syncthing version: $version"
+          
+          $url = "https://github.com/syncthing/syncthing/releases/download/$version/syncthing-windows-amd64-$version.zip"
+          Write-Host "Downloading $url"
+          
+          $zipPath = Join-Path $env:RUNNER_TEMP "syncthing.zip"
+          Invoke-WebRequest -Uri $url -OutFile $zipPath
+          
+          Expand-Archive -Path $zipPath -DestinationPath $env:RUNNER_TEMP -Force
+          
+          $extractedDir = Join-Path $env:RUNNER_TEMP "syncthing-windows-amd64-$version"
+          $srcExe = Join-Path $extractedDir "syncthing.exe"
+          $destExe = Join-Path $env:GITHUB_WORKSPACE "syncthing.exe"
+          
+          if (-not (Test-Path $srcExe)) { throw "syncthing.exe not found at $srcExe" }
+          Copy-Item -Path $srcExe -Destination $destExe -Force
+          Write-Host "Copied Syncthing to $destExe"
       
       - name: Restore Nuget Packages
         run: dotnet restore PocketSizedUniverse/PocketSizedUniverse.csproj
