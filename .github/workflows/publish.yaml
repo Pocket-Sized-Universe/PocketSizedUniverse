@@ -75,13 +75,10 @@ jobs:
         run: |
           copy syncthing.exe build\syncthing.exe
           
-      - name: Download ClamAV
+      - name: Download ClamWin
         run: |
-          Invoke-WebRequest -Uri https://oss.netfarm.it/clamav/files/clamav-1.5.0-x64.7z -OutFile clamav.7z
-          7z e clamav.7z -oclamav -y
-          copy .\clamav\clamscan.exe .\build\
-          copy .\clamav\freshclam.exe .\build\
-          copy .\clamav\*.dll .\build\
+          Invoke-WebRequest -Uri https://github.com/Pocket-Sized-Universe/clamav-win32/releases/download/1.5.1/ClamWin.zip -OutFile clamwin.zip
+          Expand-Archive -Force clamwin.zip .\build
 
       - name: Zip Plugin
         run: Compress-Archive -Path .\build\* -DestinationPath .\build\PocketSizedUniverse.zip
