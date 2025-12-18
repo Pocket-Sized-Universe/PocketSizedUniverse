@@ -83,8 +83,8 @@ public class PlayerDataService : IUpdatable, IDisposable
         if (!Svc.ClientState.IsLoggedIn)
             return;
 
-        if (Svc.ClientState.LocalPlayer == null || PsuPlugin.Configuration.MyStarPack == null ||
-            Svc.ClientState.LocalPlayer.Address == IntPtr.Zero ||
+        if (Svc.Objects.LocalPlayer == null || PsuPlugin.Configuration.MyStarPack == null ||
+            Svc.Objects.LocalPlayer.Address == IntPtr.Zero ||
             Svc.Condition.AsReadOnlySet().Any(x => _badConditions.Contains(x)))
             return;
         if (!GenericHelpers.IsScreenReady())

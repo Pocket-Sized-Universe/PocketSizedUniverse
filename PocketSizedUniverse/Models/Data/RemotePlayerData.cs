@@ -12,7 +12,7 @@ namespace PocketSizedUniverse.Models.Data;
 public class RemotePlayerData(StarPack starPack) : PlayerData(starPack)
 {
     public sealed override IPlayerCharacter? GetPlayer() => Svc.Objects.PlayerObjects.Cast<IPlayerCharacter>()
-        .FirstOrDefault(p => p.Name.TextValue == Data?.PlayerName && p.HomeWorld.RowId == Data?.WorldId && p.Address != Svc.ClientState.LocalPlayer?.Address);
+        .FirstOrDefault(p => p.Name.TextValue == Data?.PlayerName && p.HomeWorld.RowId == Data?.WorldId && p.Address != Svc.Objects.LocalPlayer?.Address);
 
     public Guid? AssignedCollectionId { get; set; }
 
