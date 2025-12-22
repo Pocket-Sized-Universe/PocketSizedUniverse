@@ -25,7 +25,8 @@ public class SyncThingService : ICache, IDisposable
     public DateTime LastRefresh { get; private set; } = DateTime.MinValue;
 
     public bool IsHealthy { get; private set; } = false;
-
+    
+    public bool LockRefresh { get; set; } = false;
     private int LastSeenEvent { get; set; } = 0;
 
     // Track connection byte totals to compute transfer rates between refreshes
@@ -79,17 +80,29 @@ public class SyncThingService : ICache, IDisposable
         }
     }
 
-    public TimeSpan UpdateInterval { get; set; } = TimeSpan.FromSeconds(10);
+    public TimeSpan UpdateInterval { get; set; } = TimeSpan.FromSeconds(60);
     public DateTime LastUpdated { get; set; } = DateTime.MinValue;
+    public DateTime LastGalaxyUpdate { get; set; } = DateTime.MinValue;
 
     public void LocalUpdate(IFramework framework)
     {
+        if (_client == null)
+            InitializeClient();
         // Periodically refresh caches and stats
-        if (DateTime.UtcNow - LastUpdated >= UpdateInterval)
+        if (DateTime.UtcNow - LastUpdated >= UpdateInterval && !LockRefresh)
         {
             LastUpdated = DateTime.UtcNow;
             RefreshCaches();
             ProcessEvents();
+            RemoveUnpairedStarsAndDataPacks();
+            if (!PsuPlugin.IsRunningUnderWine() && TimeSpan.FromSeconds(PsuPlugin.Configuration.GalaxyPollingSeconds) < DateTime.UtcNow - LastGalaxyUpdate)
+            {
+                LastGalaxyUpdate = DateTime.UtcNow;
+                foreach (var galaxy in PsuPlugin.Configuration.Galaxies)
+                {
+                    _ = Task.Run(galaxy.TryFetch);
+                }
+            }
         }
 
         // Invalidate caches if it's been a while to ensure we reconcile with config changes
@@ -155,7 +168,6 @@ public class SyncThingService : ICache, IDisposable
     {
         DataPacks.Clear();
         Stars.Clear();
-        InitializeClient(); // Reinitialize client with updated configuration
         RefreshCaches();
     }
 
@@ -194,21 +206,13 @@ public class SyncThingService : ICache, IDisposable
         return existingStar;
     }
 
-
-    private IEnumerable<StarPack> GetEffectivePairs()
-    {
-        var blocked =
-            new HashSet<(string, Guid)>(PsuPlugin.Configuration.Blocklist.Select(b => (b.StarId, b.DataPackId)));
-        return PsuPlugin.Configuration.StarPacks.Where(sp => !blocked.Contains((sp.StarId, sp.DataPackId)));
-    }
-
     private async Task EnsurePairedStarsExist()
     {
-        var effectivePairs = GetEffectivePairs().ToList();
+        var effectivePairs = PsuPlugin.Configuration.GetEffectivePairs().ToList();
         Svc.Log.Debug($"[DEBUG] Checking {effectivePairs.Count} configured StarPacks for missing Stars...");
         Svc.Log.Debug($"[DEBUG] Current Stars in cache: {Stars.Count} - [{string.Join(", ", Stars.Keys)}]");
 
-        foreach (var starPack in PsuPlugin.Configuration.StarPacks)
+        foreach (var starPack in PsuPlugin.Configuration.GetAllStarPacks())
         {
             Svc.Log.Debug(
                 $"[DEBUG] Checking StarPack - StarId: {starPack.StarId}, DataPackId: {starPack.DataPackId}");
@@ -233,61 +237,44 @@ public class SyncThingService : ICache, IDisposable
             Svc.Log.Warning("MyStarPack is null - cannot share local DataPack");
             return;
         }
-
-        Svc.Log.Debug(
-            $"[DEBUG] MyStarPack - StarId: {PsuPlugin.Configuration.MyStarPack.StarId}, DataPackId: {PsuPlugin.Configuration.MyStarPack.DataPackId}");
-
         var myDataPack = PsuPlugin.Configuration.MyStarPack.GetDataPack();
         if (myDataPack == null)
         {
             Svc.Log.Warning($"MyStarPack DataPack not found: {PsuPlugin.Configuration.MyStarPack.DataPackId}");
             return;
         }
-
-        Svc.Log.Debug(
-            $"[DEBUG] MyDataPack - Id: {myDataPack.Id}, Type: {myDataPack.Type}, Path: {myDataPack.Path}");
-        Svc.Log.Debug($"[DEBUG] MyDataPack current Stars count: {myDataPack.Stars?.Count ?? 0}");
-
-        if (myDataPack.Stars != null)
-        {
-            foreach (var existingStar in myDataPack.Stars)
-            {
-                Svc.Log.Debug($"[DEBUG] MyDataPack existing Star: {existingStar.StarId}");
-            }
-        }
-
         bool modified = false;
         myDataPack.Stars ??= new List<Star>();
 
-        var effectivePairs = GetEffectivePairs().ToList();
-        Svc.Log.Debug($"[DEBUG] Processing {effectivePairs.Count} configured StarPacks...");
-
-// Add all paired stars that exist in the API to the local DataPack
-        foreach (var starPack in effectivePairs)
+        var effectivePairs = PsuPlugin.Configuration.GetEffectivePairs().ToList();
+        effectivePairs.Add(PsuPlugin.Configuration.MyStarPack); //Syncthing technically considers you to be sharing your own folder. Stupid....
+        
+        var currentStarIds = new HashSet<string>(myDataPack.Stars.Select(s => s.StarId));
+        var expectedStarIds = new HashSet<string>(effectivePairs.Select(sp => sp.StarId));
+        
+        var starsToAdd = expectedStarIds.Except(currentStarIds).ToList();
+        var starsToRemove = currentStarIds.Except(expectedStarIds).ToList();
+        
+        if (starsToRemove.Count == 0 && starsToAdd.Count == 0)
         {
-            Svc.Log.Debug(
-                $"[DEBUG] Processing StarPack - StarId: {starPack.StarId}, DataPackId: {starPack.DataPackId}");
+            return; // Early exit - no changes needed
+        }
+        
+        Svc.Log.Debug($"[DEBUG] Stars to add: {starsToAdd.Count}, Stars to remove: {starsToRemove.Count}");
+        
+        if (starsToRemove.Count > 0)
+        {
+            myDataPack.Stars.RemoveAll(s => starsToRemove.Contains(s.StarId));
+            modified = true;
+        }
 
-            if (Stars.TryGetValue(starPack.StarId, out var star))
+        foreach (var starId in starsToAdd)
+        {
+            if (Stars.TryGetValue(starId, out var star))
             {
-                Svc.Log.Debug(
-                    $"[DEBUG] Found Star in cache - StarId: {star.StarId}, Name: {star.Name ?? "<null>"}, AutoAcceptFolders: {star.AutoAcceptFolders}");
-
-                if (myDataPack.Stars.All(s => s.StarId != star.StarId))
-                {
-                    myDataPack.Stars.Add(star);
-                    modified = true;
-                    Svc.Log.Debug($"[DEBUG] Added Star to MyDataPack: {star.StarId}");
-                }
-                else
-                {
-                    Svc.Log.Debug($"[DEBUG] Star already in MyDataPack: {star.StarId}");
-                }
-            }
-            else
-            {
-                Svc.Log.Warning($"[DEBUG] Star NOT found in cache: {starPack.StarId}");
-                Svc.Log.Debug($"[DEBUG] Available Stars in cache: {string.Join(", ", Stars.Keys)}");
+                myDataPack.Stars.Add(star);
+                modified = true;
+                Svc.Log.Debug($"[DEBUG] Added Star to MyDataPack: {star.StarId}");
             }
         }
 
@@ -299,25 +286,6 @@ public class SyncThingService : ICache, IDisposable
 
             await _client!.Config.Folders.Put(myDataPack).ConfigureAwait(false);
             Svc.Log.Debug($"Updated local DataPack sharing with {myDataPack.Stars.Count} stars");
-
-            // Let's also verify the update took effect by reading it back
-            try
-            {
-                var updatedDataPack = await _client.Config.Folders.Get(myDataPack.Id.ToString()).ConfigureAwait(false);
-                Svc.Log.Debug(
-                    $"[DEBUG] Verified - Updated DataPack has {updatedDataPack.Stars?.Count ?? 0} stars after PUT");
-                if (updatedDataPack.Stars != null)
-                {
-                    foreach (var verifiedStar in updatedDataPack.Stars)
-                    {
-                        Svc.Log.Debug($"[DEBUG] Verified Star in DataPack: {verifiedStar.StarId}");
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                Svc.Log.Warning($"[DEBUG] Failed to verify DataPack update: {ex.Message}");
-            }
         }
         else
         {
@@ -342,8 +310,7 @@ public class SyncThingService : ICache, IDisposable
                 return;
             }
 
-            var effectivePairs = GetEffectivePairs().ToList();
-            var effectiveDataPackIds = new HashSet<Guid>(effectivePairs.Select(p => p.DataPackId));
+            var effectivePairs = PsuPlugin.Configuration.GetEffectivePairs().ToList();
 
 // Check each pending folder against our paired star DataPack IDs
             foreach (var kvp in pendingFolders.Folders)
@@ -395,7 +362,7 @@ public class SyncThingService : ICache, IDisposable
 
             var canonicalId = folderGuid.ToString("D");
 
-            var matchingStars = PsuPlugin.Configuration.StarPacks
+            var matchingStars = PsuPlugin.Configuration.GetAllStarPacks()
                 .Where(sp => sp.DataPackId == folderGuid || pendingFolder.OfferedBy.ContainsKey(sp.StarId)).ToList()
                 .Select(p => p.GetStar()!);
 
@@ -444,6 +411,67 @@ public class SyncThingService : ICache, IDisposable
                 Svc.Log.Error($"HealSyncThing failed: {ex}");
             }
         });
+    }
+
+    public void RemoveUnpairedStarsAndDataPacks()
+    {
+        _ = Task.Run(async () =>
+        {
+            if (!PsuPlugin.Configuration.UseBuiltInSyncThing)
+            {
+                Svc.Log.Debug("Easy Mode Disabled, cleanup must be manual");
+                return;
+            }
+            if (PsuPlugin.Configuration.MyStarPack == null)
+                return;
+            var effectivePairs = PsuPlugin.Configuration.GetEffectivePairs().ToList();
+            effectivePairs.Add(PsuPlugin.Configuration.MyStarPack);
+            foreach (var dataPack in DataPacks.Values)
+            {
+                if (effectivePairs.All(sp => sp.DataPackId != dataPack.Id))
+                {
+                    Svc.Log.Debug($"[DEBUG] DataPack {dataPack.Id} is not paired with any configured StarPacks");
+                    await RemoveDataPack(dataPack.Id);
+                }
+            }
+
+            foreach (var star in Stars.Values)
+            {
+                if (effectivePairs.All(sp => sp.StarId != star.StarId))
+                {
+                    Svc.Log.Debug($"[DEBUG] Star {star.StarId} is not paired with any configured StarPacks");
+                    await RemoveStar(star.StarId);
+                }
+            }
+        });
+    }
+
+    private async Task RemoveStar(string starId)
+    {
+        try
+        {
+            await _client.Config.Stars.Delete(starId);
+            Stars.TryRemove(starId, out _);
+            Svc.Log.Debug($"Successfully removed star: {starId}");
+        }
+        catch (Exception e)
+        {
+            Svc.Log.Error($"Failed to remove star {starId}: {e}");
+        }
+    }
+    
+    private async Task RemoveDataPack(Guid dataPackId)
+    {
+        try
+        {
+            await _client.Config.Folders.Delete(dataPackId.ToString());
+            DataPacks.TryRemove(dataPackId, out _);
+            Svc.Log.Debug($"Successfully removed DataPack: {dataPackId}");
+        }
+        catch (Exception e)
+        {
+            Svc.Log.Error($"Failed to remove DataPack {dataPackId}: {e}");
+        }
     }
 
     public async Task PostNewStar(Star star)
@@ -582,7 +610,7 @@ public class SyncThingService : ICache, IDisposable
                 // Folders - Only process folders with GUID-based IDs (PSU folders)
                 if (_client?.Config.Folders != null)
                 {
-                    var allFolders = _client.Config.Folders.Get().ConfigureAwait(false).GetAwaiter().GetResult();
+                    var allFolders = await _client.Config.Folders.Get();
                     foreach (var folder in allFolders)
                     {
                         // Only process folders with GUID-based IDs - ignore external SyncThing folders
@@ -598,11 +626,14 @@ public class SyncThingService : ICache, IDisposable
                     }
                 }
 
-                // Stars
-                var stars = _client?.Config.Stars.Get().ConfigureAwait(false).GetAwaiter().GetResult();
-                foreach (var pair in stars)
+                if (_client?.Config.Stars != null)
                 {
-                    Stars.AddOrUpdate(pair.StarId, pair, (_, _) => pair);
+                    // Stars
+                    var stars = await _client.Config.Stars.Get();
+                    foreach (var pair in stars)
+                    {
+                        Stars.AddOrUpdate(pair.StarId, pair, (_, _) => pair);
+                    }
                 }
 
                 Svc.Log.Debug($"Refreshed caches | {DataPacks.Count} DataPacks | {Stars.Count} Stars");

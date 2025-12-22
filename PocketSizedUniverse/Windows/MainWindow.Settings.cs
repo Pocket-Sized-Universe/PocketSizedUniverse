@@ -5,6 +5,7 @@ using Dalamud.Interface.Colors;
 using Dalamud.Interface.ImGuiFileDialog;
 using ECommons.Configuration;
 using ECommons.DalamudServices;
+using Octokit;
 using OtterGui;
 using PocketSizedUniverse.Models;
 using PocketSizedUniverse.Models.Data;
@@ -24,6 +25,8 @@ public partial class MainWindow
         DrawSyncThingSettings();
         ImGui.Spacing();
 
+        DrawAuthenticationSettings();
+
         DrawGeneralSettings();
 
         DrawTransientDataSettings();
@@ -40,29 +43,57 @@ public partial class MainWindow
         }
     }
 
+    private void DrawAuthenticationSettings()
+    {
+        if (ImGui.CollapsingHeader("Authentication", ImGuiTreeNodeFlags.DefaultOpen))
+        {
+            var token = PsuPlugin.Configuration.GitHubToken;
+            if (string.IsNullOrWhiteSpace(token))
+                ImGui.Text("You have not authenticated with GitHub yet.");
+            else
+                ImGui.Text("GitHub Login Successful");
+            if (ImGui.Button("Authenticate with GitHub"))
+            {
+                PsuPlugin.GitHubLoginWindow.IsOpen = true;
+            }
+        }
+    }
+
     private void DrawPollingSettings()
     {
-        if (ImGui.CollapsingHeader("Polling Intervals", ImGuiTreeNodeFlags.DefaultOpen))
+        if (ImGui.CollapsingHeader("Refresh Intervals", ImGuiTreeNodeFlags.DefaultOpen))
         {
             var localSeconds = PsuPlugin.Configuration.LocalPollingSeconds;
             SetInputWidth(100);
-            if (ImGui.InputInt("Local Polling Interval (seconds)", ref localSeconds, 1, 5))
+            if (ImGui.InputInt("Local Data Refresh Interval (seconds)", ref localSeconds, 1, 5))
             {
                 if (localSeconds < 1) localSeconds = 1;
                 PsuPlugin.Configuration.LocalPollingSeconds = localSeconds;
                 EzConfig.Save();
             }
+
             ImGuiUtil.HoverTooltip("How often to check for changes to the data applied to your current character.");
-            
+
             var remoteSeconds = PsuPlugin.Configuration.RemotePollingSeconds;
             SetInputWidth(100);
-            if (ImGui.InputInt("Remote Polling Interval (seconds)", ref remoteSeconds, 1, 5))
+            if (ImGui.InputInt("Remote Data Refresh Interval (seconds)", ref remoteSeconds, 1, 5))
             {
                 if (remoteSeconds < 1) remoteSeconds = 1;
                 PsuPlugin.Configuration.RemotePollingSeconds = remoteSeconds;
                 EzConfig.Save();
             }
+
             ImGuiUtil.HoverTooltip("How often to check for changes to Stars you are paired with.");
+
+            var galaxySeconds = PsuPlugin.Configuration.GalaxyPollingSeconds;
+            SetInputWidth(100);
+            if (ImGui.InputInt("Galaxy Data Refresh Interval (seconds)", ref galaxySeconds, 1, 5))
+            {
+                if (galaxySeconds < 1) galaxySeconds = 1;
+                PsuPlugin.Configuration.GalaxyPollingSeconds = galaxySeconds;
+                EzConfig.Save();
+            }
+            ImGuiUtil.HoverTooltip("How often to check for changes to Galaxies.");
         }
     }
 
@@ -70,17 +101,22 @@ public partial class MainWindow
     {
         if (ImGui.CollapsingHeader("Transient Data", ImGuiTreeNodeFlags.DefaultOpen))
         {
-            ImGui.Text("Transient data is data that cannot be resolved to your character consistently, such as VFX and animations.");
-            ImGui.Text("To ensure a consistent syncing experience, transient data is stored permanently. This can can occasionally cause certain mods to not sync as expected.");
+            ImGui.Text(
+                "Transient data is data that cannot be resolved to your character consistently, such as VFX and animations.");
+            ImGui.Text(
+                "To ensure a consistent syncing experience, transient data is stored permanently. This can can occasionally cause certain mods to not sync as expected.");
             ImGui.Text("If certain mods are acting weird, you can clear the transient data here to fix it.");
-            ImGui.Text("This is completely safe to do, but may cause extra data transfer to your pairs if you have a lot of VFX or animation mods.");
+            ImGui.Text(
+                "This is completely safe to do, but may cause extra data transfer to your pairs if you have a lot of VFX or animation mods.");
             ImGui.Spacing();
-            ImGui.TextColored(ImGuiColors.DalamudYellow, "NOTE: VFX and animation mods will need to be used at least once for the data to be stored again if this button is clicked!");
+            ImGui.TextColored(ImGuiColors.DalamudYellow,
+                "NOTE: VFX and animation mods will need to be used at least once for the data to be stored again if this button is clicked!");
             if (ImGui.Button("Clear Transient Data"))
             {
                 PsuPlugin.Database.TransientFilesDataSimple.Clear();
                 PsuPlugin.Database.SaveNeeded = true;
             }
+
             ImGuiUtil.HoverTooltip("Click this button if things like VFX and animations are acting weird.");
         }
     }
@@ -202,6 +238,7 @@ public partial class MainWindow
             ImGui.TextColored(new Vector4(0.6f, 0.6f, 0.6f, 1.0f),
                 $"DataPacks will be created in: {config.DefaultDataPackDirectory}");
         }
+
         var maxSize = config.MaxDataPackSizeGb;
         SetInputWidth(100);
         if (ImGui.InputInt("Max Data Pack Size (GB)", ref maxSize, 1, 5))

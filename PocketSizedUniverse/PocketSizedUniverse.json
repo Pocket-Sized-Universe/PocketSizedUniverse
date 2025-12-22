@@ -7,10 +7,12 @@
   "ApplicableVersion": "any",
   "RepoUrl": "https://github.com/Pocket-Sized-Universe/PocketSizedUniverse",
   "Tags": [
-    "customization"
+    "customization",
+    "modding",
+    "synchronization"
   ],
-  "DalamudApiLevel": 13,
-  "TestingDalamudApiLevel": 13,
+  "DalamudApiLevel": 14,
+  "TestingDalamudApiLevel" : 14,
   "LoadRequiredState": 0,
   "LoadSync": false,
   "CanUnloadAsync": false,

@@ -83,8 +83,8 @@ public class PlayerDataService : IUpdatable, IDisposable
         if (!Svc.ClientState.IsLoggedIn)
             return;
 
-        if (Svc.ClientState.LocalPlayer == null || PsuPlugin.Configuration.MyStarPack == null ||
-            Svc.ClientState.LocalPlayer.Address == IntPtr.Zero ||
+        if (Svc.Objects.LocalPlayer == null || PsuPlugin.Configuration.MyStarPack == null ||
+            Svc.Objects.LocalPlayer.Address == IntPtr.Zero ||
             Svc.Condition.AsReadOnlySet().Any(x => _badConditions.Contains(x)))
             return;
         if (!GenericHelpers.IsScreenReady())
@@ -106,7 +106,7 @@ public class PlayerDataService : IUpdatable, IDisposable
 
     private void OnScanCompleted(object? sender, EventArgs e)
     {
-        foreach (var star in PsuPlugin.Configuration.StarPacks)
+        foreach (var star in PsuPlugin.Configuration.GetAllStarPacks())
         {
             if (!RemotePlayerData.TryGetValue(star.StarId, out _))
                 RemotePlayerData[star.StarId] = new RemotePlayerData(star);
@@ -118,21 +118,13 @@ public class PlayerDataService : IUpdatable, IDisposable
 
     private void RemoteUpdate(IFramework framework)
     {
-        var nearbyPlayers = Svc.Objects.PlayerObjects.Cast<IPlayerCharacter>();
-        foreach (var star in PsuPlugin.Configuration.StarPacks)
+        var effectivePairs = PsuPlugin.Configuration.GetEffectivePairs().ToList();
+        foreach (var star in PsuPlugin.Configuration.GetAllStarPacks())
         {
             if (!RemotePlayerData.TryGetValue(star.StarId, out var remote))
                 RemotePlayerData[star.StarId] = remote = new RemotePlayerData(star);
 
-            var rates = PsuPlugin.SyncThingService.GetTransferRates(remote.StarPackReference.StarId);
-            bool syncing = rates is { InBps: > 100 };
-            if (syncing)
-            {
-                //Svc.Log.Debug($"[DEBUG] Syncing {star.StarId} - {rates?.InBps} Bps");
-                continue;
-            }
-
-            if (remote.Data == null || DateTime.UtcNow - remote.LastUpdated <
+            if (remote.Data == null || DateTime.UtcNow - remote.LastUpdated >
                 TimeSpan.FromSeconds(PsuPlugin.Configuration.RemotePollingSeconds))
                 PendingReads.Enqueue(star.StarId);
 
@@ -148,9 +140,18 @@ public class PlayerDataService : IUpdatable, IDisposable
             }
         }
 
+        foreach (var remote in RemotePlayerData)
+        {
+            if (effectivePairs.All(sp => sp.StarId != remote.Key))
+            {
+                PendingCleanups.Enqueue(remote.Key);
+            }
+        }
+
         if (PendingCleanups.TryDequeue(out var starIdToCleanup))
         {
-            var remote = RemotePlayerData[starIdToCleanup];
+            if (!RemotePlayerData.TryGetValue(starIdToCleanup, out var remote))
+                return;
             try
             {
                 if (remote.AssignedCollectionId != null)
@@ -184,6 +185,13 @@ public class PlayerDataService : IUpdatable, IDisposable
                 remote.MoodlesData = null;
                 remote.HeelsData = null;
                 remote.PetNameData = null;
+                if (effectivePairs.All(sp => sp.StarId != starIdToCleanup))
+                {
+                    var player = remote.GetPlayer();
+                    if (player != null)
+                        PsuPlugin.PenumbraService.RedrawObject.Invoke(player.ObjectIndex);
+                    RemotePlayerData.TryRemove(starIdToCleanup, out _);
+                }
             }
         }
 
@@ -193,7 +201,8 @@ public class PlayerDataService : IUpdatable, IDisposable
             {
                 try
                 {
-                    var remoteData = RemotePlayerData[starIdToRead];
+                    if (!RemotePlayerData.TryGetValue(starIdToRead, out var remoteData))
+                        return;
                     var dataPack = remoteData.StarPackReference.GetDataPack();
                     if (dataPack == null)
                     {

@@ -98,6 +98,7 @@ public partial class MainWindow
         if (changed)
         {
             _starEditorChanged = true;
+            PsuPlugin.SyncThingService.LockRefresh = true;
         }
 
         return changed;
@@ -186,6 +187,7 @@ public partial class MainWindow
         if (changed)
         {
             _dataPackEditorChanged = true;
+            PsuPlugin.SyncThingService.LockRefresh = true;       
         }
 
         return changed;
@@ -219,6 +221,7 @@ public partial class MainWindow
 
                 _dataPackEditorChanged = false;
             }
+            PsuPlugin.SyncThingService.LockRefresh = false;
         }
     }
 }

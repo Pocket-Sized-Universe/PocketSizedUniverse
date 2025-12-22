@@ -574,5 +574,5 @@ public class LocalPlayerData : PlayerData
         }
     }
 
-    public sealed override IPlayerCharacter? GetPlayer() => Svc.ClientState.LocalPlayer;
+    public sealed override IPlayerCharacter? GetPlayer() => Svc.Objects.LocalPlayer;
 }
