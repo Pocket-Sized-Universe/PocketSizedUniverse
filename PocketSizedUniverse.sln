@@ -7,6 +7,7 @@ EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{79235F6C-AF11-4CF9-AC01-388E0FFF4B0E}"
 	ProjectSection(SolutionItems) = preProject
 		.github\workflows\publish.yaml = .github\workflows\publish.yaml
+		PocketSizedUniverse\PocketSizedUniverse.json = PocketSizedUniverse\PocketSizedUniverse.json
 	EndProjectSection
 EndProject
 Global
