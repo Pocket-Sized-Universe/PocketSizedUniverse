@@ -11,8 +11,8 @@
     "modding",
     "synchronization"
   ],
-  "DalamudApiLevel": 14,
-  "TestingDalamudApiLevel" : 14,
+  "DalamudApiLevel": 13,
+  "TestingDalamudApiLevel" : 13,
   "LoadRequiredState": 0,
   "LoadSync": false,
   "CanUnloadAsync": false,
