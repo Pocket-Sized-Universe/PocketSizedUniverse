@@ -23,7 +23,7 @@ public class CreateGalaxyWindow : Window
         _fileDialogManager = new FileDialogManager();
         _galaxyName = $"{Adjectives.GetRandom()} {Nouns.GetRandom()}";
         _description = "My new Galaxy!";
-        _localPath = Path.Combine(PsuPlugin.Configuration.DefaultDataPackDirectory!, "Galaxies", _galaxyName);
+        _localPath = Path.Combine(PsuPlugin.Configuration.DefaultDataPackDirectory ?? "", "Galaxies", _galaxyName);
     }
     private readonly FileDialogManager _fileDialogManager;
     private string _galaxyName;
@@ -34,7 +34,7 @@ public class CreateGalaxyWindow : Window
     {
         _galaxyName = $"{Adjectives.GetRandom()} {Nouns.GetRandom()}";
         _description = "My new Galaxy!";
-        _localPath = Path.Combine(PsuPlugin.Configuration.DefaultDataPackDirectory!, "Galaxies", _galaxyName);
+        _localPath = Path.Combine(PsuPlugin.Configuration.DefaultDataPackDirectory ?? "", "Galaxies", _galaxyName);
         IsOpen = true;
     }
     public override void Draw()
