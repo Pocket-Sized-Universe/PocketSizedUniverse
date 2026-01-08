@@ -1,4 +1,5 @@
 using ECommons.EzIpcManager;
+
 #pragma warning disable CS0649 // Field is never assigned to, and will always have its default value
 
 namespace PocketSizedUniverse.Services;
@@ -20,4 +21,10 @@ public class HonorificService
     
     [EzIPC("ClearCharacterTitle")]
     internal readonly Action<int> ClearCharacterTitle;
+    
+    public bool ApplyData(int objectIndex, string title)
+    {
+        SetCharacterTitle(objectIndex, title);
+        return true;
+    }
 }

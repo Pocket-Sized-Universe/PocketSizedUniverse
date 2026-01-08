@@ -1,4 +1,5 @@
 using ECommons.EzIpcManager;
+
 #pragma warning disable CS0649 // Field is never assigned to, and will always have its default value
 
 namespace PocketSizedUniverse.Services;
@@ -20,4 +21,10 @@ public class CustomizeService
 
     [EzIPC("Profile.DeleteTemporaryProfileOnCharacter")]
     internal readonly Func<ushort, int> DeleteTemporaryCustomizeProfileOnCharacter;
+
+    public bool ApplyData(int objectIndex, string customizeData)
+    {
+        var result = ApplyTemporaryCustomizeProfileOnCharacter(objectIndex, customizeData);
+        return result.Item1 == 0;
+    }
 }

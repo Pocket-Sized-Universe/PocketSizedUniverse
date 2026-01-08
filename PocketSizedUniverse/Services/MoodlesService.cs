@@ -1,5 +1,5 @@
-using Dalamud.Game.ClientState.Objects.SubKinds;
 using ECommons.EzIpcManager;
+#pragma warning disable CS0649 // Field is never assigned to, and will always have its default value
 
 namespace PocketSizedUniverse.Services;
 
@@ -17,4 +17,10 @@ public class MoodlesService
     
     [EzIPC("ClearStatusManagerByPtrV2")]
     internal readonly Action<nint> ClearStatusManager;
+
+    public bool ApplyData(nint address, string status)
+    {
+        SetStatusManager(address, status);
+        return true;
+    }
 }
