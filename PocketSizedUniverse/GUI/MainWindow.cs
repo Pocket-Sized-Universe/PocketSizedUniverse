@@ -323,6 +323,8 @@ public class MainWindow : Window
 
     private void OpenChatWindow(Guid chatId)
     {
+        if (_windowSystem.Windows.Any(w => w is ChatWindow cw && cw.ChatId == chatId))
+            return;
         var chatWindow = new ChatWindow(chatId, _chatController, _configuration, _windowSystem);
         _windowSystem.AddWindow(chatWindow);
         chatWindow.IsOpen = true;

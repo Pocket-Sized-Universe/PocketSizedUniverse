@@ -12,14 +12,14 @@ public class ChatWindow : Window
 {
     private readonly ChatController _chatController;
     private readonly Configuration _configuration;
-    private readonly Guid _chatId;
+    public readonly Guid ChatId;
     private readonly WindowSystem _windowSystem;
     private string _messageInput = string.Empty;
     private bool _scrollToBottom = false;
 
     public ChatWindow(Guid chatId, ChatController chatController, Configuration configuration, WindowSystem windowSystem) : base($"Chat - {configuration.Nicknames.GetValueOrDefault(chatId, chatId.ToString())}##{chatId}")
     {
-        _chatId = chatId;
+        ChatId = chatId;
         _chatController = chatController;
         _configuration = configuration;
         _windowSystem = windowSystem;
@@ -27,7 +27,7 @@ public class ChatWindow : Window
         SizeCondition = ImGuiCond.FirstUseEver;
     }
     
-    public List<ChatMessage> Messages => _chatController.ChatMessages.TryGetValue(_chatId, out var chatMessages) ? chatMessages.Values.OrderBy(m => m.Timestamp).ToList() : new List<ChatMessage>();
+    public List<ChatMessage> Messages => _chatController.ChatMessages.TryGetValue(ChatId, out var chatMessages) ? chatMessages.Values.OrderBy(m => m.Timestamp).ToList() : new List<ChatMessage>();
 
     public override void Draw()
     {
@@ -133,7 +133,7 @@ public class ChatWindow : Window
 
         Task.Run(async () =>
         {
-            await _chatController.SendChatMessage(_chatId, _messageInput);
+            await _chatController.SendChatMessage(ChatId, _messageInput);
             _messageInput = string.Empty;
             _scrollToBottom = true;
         });
