@@ -30,6 +30,18 @@ public class ConfigWindow : Window
             if (ImGui.BeginTabItem("General"))
             {
                 ImGui.Text("General Settings");
+                var globalSync = _configuration.GlobalSyncEnabled;
+                if (ImGui.Checkbox("Enable Global Sync", ref globalSync))
+                {
+                    _configuration.GlobalSyncEnabled = globalSync;
+                    _configuration.Save();
+                }
+                if (ImGui.IsItemHovered())
+                {
+                    ImGui.BeginTooltip();
+                    ImGui.Text("Global Sync allows you to see (and be seen!) by everyone else currently using Pocket Sized Universe.");
+                    ImGui.EndTooltip();
+                }
                 ImGui.EndTabItem();
             }
 

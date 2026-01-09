@@ -15,7 +15,7 @@ public partial class Configuration : IPluginConfiguration
     public List<Cid> SubscribedGalaxies { get; set; } = [];
     public ConcurrentDictionary<Cid, GalaxyData> ControlledGalaxies { get; set; } = new();
     public string? CacheDirectory { get; set; } = null;
-
+    public bool GlobalSyncEnabled { get; set; } = false;
     public int MaxParallelIpfsRequests { get; set; } = 3;
     public IpfsModeType? IpfsMode { get; set; }
     public bool SetRecommendedIpfsConfigs { get; set; } = true;

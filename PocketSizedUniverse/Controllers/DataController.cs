@@ -38,6 +38,7 @@ public class DataController : IDisposable
 
     private readonly CancellationTokenSource _cts = new();
     private readonly SemaphoreSlim _updateLock = new(1, 1);
+    private readonly ConcurrentDictionary<string, CancellationTokenSource> _subscribedTopics = new();
 
     public DataController(ILogger<DataController> logger, IObjectTable objectTable, GlamourerService gamourerService,
         HonorificService honorificService, MoodlesService moodlesService, PetNameService petNameService,
@@ -88,7 +89,7 @@ public class DataController : IDisposable
             });
         });
     }
-    
+
     private async Task DoBackgroundUpdate(CancellationToken token)
     {
         var parallelOptions = new ParallelOptions { CancellationToken = token, MaxDegreeOfParallelism = 3 };
@@ -97,11 +98,15 @@ public class DataController : IDisposable
             try
             {
                 var subbedTopicsBase = await _ipfsService.GetSubscribedTopics();
-                var subbedTopics = subbedTopicsBase.Select(s => {
-                    try {
+                var subbedTopics = subbedTopicsBase.Select(s =>
+                {
+                    try
+                    {
                         // Check if it's a multibase string (starts with 'u' for base64url)
                         return Encoding.UTF8.GetString(Multibase.Decode(s, out MultibaseEncoding encoding));
-                    } catch {
+                    }
+                    catch
+                    {
                         return s; // Fallback if it's already plain text
                     }
                 }).ToList();
@@ -109,10 +114,45 @@ public class DataController : IDisposable
                 foreach (var pairedGuid in _configuration.IndividualPairs)
                 {
                     var topic = TopicUtil.GetPairingTopic(pairedGuid, myId);
-                    if (!subbedTopics.Contains(topic))
+                    if (subbedTopics.Contains(topic)) continue;
+                    var subCts = new CancellationTokenSource();
+                    await _ipfsService.SubscribeToTopic(topic, HandleSubMessage, subCts.Token);
+                    _subscribedTopics[topic] = subCts;
+                    _logger.LogDebug("Subscribed to topic {Topic} for pairing with {Guid}", topic, pairedGuid);
+                }
+
+                foreach (var subbedTopic in subbedTopics)
+                {
+                    var pairedId = TopicUtil.TopicToPairedGuid(subbedTopic);
+                    if (pairedId == null) continue;
+                    if (_configuration.IndividualPairs.Contains(pairedId.Value) ||
+                        !_subscribedTopics.TryGetValue(subbedTopic, out var subCts)) continue;
+                    await subCts.CancelAsync();
+                    _subscribedTopics.TryRemove(subbedTopic, out _);
+                    _logger.LogDebug("Unsubscribed from topic {Topic}", subbedTopic);
+                }
+
+                switch (_configuration.GlobalSyncEnabled)
+                {
+                    case true when !subbedTopics.Contains(TopicUtil.GetGlobalSyncTopic()):
                     {
-                        await _ipfsService.SubscribeToTopic(topic, HandleSubMessage, token);
-                        _logger.LogDebug("Subscribed to topic {Topic} for pairing with {Guid}", topic, pairedGuid);
+                        var subCts = new CancellationTokenSource();
+                        await _ipfsService.SubscribeToTopic(TopicUtil.GetGlobalSyncTopic(), HandleSubMessage, subCts.Token);
+                        _subscribedTopics[TopicUtil.GetGlobalSyncTopic()] = subCts;
+                        break;
+                    }
+                    case false when subbedTopics.Contains(TopicUtil.GetGlobalSyncTopic()):
+                    {
+                        if (_subscribedTopics.TryGetValue(TopicUtil.GetGlobalSyncTopic(), out var subCts))
+                        {
+                            await subCts.CancelAsync();
+                            _subscribedTopics.TryRemove(TopicUtil.GetGlobalSyncTopic(), out _);
+                        }
+                        else
+                        {
+                            _logger.LogWarning("Global sync topic was subscribed to, but not found in subscribed topics list");
+                        }
+                        break;
                     }
                 }
             }
@@ -177,8 +217,9 @@ public class DataController : IDisposable
 
     public readonly ConcurrentQueue<Guid> GuidsNeedingApplication = [];
 
-    
+
     private DateTime _lastUpdate = DateTime.MinValue;
+
     private void OnUpdate(IFramework framework)
     {
         if (DateTime.Now - _lastUpdate < TimeSpan.FromSeconds(5)) return;
@@ -241,7 +282,8 @@ public class DataController : IDisposable
             return;
 
         var remoteData = data.PlayerData;
-        var remotePlayer = _objectTable.PlayerObjects.Cast<IPlayerCharacter>().FirstOrDefault(p => p.EntityId == remoteData.EntityId && p.EntityId != player.EntityId);
+        var remotePlayer = _objectTable.PlayerObjects.Cast<IPlayerCharacter>()
+            .FirstOrDefault(p => p.EntityId == remoteData.EntityId && p.EntityId != player.EntityId);
         if (remotePlayer == null) return;
 
         if (remoteData.GlamourerState != null)
@@ -277,6 +319,12 @@ public class DataController : IDisposable
             if (data.Value.CollectionId != null)
                 _modController.CleanupData(data.Value.CollectionId.Value, data.Key);
         }
+
+        foreach (var cts in _subscribedTopics)
+        {
+            cts.Value.Cancel();
+        }
+
         _cts.Cancel();
         _cts.Dispose();
         _updateLock.Dispose();
