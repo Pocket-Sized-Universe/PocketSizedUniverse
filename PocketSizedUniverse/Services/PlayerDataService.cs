@@ -51,6 +51,8 @@ public class PlayerDataService : IDisposable
                         await _ipfsService.PublishToTopic(outTopic, _localPlayerDataBase64, token);
                         //_logger.LogDebug("Published local player data to topic {Topic}", outTopic);
                     }
+                    if (_configuration.GlobalSyncEnabled)
+                        await _ipfsService.PublishToTopic(TopicUtil.GetGlobalSyncTopic(), _localPlayerDataBase64, token);
                 }
                 await Task.Delay(1000, token);
             }

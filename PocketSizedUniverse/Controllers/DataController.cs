@@ -181,23 +181,17 @@ public class DataController : IDisposable
             return;
         }
 
-        var topic = message.Topics.First();
-        var pairedGuid = TopicUtil.TopicToPairedGuid(topic);
-        if (pairedGuid == null)
-        {
-            _logger.LogError("Failed to parse paired guid from topic {Topic}", topic);
-            return;
-        }
+        var pairedGuid = dataObj.PairId;
 
-        if (!_playerDataService.PlayerDataByGuid.TryGetValue(pairedGuid.Value, out var data))
+        if (!_playerDataService.PlayerDataByGuid.TryGetValue(pairedGuid, out var data))
         {
             var remoteData = new RemoteData()
             {
                 PlayerData = dataObj,
-                PairId = pairedGuid.Value,
+                PairId = pairedGuid,
                 Dirty = true,
             };
-            _playerDataService.PlayerDataByGuid.TryAdd(pairedGuid.Value, remoteData);
+            _playerDataService.PlayerDataByGuid.TryAdd(pairedGuid, remoteData);
             Task.Run(async () => await _modController.PreparePaths(remoteData));
         }
         else if (data.PlayerData?.LastModified < dataObj.LastModified)
@@ -234,6 +228,7 @@ public class DataController : IDisposable
         _playerDataService.LocalPlayerData ??= new PlayerData()
         {
             EntityId = player.EntityId,
+            PairId = _configuration.PairingId,
             GlamourerState = _gamourerService.GetStateBase64.Invoke(player.ObjectIndex).Item2
         };
 
