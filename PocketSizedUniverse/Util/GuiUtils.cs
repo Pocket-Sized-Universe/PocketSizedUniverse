@@ -1,7 +1,7 @@
 using Dalamud.Bindings.ImGui;
 using Dalamud.Interface.Utility.Raii;
 
-namespace PocketSizedUniverse.GUI;
+namespace PocketSizedUniverse.Util;
 
 public static class GuiUtils
 {
