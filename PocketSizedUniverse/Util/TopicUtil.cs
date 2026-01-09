@@ -13,4 +13,8 @@ public static class TopicUtil
     public static string GetChatTopic(Guid id) => $"{Prefix}/{id}/{ChatSuffix}";
     public static string GetGalaxyTopic(Guid id) => $"{Prefix}/{id}/{GalaxySuffix}";
     public static string GetGlobalSyncTopic() => $"{Prefix}/global-sync/{DataSuffix}";
+    
+    public static bool IsChatTopic(string topic) => topic.EndsWith(ChatSuffix);
+    public static bool IsGalaxyTopic(string topic) => topic.EndsWith(GalaxySuffix);
+    public static bool IsPairingTopic(string topic) => topic.Contains(DataSuffix);
 }

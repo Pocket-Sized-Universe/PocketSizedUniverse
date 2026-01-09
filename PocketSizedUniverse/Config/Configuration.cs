@@ -13,6 +13,7 @@ public partial class Configuration : IPluginConfiguration
     public ConcurrentDictionary<string, List<string>> TransientFilesData { get; set; } = new();
     public List<Guid> IndividualPairs { get; set; } = [];
     public List<Guid> Galaxies { get; set; } = [];
+    public List<Guid> Chats { get; set; } = [];
     public string? CacheDirectory { get; set; } = null;
     public bool GlobalSyncEnabled { get; set; } = false;
     public int MaxParallelIpfsRequests { get; set; } = 3;

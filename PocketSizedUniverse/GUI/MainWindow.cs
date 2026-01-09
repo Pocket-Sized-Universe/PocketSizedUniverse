@@ -17,6 +17,8 @@ public class MainWindow : Window
     private readonly DataController _dataController;
     private readonly Config.Configuration _configuration;
     private readonly IpfsService _ipfsService;
+    private readonly ChatController _chatController;
+    private readonly WindowSystem _windowSystem;
 
     private const float FixedWindowWidth = 400f;
     private const int TruncatedCodeLength = 12;
@@ -24,13 +26,15 @@ public class MainWindow : Window
     private const float TabFontScale = 1.15f;
 
     public MainWindow(ModController modController, DataController dataController, Config.Configuration configuration,
-        IpfsService ipfsService) : base(
+        IpfsService ipfsService, ChatController chatController, WindowSystem windowSystem) : base(
         "Pocket Sized Universe", ImGuiWindowFlags.AlwaysAutoResize)
     {
         _configuration = configuration;
         _modController = modController;
         _dataController = dataController;
         _ipfsService = ipfsService;
+        _chatController = chatController;
+        _windowSystem = windowSystem;
 
         SizeConstraints = new WindowSizeConstraints
         {
@@ -243,7 +247,48 @@ public class MainWindow : Window
 
     private void DrawChats()
     {
-        DrawCenteredText("Coming soon...");
+        var buttonWidth = 200f;
+        ImGui.Spacing();
+        
+        DrawCenteredButton("Create Chat", buttonWidth, CreateChat);
+        ImGui.Spacing();
+        DrawCenteredButton("Join Chat", buttonWidth, JoinChat);
+        
+        ImGui.Spacing();
+        ImGui.Spacing();
+
+        var chats = _configuration.Chats;
+        if (chats.Count > 0)
+        {
+            DrawGuidList(chats, OpenChatWindow);
+        }
+        else
+        {
+            DrawCenteredText("You haven't joined any chats.");
+        }
+    }
+
+    private void JoinChat()
+    {
+        var text = ImGui.GetClipboardText();
+        if (Guid.TryParse(text, out var chatId))
+        {
+            _configuration.Chats.Add(chatId);
+            _configuration.Save();
+            Notify.Success("Chat joined successfully!");
+        }
+        else
+        {
+            Notify.Error("Invalid chat ID!");
+        }
+    }
+
+    private void CreateChat()
+    {
+        var chatId = Guid.NewGuid();
+        _configuration.Chats.Add(chatId);
+        _configuration.Save();
+        Notify.Success("Chat created successfully!");
     }
 
     private void DrawGalaxies()
@@ -261,13 +306,26 @@ public class MainWindow : Window
         var galaxies = _configuration.Galaxies;
         if (galaxies.Count > 0)
         {
-            DrawGuidList(galaxies);
+            DrawGuidList(galaxies, CopyGuidToClipboard);
         }
         else
         {
             ImGui.Spacing();
             DrawCenteredText("You're not in any Galaxies.");
         }
+    }
+
+    private void CopyGuidToClipboard(Guid guid)
+    {
+        ImGui.SetClipboardText(guid.ToString());
+        Notify.Success("Code copied to clipboard!");
+    }
+
+    private void OpenChatWindow(Guid chatId)
+    {
+        var chatWindow = new ChatWindow(chatId, _chatController, _configuration, _windowSystem);
+        _windowSystem.AddWindow(chatWindow);
+        chatWindow.IsOpen = true;
     }
 
     private void JoinGalaxy()
@@ -306,7 +364,7 @@ public class MainWindow : Window
         var pairs = _configuration.IndividualPairs;
         if (pairs.Count > 0)
         {
-            DrawGuidList(pairs);
+            DrawGuidList(pairs, CopyGuidToClipboard);
         }
         else
         {
@@ -317,7 +375,7 @@ public class MainWindow : Window
     
     private string _newNickName = "";
     private string _newNote = "";
-    private void DrawGuidList(List<Guid> guids)
+    private void DrawGuidList(List<Guid> guids, Action<Guid> onClick)
     {
         var cidToRemove = (Guid?)null;
         var openNicknamePopup = (Guid?)null;
@@ -332,10 +390,7 @@ public class MainWindow : Window
                 new Vector2(windowWidth, 0));
 
             if (clicked)
-            {
-                ImGui.SetClipboardText(guid.ToString());
-                Notify.Success("Pairing code copied to clipboard!");
-            }
+                onClick(guid);
 
             if (ImGui.IsItemHovered() && _configuration.Notes.TryGetValue(guid, out var note))
             {
@@ -355,13 +410,13 @@ public class MainWindow : Window
 
             if (ImGui.BeginPopupContextItem($"##star_context_{guid}"))
             {
-                if (ImGui.MenuItem("Copy Pairing Code"))
+                if (ImGui.MenuItem("Copy Code"))
                 {
                     ImGui.SetClipboardText(guid.ToString());
                     Notify.Success("Pairing code copied to clipboard!");
                 }
 
-                if (ImGui.MenuItem("Unpair"))
+                if (ImGui.MenuItem("Remove"))
                 {
                     cidToRemove = guid;
                 }

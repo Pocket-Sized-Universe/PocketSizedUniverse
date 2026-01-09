@@ -43,6 +43,7 @@ public class Plugin : IDalamudPlugin
                 services.AddSingleton<WindowSystem>();
                 services.AddSingleton<DataController>();
                 services.AddSingleton<GUIController>();
+                services.AddSingleton<ChatController>();
             });
         _host = builder.Build();
         _host.StartAsync();
@@ -50,6 +51,7 @@ public class Plugin : IDalamudPlugin
         _host.Services.GetRequiredService<GUIController>();
         _host.Services.GetRequiredService<ModController>();
         _host.Services.GetRequiredService<DataController>();
+        _host.Services.GetRequiredService<ChatController>();
     }
     public void Dispose()
     {

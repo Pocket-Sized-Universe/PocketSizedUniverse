@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.IO.Compression;
 using System.Net.Mime;
+using System.Text;
 using Dalamud.Plugin;
 using Dalamud.Plugin.Services;
 using Ipfs;
@@ -12,6 +13,7 @@ using PocketSizedUniverse.Util;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Multiformats.Base;
 using Newtonsoft.Json.Linq;
 
 namespace PocketSizedUniverse.Services;
@@ -95,7 +97,19 @@ public class IpfsService : IDisposable
     public async Task<IEnumerable<string>> GetSubscribedTopics()
     {
         if (_engine == null) return [];
-        return await _engine.PubSub.SubscribedTopicsAsync();
+        var result = await _engine.PubSub.SubscribedTopicsAsync();
+        return result.Select(s =>
+        {
+            try
+            {
+                // Check if it's a multibase string (starts with 'u' for base64url)
+                return Encoding.UTF8.GetString(Multibase.Decode(s, out MultibaseEncoding encoding));
+            }
+            catch
+            {
+                return s; // Fallback if it's already plain text
+            }
+        });
     }
 
     public async Task SubscribeToTopic(string topic, Action<IPublishedMessage> callback, CancellationToken cancel)

@@ -97,19 +97,8 @@ public class DataController : IDisposable
         {
             try
             {
-                var subbedTopicsBase = await _ipfsService.GetSubscribedTopics();
-                var subbedTopics = subbedTopicsBase.Select(s =>
-                {
-                    try
-                    {
-                        // Check if it's a multibase string (starts with 'u' for base64url)
-                        return Encoding.UTF8.GetString(Multibase.Decode(s, out MultibaseEncoding encoding));
-                    }
-                    catch
-                    {
-                        return s; // Fallback if it's already plain text
-                    }
-                }).ToList();
+                var subbedTopics = await _ipfsService.GetSubscribedTopics();
+                
                 var myId = _configuration.PairingId;
                 foreach (var pairedGuid in _configuration.IndividualPairs)
                 {
@@ -128,11 +117,12 @@ public class DataController : IDisposable
                     var subCts = new CancellationTokenSource();
                     await _ipfsService.SubscribeToTopic(topic, HandleSubMessage, subCts.Token);
                     _subscribedTopics[topic] = subCts;
-                    _logger.LogDebug("Subscribed to topic {Topic} for galaxy {Galaxy}", topic, galaxy);
+                    //_logger.LogDebug("Subscribed to topic {Topic} for galaxy {Galaxy}", topic, galaxy);
                 }
 
                 foreach (var subbedTopic in subbedTopics)
                 {
+                    if (!TopicUtil.IsPairingTopic(subbedTopic) || !TopicUtil.IsGalaxyTopic(subbedTopic)) continue;
                     var pairedId = TopicUtil.TopicToPairedGuid(subbedTopic);
                     if (pairedId == null) continue;
                     if (_configuration.IndividualPairs.Contains(pairedId.Value) ||
@@ -140,7 +130,7 @@ public class DataController : IDisposable
                         !_subscribedTopics.TryGetValue(subbedTopic, out var subCts)) continue;
                     await subCts.CancelAsync();
                     _subscribedTopics.TryRemove(subbedTopic, out _);
-                    _logger.LogDebug("Unsubscribed from topic {Topic}", subbedTopic);
+                    //_logger.LogDebug("Unsubscribed from topic {Topic}", subbedTopic);
                 }
 
                 switch (_configuration.GlobalSyncEnabled)
