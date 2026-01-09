@@ -192,8 +192,7 @@ public class DataController : IDisposable
 
         _playerDataService.LocalPlayerData ??= new PlayerData()
         {
-            PlayerName = player.Name.TextValue,
-            WorldId = player.HomeWorld.RowId,
+            EntityId = player.EntityId,
             GlamourerState = _gamourerService.GetStateBase64.Invoke(player.ObjectIndex).Item2
         };
 
@@ -242,8 +241,7 @@ public class DataController : IDisposable
             return;
 
         var remoteData = data.PlayerData;
-        var remotePlayer = _objectTable.PlayerObjects.Cast<IPlayerCharacter>().FirstOrDefault(p =>
-            p.Name.TextValue == remoteData.PlayerName && p.HomeWorld.RowId == remoteData.WorldId);
+        var remotePlayer = _objectTable.PlayerObjects.Cast<IPlayerCharacter>().FirstOrDefault(p => p.EntityId == remoteData.EntityId && p.EntityId != player.EntityId);
         if (remotePlayer == null) return;
 
         if (remoteData.GlamourerState != null)
@@ -267,7 +265,7 @@ public class DataController : IDisposable
         var collId = _modController.ApplyData(remotePlayer.ObjectIndex, remoteData.MetaManipulations ?? string.Empty,
             data.PreparedPaths ?? new Dictionary<string, string>(), data.CollectionId, cid);
         data.CollectionId = collId;
-        _logger.LogInformation("Applied data for {PlayerName} ({WorldId})", remoteData.PlayerName, remoteData.WorldId);
+        _logger.LogInformation("Applied data for {Entity}", remoteData.EntityId);
     }
 
     public void Dispose()
