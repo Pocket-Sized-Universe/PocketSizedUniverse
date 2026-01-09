@@ -19,11 +19,10 @@ public class GUIController : IDisposable
     private readonly MainWindow _mainWindow;
     private readonly SetupWindow _setupWindow;
     private readonly ConfigWindow _configWindow;
-    private readonly CreateEditGalaxyWindow _createEditGalaxyWindow;
     private readonly WindowSystem _windowSystem;
 
     public GUIController(IUiBuilder uiBuilder, Config.Configuration configuration, ILogger<GUIController> logger,
-        MainWindow mainWindow, WindowSystem windowSystem, SetupWindow setupWindow, IpfsService ipfsService, ConfigWindow configWindow, CreateEditGalaxyWindow createEditGalaxyWindow)
+        MainWindow mainWindow, WindowSystem windowSystem, SetupWindow setupWindow, IpfsService ipfsService, ConfigWindow configWindow)
     {
         _ipfsService = ipfsService;
         _uiBuilder = uiBuilder;
@@ -32,12 +31,10 @@ public class GUIController : IDisposable
         _mainWindow = mainWindow;
         _setupWindow = setupWindow;
         _configWindow = configWindow;
-        _createEditGalaxyWindow = createEditGalaxyWindow;
         _windowSystem = windowSystem;
         _windowSystem.AddWindow(_setupWindow);
         _windowSystem.AddWindow(_mainWindow);
         _windowSystem.AddWindow(_configWindow);
-        _windowSystem.AddWindow(_createEditGalaxyWindow);
         _uiBuilder.Draw += _windowSystem.Draw;
         _uiBuilder.OpenMainUi += _mainWindow.Toggle;
         _uiBuilder.OpenConfigUi += _configWindow.Toggle;

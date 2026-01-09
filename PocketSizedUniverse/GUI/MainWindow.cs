@@ -13,7 +13,6 @@ namespace PocketSizedUniverse.GUI;
 
 public class MainWindow : Window
 {
-    private readonly CreateEditGalaxyWindow _createEditGalaxyWindow;
     private readonly ModController _modController;
     private readonly DataController _dataController;
     private readonly Config.Configuration _configuration;
@@ -25,14 +24,13 @@ public class MainWindow : Window
     private const float TabFontScale = 1.15f;
 
     public MainWindow(ModController modController, DataController dataController, Config.Configuration configuration,
-        IpfsService ipfsService, CreateEditGalaxyWindow createEditGalaxyWindow) : base(
+        IpfsService ipfsService) : base(
         "Pocket Sized Universe", ImGuiWindowFlags.AlwaysAutoResize)
     {
         _configuration = configuration;
         _modController = modController;
         _dataController = dataController;
         _ipfsService = ipfsService;
-        _createEditGalaxyWindow = createEditGalaxyWindow;
 
         SizeConstraints = new WindowSizeConstraints
         {
@@ -250,264 +248,49 @@ public class MainWindow : Window
 
     private void DrawGalaxies()
     {
-        DrawGalaxyTabSelector();
-        ImGui.Spacing();
-        ImGui.Spacing();
-        ImGui.Separator();
-
-        switch (_galaxyDrawState)
-        {
-            case GalaxyDrawState.Subscribed:
-                DrawSubscribedGalaxies();
-                break;
-            case GalaxyDrawState.Managed:
-                DrawManagedGalaxies();
-                break;
-        }
-    }
-
-    private void DrawManagedGalaxies()
-    {
         var buttonWidth = 200f;
         ImGui.Spacing();
-        DrawCenteredButton("Create New Galaxy", buttonWidth, CreateNewGalaxy);
-        var controlledGalaxies = _configuration.ControlledGalaxies;
-        if (controlledGalaxies.Count > 0)
+
+        DrawCenteredButton("Create Galaxy", buttonWidth, CreateGalaxy);
+        ImGui.Spacing();
+        DrawCenteredButton("Join Galaxy", buttonWidth, JoinGalaxy);
+        
+        ImGui.Spacing();
+        ImGui.Spacing();
+
+        var galaxies = _configuration.Galaxies;
+        if (galaxies.Count > 0)
         {
-            var cidToRemove = (KeyValuePair<Cid, GalaxyData>?)null;
-
-            foreach (var galaxy in controlledGalaxies)
-            {
-                var fullCode = galaxy.Key.ToString();
-                var truncatedCode = fullCode;
-
-                var windowWidth = ImGui.GetContentRegionAvail().X;
-                var clicked = ImGui.Selectable($"##star_{fullCode}", false, ImGuiSelectableFlags.None,
-                    new Vector2(windowWidth, 0));
-
-                var textSize = ImGui.CalcTextSize(truncatedCode);
-                var offset = (windowWidth - textSize.X) / 2f;
-                var itemMin = ImGui.GetItemRectMin();
-                var textPos = new Vector2(itemMin.X + offset, itemMin.Y);
-
-                ImGui.GetWindowDrawList().AddText(textPos, ImGui.GetColorU32(ImGuiCol.Text), truncatedCode);
-
-                if (clicked)
-                {
-                    ImGui.SetClipboardText(fullCode);
-                    Notify.Success("Pairing code copied to clipboard!");
-                }
-
-                if (ImGui.IsItemHovered())
-                {
-                    ImGui.BeginTooltip();
-                    ImGui.Text(fullCode);
-                    ImGui.EndTooltip();
-                }
-
-                if (ImGui.BeginPopupContextItem($"##galaxy_context_{fullCode}"))
-                {
-                    if (ImGui.MenuItem("Copy Galaxy Code"))
-                    {
-                        ImGui.SetClipboardText(fullCode);
-                        Notify.Success("Galaxy code copied to clipboard!");
-                    }
-
-                    if (ImGui.MenuItem("Edit Galaxy"))
-                    {
-                        _createEditGalaxyWindow.OpenForGalaxy(galaxy.Key, galaxy.Value);
-                    }
-
-                    if (ImGui.MenuItem("Remove Galaxy"))
-                    {
-                        cidToRemove = galaxy;
-                    }
-
-                    ImGui.Separator();
-
-                    if (ImGui.MenuItem("Add Nickname"))
-                    {
-                        Notify.Info("Coming soon!");
-                    }
-
-                    if (ImGui.MenuItem("Add Note"))
-                    {
-                        Notify.Info("Coming soon!");
-                    }
-
-                    ImGui.EndPopup();
-                }
-            }
-
-            if (cidToRemove != null)
-            {
-                _configuration.ControlledGalaxies.Remove(cidToRemove.Value.Key, out _);
-                _configuration.Save();
-                Notify.Success("Unpaired successfully!");
-            }
+            DrawGuidList(galaxies);
         }
         else
         {
             ImGui.Spacing();
-            DrawCenteredText("You're not managing any Galaxies.");
+            DrawCenteredText("You're not in any Galaxies.");
         }
     }
 
-    private void DrawSubscribedGalaxies()
-    {
-        ImGui.Spacing();
-        var buttonWidth = 200f;
-        if (_subscribeGalaxyTask != null && !_subscribeGalaxyTask.IsCompleted)
-        {
-            ImGui.BeginDisabled();
-            DrawCenteredButton("Subscribing...", buttonWidth, SubscribeToGalaxy);
-            ImGui.EndDisabled();
-        }
-        else
-        {
-            DrawCenteredButton("Subscribe to Galaxy", buttonWidth, SubscribeToGalaxy);
-        }
-
-        var subscribedGalaxies = _configuration.SubscribedGalaxies;
-        if (subscribedGalaxies.Count > 0)
-        {
-            var cidToRemove = (Cid?)null;
-
-            foreach (var cid in subscribedGalaxies)
-            {
-                var fullCode = cid.ToString();
-                var truncatedCode = fullCode;
-
-                var windowWidth = ImGui.GetContentRegionAvail().X;
-                var clicked = ImGui.Selectable($"##star_{fullCode}", false, ImGuiSelectableFlags.None,
-                    new Vector2(windowWidth, 0));
-
-                var textSize = ImGui.CalcTextSize(truncatedCode);
-                var offset = (windowWidth - textSize.X) / 2f;
-                var itemMin = ImGui.GetItemRectMin();
-                var textPos = new Vector2(itemMin.X + offset, itemMin.Y);
-
-                ImGui.GetWindowDrawList().AddText(textPos, ImGui.GetColorU32(ImGuiCol.Text), truncatedCode);
-
-                if (clicked)
-                {
-                    ImGui.SetClipboardText(fullCode);
-                    Notify.Success("Galaxy code copied to clipboard!");
-                }
-
-                if (ImGui.IsItemHovered())
-                {
-                    ImGui.BeginTooltip();
-                    ImGui.Text(fullCode);
-                    ImGui.EndTooltip();
-                }
-
-                if (ImGui.BeginPopupContextItem($"##galaxy_context_{fullCode}"))
-                {
-                    if (ImGui.MenuItem("Copy Galaxy Code"))
-                    {
-                        ImGui.SetClipboardText(fullCode);
-                        Notify.Success("Pairing code copied to clipboard!");
-                    }
-
-                    if (ImGui.MenuItem("Unsubscribe"))
-                    {
-                        cidToRemove = cid;
-                    }
-
-                    ImGui.Separator();
-
-                    if (ImGui.MenuItem("Add Nickname"))
-                    {
-                        Notify.Info("Coming soon!");
-                    }
-
-                    if (ImGui.MenuItem("Add Note"))
-                    {
-                        Notify.Info("Coming soon!");
-                    }
-
-                    ImGui.EndPopup();
-                }
-            }
-
-            if (cidToRemove != null)
-            {
-                _configuration.SubscribedGalaxies.Remove(cidToRemove);
-                _configuration.Save();
-                Notify.Success("Unsubscribed successfully!");
-            }
-        }
-        else
-        {
-            ImGui.Spacing();
-            DrawCenteredText("You're not subscribed to any Galaxies.");
-        }
-    }
-
-    private void CreateNewGalaxy()
-    {
-        var galaxyData = new GalaxyData();
-        _createEditGalaxyWindow.OpenForGalaxy(null, galaxyData);
-    }
-
-    private Task? _subscribeGalaxyTask;
-
-    private void SubscribeToGalaxy()
+    private void JoinGalaxy()
     {
         var text = ImGui.GetClipboardText();
-        _subscribeGalaxyTask = Task.Run(async () =>
+        if (Guid.TryParse(text, out var guid))
         {
-            try
-            {
-                if (string.IsNullOrEmpty(text) || text.StartsWith("Qm"))
-                    throw new FormatException();
+            _configuration.Galaxies.Add(guid);
+            _configuration.Save();
+            Notify.Success("Galaxy joined successfully!");
+        }
+        else
+        {
+            Notify.Error("Invalid galaxy ID!");
+        }
+    }
 
-                var cidToPair = Cid.Decode(text);
-
-                if (_configuration.SubscribedGalaxies.Contains(cidToPair))
-                {
-                    Notify.Error("Already subscribed!");
-                    return;
-                }
-
-                if (_configuration.ControlledGalaxies.ContainsKey(cidToPair))
-                {
-                    Notify.Error("Cannot subscribe to your own Galaxy!");
-                    return;
-                }
-
-                var dataCid = await _ipfsService.ResolveName(cidToPair.ToString());
-                if (dataCid == null)
-                {
-                    Notify.Error("Galaxy not found!");
-                    return;
-                }
-
-                var galaxyDataPath = await _ipfsService.ResolveCidToFilePath(dataCid);
-                if (galaxyDataPath == null)
-                {
-                    Notify.Error("Galaxy not found!");
-                    return;
-                }
-
-                var galaxyDataBase = await File.ReadAllTextAsync(galaxyDataPath);
-                var galaxyData = Base64Util.FromBase64<GalaxyData>(galaxyDataBase);
-                if (galaxyData == null)
-                {
-                    Notify.Error("Galaxy data was not valid.");
-                    return;
-                }
-
-                _configuration.SubscribedGalaxies.Add(cidToPair);
-                _configuration.Save();
-                Notify.Success("Successfully subscribed to Galaxy!");
-            }
-            catch (FormatException)
-            {
-                Notify.Error("Invalid Galaxy Code!");
-            }
-        });
+    private void CreateGalaxy()
+    {
+        var galaxyId = Guid.NewGuid();
+        _configuration.Galaxies.Add(galaxyId);
+        _configuration.Save();
+        Notify.Success("Galaxy created successfully!");
     }
 
     public void DrawStars()
@@ -516,82 +299,87 @@ public class MainWindow : Window
         ImGui.Spacing();
 
         DrawCenteredButton("Pair New Code", buttonWidth, PairNewCode);
-        
+
         ImGui.Spacing();
         ImGui.Spacing();
 
         var pairs = _configuration.IndividualPairs;
         if (pairs.Count > 0)
         {
-            var cidToRemove = (Guid?)null;
-
-            foreach (var cid in pairs)
-            {
-                var fullCode = cid.ToString();
-                var truncatedCode = fullCode;
-
-                var windowWidth = ImGui.GetContentRegionAvail().X;
-                var clicked = ImGui.Selectable($"##star_{fullCode}", false, ImGuiSelectableFlags.None,
-                    new Vector2(windowWidth, 0));
-
-                var textSize = ImGui.CalcTextSize(truncatedCode);
-                var offset = (windowWidth - textSize.X) / 2f;
-                var itemMin = ImGui.GetItemRectMin();
-                var textPos = new Vector2(itemMin.X + offset, itemMin.Y);
-
-                ImGui.GetWindowDrawList().AddText(textPos, ImGui.GetColorU32(ImGuiCol.Text), truncatedCode);
-
-                if (clicked)
-                {
-                    ImGui.SetClipboardText(fullCode);
-                    Notify.Success("Pairing code copied to clipboard!");
-                }
-
-                if (ImGui.BeginPopupContextItem($"##star_context_{fullCode}"))
-                {
-                    if (ImGui.MenuItem("Copy Pairing Code"))
-                    {
-                        ImGui.SetClipboardText(fullCode);
-                        Notify.Success("Pairing code copied to clipboard!");
-                    }
-
-                    if (ImGui.MenuItem("Unpair"))
-                    {
-                        cidToRemove = cid;
-                    }
-
-                    ImGui.Separator();
-
-                    if (ImGui.MenuItem("Add Nickname"))
-                    {
-                        Notify.Info("Coming soon!");
-                    }
-
-                    if (ImGui.MenuItem("Add Note"))
-                    {
-                        Notify.Info("Coming soon!");
-                    }
-
-                    if (ImGui.MenuItem("Start Chat"))
-                    {
-                        Notify.Info("Coming soon!");
-                    }
-
-                    ImGui.EndPopup();
-                }
-            }
-
-            if (cidToRemove != null)
-            {
-                _configuration.IndividualPairs.Remove(cidToRemove.Value);
-                _configuration.Save();
-                Notify.Success("Unpaired successfully!");
-            }
+            DrawGuidList(pairs);
         }
         else
         {
             ImGui.Spacing();
             DrawCenteredText("You're not paired with anyone.");
+        }
+    }
+
+    private void DrawGuidList(List<Guid> guids)
+    {
+        var cidToRemove = (Guid?)null;
+
+        foreach (var cid in guids)
+        {
+            var fullCode = cid.ToString();
+            var truncatedCode = fullCode;
+
+            var windowWidth = ImGui.GetContentRegionAvail().X;
+            var clicked = ImGui.Selectable($"##star_{fullCode}", false, ImGuiSelectableFlags.None,
+                new Vector2(windowWidth, 0));
+
+            var textSize = ImGui.CalcTextSize(truncatedCode);
+            var offset = (windowWidth - textSize.X) / 2f;
+            var itemMin = ImGui.GetItemRectMin();
+            var textPos = new Vector2(itemMin.X + offset, itemMin.Y);
+
+            ImGui.GetWindowDrawList().AddText(textPos, ImGui.GetColorU32(ImGuiCol.Text), truncatedCode);
+
+            if (clicked)
+            {
+                ImGui.SetClipboardText(fullCode);
+                Notify.Success("Pairing code copied to clipboard!");
+            }
+
+            if (ImGui.BeginPopupContextItem($"##star_context_{fullCode}"))
+            {
+                if (ImGui.MenuItem("Copy Pairing Code"))
+                {
+                    ImGui.SetClipboardText(fullCode);
+                    Notify.Success("Pairing code copied to clipboard!");
+                }
+
+                if (ImGui.MenuItem("Unpair"))
+                {
+                    cidToRemove = cid;
+                }
+
+                ImGui.Separator();
+
+                if (ImGui.MenuItem("Add Nickname"))
+                {
+                    Notify.Info("Coming soon!");
+                }
+
+                if (ImGui.MenuItem("Add Note"))
+                {
+                    Notify.Info("Coming soon!");
+                }
+
+                if (ImGui.MenuItem("Start Chat"))
+                {
+                    Notify.Info("Coming soon!");
+                }
+
+                ImGui.EndPopup();
+            }
+        }
+
+        if (cidToRemove != null)
+        {
+            _configuration.IndividualPairs.Remove(cidToRemove.Value);
+            _configuration.Save();
+            Notify.Success("Unpaired successfully!");
         }
     }
 

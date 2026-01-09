@@ -121,11 +121,22 @@ public class DataController : IDisposable
                     _logger.LogDebug("Subscribed to topic {Topic} for pairing with {Guid}", topic, pairedGuid);
                 }
 
+                foreach (var galaxy in _configuration.Galaxies)
+                {
+                    var topic = TopicUtil.GetGalaxyTopic(galaxy);
+                    if (subbedTopics.Contains(topic)) continue;
+                    var subCts = new CancellationTokenSource();
+                    await _ipfsService.SubscribeToTopic(topic, HandleSubMessage, subCts.Token);
+                    _subscribedTopics[topic] = subCts;
+                    _logger.LogDebug("Subscribed to topic {Topic} for galaxy {Galaxy}", topic, galaxy);
+                }
+
                 foreach (var subbedTopic in subbedTopics)
                 {
                     var pairedId = TopicUtil.TopicToPairedGuid(subbedTopic);
                     if (pairedId == null) continue;
                     if (_configuration.IndividualPairs.Contains(pairedId.Value) ||
+                        _configuration.Galaxies.Contains(pairedId.Value) ||
                         !_subscribedTopics.TryGetValue(subbedTopic, out var subCts)) continue;
                     await subCts.CancelAsync();
                     _subscribedTopics.TryRemove(subbedTopic, out _);
@@ -176,12 +187,11 @@ public class DataController : IDisposable
         var json = pubMessage.DataString;
         var dataObj = Base64Util.FromBase64<PlayerData>(json);
         if (dataObj is null)
-        {
-            _logger.LogError("Failed to parse data from published message");
             return;
-        }
 
         var pairedGuid = dataObj.PairId;
+        if (pairedGuid == _configuration.PairingId)
+            return;
 
         if (!_playerDataService.PlayerDataByGuid.TryGetValue(pairedGuid, out var data))
         {
@@ -192,13 +202,11 @@ public class DataController : IDisposable
                 Dirty = true,
             };
             _playerDataService.PlayerDataByGuid.TryAdd(pairedGuid, remoteData);
-            Task.Run(async () => await _modController.PreparePaths(remoteData));
         }
         else if (data.PlayerData?.LastModified < dataObj.LastModified)
         {
             data.PlayerData = dataObj;
             data.Dirty = true;
-            Task.Run(async () => await _modController.PreparePaths(data));
         }
     }
 
@@ -271,6 +279,18 @@ public class DataController : IDisposable
             }
         }
 
+        foreach (var playerData in _playerDataService.PlayerDataByGuid.Values)
+        {
+            var playerObj =
+                _objectTable.PlayerObjects.FirstOrDefault(p => p.EntityId == playerData.PlayerData?.EntityId);
+            if (playerObj == null || !playerData.Dirty)
+                continue;
+            if (!_playerDataProcessingTasks.TryGetValue(playerData, out var task) || task.IsCompleted)
+            {
+                _playerDataProcessingTasks[playerData] = Task.Run(async () => await _modController.PreparePaths(playerData), _cts.Token);
+            }
+        }
+
         if (!GuidsNeedingApplication.TryDequeue(out var cid))
             return;
         if (!_playerDataService.PlayerDataByGuid.TryGetValue(cid, out var data) || data.PlayerData == null)
@@ -302,8 +322,11 @@ public class DataController : IDisposable
         var collId = _modController.ApplyData(remotePlayer.ObjectIndex, remoteData.MetaManipulations ?? string.Empty,
             data.PreparedPaths ?? new Dictionary<string, string>(), data.CollectionId, cid);
         data.CollectionId = collId;
+        data.Dirty = false;
         _logger.LogInformation("Applied data for {Entity}", remoteData.EntityId);
     }
+    
+    private readonly ConcurrentDictionary<RemoteData, Task> _playerDataProcessingTasks = new();
 
     public void Dispose()
     {

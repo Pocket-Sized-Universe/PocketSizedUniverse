@@ -49,7 +49,11 @@ public class PlayerDataService : IDisposable
                     {
                         var outTopic = TopicUtil.GetPairingTopic(myId, pairedGuid);
                         await _ipfsService.PublishToTopic(outTopic, _localPlayerDataBase64, token);
-                        //_logger.LogDebug("Published local player data to topic {Topic}", outTopic);
+                    }
+                    foreach (var galaxy in _configuration.Galaxies)
+                    {
+                        var galaxyTopic = TopicUtil.GetGalaxyTopic(galaxy);
+                        await _ipfsService.PublishToTopic(galaxyTopic, _localPlayerDataBase64, token);
                     }
                     if (_configuration.GlobalSyncEnabled)
                         await _ipfsService.PublishToTopic(TopicUtil.GetGlobalSyncTopic(), _localPlayerDataBase64, token);
