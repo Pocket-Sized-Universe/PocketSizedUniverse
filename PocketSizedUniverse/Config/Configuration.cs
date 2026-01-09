@@ -20,6 +20,8 @@ public partial class Configuration : IPluginConfiguration
     public bool SetRecommendedIpfsConfigs { get; set; } = true;
     public string? IpfsApiUrl { get; set; }
     [JsonIgnore] public bool Dirty = false;
+    public Dictionary<Guid, string> Nicknames { get; set; } = new();
+    public Dictionary<Guid, string> Notes { get; set; } = new();
     public enum IpfsModeType
     {
         Easy,

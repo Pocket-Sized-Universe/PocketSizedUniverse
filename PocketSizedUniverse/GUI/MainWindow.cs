@@ -314,63 +314,112 @@ public class MainWindow : Window
             DrawCenteredText("You're not paired with anyone.");
         }
     }
-
+    
+    private string _newNickName = "";
+    private string _newNote = "";
     private void DrawGuidList(List<Guid> guids)
     {
         var cidToRemove = (Guid?)null;
+        var openNicknamePopup = (Guid?)null;
+        var openNotePopup = (Guid?)null;
 
-        foreach (var cid in guids)
+        foreach (var guid in guids)
         {
-            var fullCode = cid.ToString();
-            var truncatedCode = fullCode;
+            var displayText = _configuration.Nicknames.TryGetValue(guid, out var nickname) ? nickname : guid.ToString();
 
             var windowWidth = ImGui.GetContentRegionAvail().X;
-            var clicked = ImGui.Selectable($"##star_{fullCode}", false, ImGuiSelectableFlags.None,
+            var clicked = ImGui.Selectable($"##star_{guid}", false, ImGuiSelectableFlags.None,
                 new Vector2(windowWidth, 0));
 
-            var textSize = ImGui.CalcTextSize(truncatedCode);
+            if (clicked)
+            {
+                ImGui.SetClipboardText(guid.ToString());
+                Notify.Success("Pairing code copied to clipboard!");
+            }
+
+            if (ImGui.IsItemHovered() && _configuration.Notes.TryGetValue(guid, out var note))
+            {
+                ImGui.BeginTooltip();
+                ImGui.PushTextWrapPos(ImGui.GetFontSize() * 35.0f);
+                ImGui.TextWrapped(note);
+                ImGui.PopTextWrapPos();
+                ImGui.EndTooltip();
+            }
+
+            var textSize = ImGui.CalcTextSize(displayText);
             var offset = (windowWidth - textSize.X) / 2f;
             var itemMin = ImGui.GetItemRectMin();
             var textPos = new Vector2(itemMin.X + offset, itemMin.Y);
 
-            ImGui.GetWindowDrawList().AddText(textPos, ImGui.GetColorU32(ImGuiCol.Text), truncatedCode);
+            ImGui.GetWindowDrawList().AddText(textPos, ImGui.GetColorU32(ImGuiCol.Text), displayText);
 
-            if (clicked)
-            {
-                ImGui.SetClipboardText(fullCode);
-                Notify.Success("Pairing code copied to clipboard!");
-            }
-
-            if (ImGui.BeginPopupContextItem($"##star_context_{fullCode}"))
+            if (ImGui.BeginPopupContextItem($"##star_context_{guid}"))
             {
                 if (ImGui.MenuItem("Copy Pairing Code"))
                 {
-                    ImGui.SetClipboardText(fullCode);
+                    ImGui.SetClipboardText(guid.ToString());
                     Notify.Success("Pairing code copied to clipboard!");
                 }
 
                 if (ImGui.MenuItem("Unpair"))
                 {
-                    cidToRemove = cid;
+                    cidToRemove = guid;
                 }
 
                 ImGui.Separator();
 
-                if (ImGui.MenuItem("Add Nickname"))
+                if (ImGui.MenuItem("Edit Nickname"))
                 {
-                    Notify.Info("Coming soon!");
+                    _newNickName = displayText;
+                    openNicknamePopup = guid;
                 }
 
-                if (ImGui.MenuItem("Add Note"))
+                if (ImGui.MenuItem("Edit Note"))
                 {
-                    Notify.Info("Coming soon!");
+                    _newNote = _configuration.Notes.GetValueOrDefault(guid, "");
+                    openNotePopup = guid;
                 }
 
-                if (ImGui.MenuItem("Start Chat"))
-                {
-                    Notify.Info("Coming soon!");
-                }
+                ImGui.EndPopup();
+            }
 
+            if (openNicknamePopup == guid)
+            {
+                ImGui.OpenPopup($"##star_nickname_{guid}");
+            }
+
+            if (openNotePopup == guid)
+            {
+                ImGui.OpenPopup($"##star_note_{guid}");
+            }
+
+            if (ImGui.BeginPopup($"##star_nickname_{guid}"))
+            {
+                ImGui.Text("Nickname:");
+                ImGui.InputText("##nickname", ref _newNickName, 128);
+                ImGui.Spacing();
+                if (ImGui.Button("Save"))
+                {
+                    _configuration.Nicknames[guid] = _newNickName;
+                    _configuration.Save();
+                    ImGui.CloseCurrentPopup();
+                    Notify.Success("Nickname saved successfully!");
+                }
+                ImGui.EndPopup();
+            }
+
+            if (ImGui.BeginPopup($"##star_note_{guid}"))
+            {
+                ImGui.Text("Note:");
+                ImGui.InputTextMultiline("##note", ref _newNote, 1024, new Vector2(200, 100));
+                ImGui.Spacing();
+                if (ImGui.Button("Save"))
+                {
+                    _configuration.Notes[guid] = _newNote;
+                    _configuration.Save();
+                    ImGui.CloseCurrentPopup();
+                    Notify.Success("Note saved successfully!");
+                }
                 ImGui.EndPopup();
             }
         }
