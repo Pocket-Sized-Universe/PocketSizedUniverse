@@ -5,6 +5,7 @@ namespace PocketSizedUniverse.Data;
 public record CustomAsset
 {
     public required Cid Cid { get; set; }
+    public required string Extension { get; set; }
     public required List<string> ApplicablePaths { get; set; }
     public virtual bool Equals(CustomAsset? other)
     {

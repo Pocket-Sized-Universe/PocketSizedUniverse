@@ -177,10 +177,8 @@ public class ModController : IDisposable
                         }
                         else
                         {
-                            using var pinTimeoutCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
-                            pinTimeoutCts.CancelAfter(TimeSpan.FromSeconds(30));
 
-                            cid = await _ipfsService.AddAndPinFile(mod.Key, pinTimeoutCts.Token);
+                            cid = await _ipfsService.AddAndPinFile(mod.Key, ct);
                             if (cid == null)
                             {
                                 _logger.LogError("Failed to add file {FilePath} to IPFS", mod.Key);
@@ -192,6 +190,7 @@ public class ModController : IDisposable
 
                         modFiles.Add(new CustomAsset()
                         {
+                            Extension = fileInfo.Extension,
                             Cid = cid,
                             ApplicablePaths = mod.Value.ToList()
                         });
@@ -344,7 +343,7 @@ public class ModController : IDisposable
                 {
                     try
                     {
-                        var filePath = await _ipfsService.ResolveCidToFilePath(f.Cid);
+                        var filePath = await _ipfsService.ResolveCidToFilePath(f);
                         if (filePath != null)
                         {
                             CidToFilePathCache[f.Cid] = filePath;

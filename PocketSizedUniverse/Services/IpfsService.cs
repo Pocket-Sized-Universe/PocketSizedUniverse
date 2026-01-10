@@ -201,19 +201,6 @@ public class IpfsService : IDisposable
     private IpfsClient? _engine;
     private readonly Config.Configuration _configuration;
     private readonly IFramework _framework;
-    public async Task PublishPlayerData(Cid? cid)
-    {
-        if (_engine == null || cid == null) return;
-        var result = await _engine.Name.PublishAsync(cid);
-        _logger.LogInformation("Published player data to IPNS: {CID}", cid.ToString());
-    }
-
-    public async Task PublishGalaxyData(Cid? cid, IKey key)
-    {
-        if (_engine == null || cid == null) return;
-        var result = await _engine.Name.PublishAsync(cid, key.Name);
-        _logger.LogInformation("Published galaxy data for {Name} to IPNS: {CID}", key.Name, cid.ToString());
-    }
 
     public async Task<bool> DownloadAndExtractBinaries()
     {
@@ -235,48 +222,15 @@ public class IpfsService : IDisposable
         await exeEntry.ExtractToFileAsync(ExePath, true);
         return true;
     }
-
-    public async Task<Cid?> ResolveName(string name, CancellationToken cancel = default)
+    
+    public async Task<string?> ResolveCidToFilePath(CustomAsset customAsset, CancellationToken cancel = default)
     {
         if (_engine == null) return null;
         while (!cancel.IsCancellationRequested)
         {
-            var cidString = await _engine.Name.ResolveAsync(name, cancel: cancel);
-            cidString = cidString.Replace("/ipfs/", "");
-            return Cid.Decode(cidString);
-        }
-
-        return null;
-    }
-
-    public async Task<FileStatWithLocalityResult> GetFileStat(Cid cid, CancellationToken cancel = default)
-    {
-        return await _engine.Mfs.StatAsync("/ipfs/" + cid, true, cancel);
-    }
-
-    public async Task<PinListItem?> GetPinListItem(Cid cid, CancellationToken cancel = default)
-    {
-        var options = new PinListOptions()
-        {
-            Stream = true,
-        };
-        return await _engine.Pin.ListAsync(options, cancel)
-            .FirstOrDefaultAsync(p => p.Cid == cid, cancellationToken: cancel);
-    }
-
-    public async Task AddPin(Cid cid, CancellationToken cancel = default)
-    {
-        await _engine.Pin.AddAsync(cid, null, cancel);
-    }
-
-    public async Task<string?> ResolveCidToFilePath(Cid cid, CancellationToken cancel = default)
-    {
-        if (_engine == null) return null;
-        while (!cancel.IsCancellationRequested)
-        {
-            var path = Path.Combine(CachePath, cid + ".psufile");
+            var path = Path.Combine(CachePath, customAsset.Cid + customAsset.Extension);
             if (File.Exists(path)) return path;
-            var result = await _engine.FileSystem.ReadFileAsync(cid, cancel);
+            var result = await _engine.FileSystem.ReadFileAsync(customAsset.Cid, cancel);
             {
                 await using var fileStream = File.Create(path);
                 await result.CopyToAsync(fileStream, cancel);
@@ -305,45 +259,9 @@ public class IpfsService : IDisposable
         return node.Id;
     }
 
-    public async Task<Cid?> AddAndPinText(string text, CancellationToken cancel = default)
-    {
-        if (_engine == null) return null;
-        var result = await _engine.FileSystem.AddTextAsync(text, null, cancel);
-        if (result is not FileSystemNode node)
-        {
-            _logger.LogError("Failed to add text: {Text}", text);
-            return null;
-        }
-
-        //_logger.LogTrace("Added text: {Text} with CID {CID}", text, node.Id.ToString());
-        return node.Id;
-    }
-    public ConcurrentBag<IKey> AvailableKeys { get; } = [];
-    public IKey? SelfKey { get; set; }
-
-    public async Task PopulateKeys()
-    {
-        if (_engine == null) return;
-        var keys = await _engine.Key.ListAsync();
-        AvailableKeys.Clear();
-        foreach (var key in keys)
-        {
-            AvailableKeys.Add(key);
-        }
-
-        SelfKey = AvailableKeys.FirstOrDefault(k => k.Name == "self");
-    }
-
-    public async Task<IKey> GenerateKey(string name, CancellationToken cancel = default)
-    {
-        var result = await _engine.Key.CreateAsync(name, "ed25519", 2048, cancel);
-        AvailableKeys.Add(result);
-        return result;
-    }
-
     public void OpenWebUi()
     {
-        var psi = new ProcessStartInfo(_configuration.IpfsApiUrl ?? "http://localhost:5001" + "/webui")
+        var psi = new ProcessStartInfo((_configuration.IpfsApiUrl ?? "http://localhost:5001") + "/webui")
         {
             UseShellExecute = true,
             Verb = "open"
