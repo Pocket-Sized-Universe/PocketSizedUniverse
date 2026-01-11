@@ -51,6 +51,7 @@ public class Plugin : IDalamudPlugin
         _host = builder.Build();
         _host.StartAsync();
 
+        _host.Services.GetRequiredService<ContextMenuService>();
         _host.Services.GetRequiredService<GUIController>();
         _host.Services.GetRequiredService<ModController>();
         _host.Services.GetRequiredService<DataController>();
