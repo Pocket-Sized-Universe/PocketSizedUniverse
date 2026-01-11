@@ -27,6 +27,7 @@ public class ContextMenuService : IDisposable
     }
     private void AddContextMenu(IMenuOpenedArgs args)
     {
+        if (args.MenuType == ContextMenuType.Inventory) return;
         if (args.Target is not MenuTargetDefault target) return;
         var playerData = _playerDataService.PlayerDataByGuid.FirstOrDefault(pd => pd.Value.PlayerData?.EntityId == target.TargetObject?.EntityId);
         if (playerData.Value == null) return;
