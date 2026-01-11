@@ -65,6 +65,41 @@ public class ConfigWindow : Window
                 ImGui.EndTabItem();
             }
 
+            if (ImGui.BeginTabItem("Blocklist"))
+            {
+                ImGui.Text("Blocklist");
+                if (ImGui.BeginTable("##blocklist", 3, ImGuiTableFlags.Borders | ImGuiTableFlags.Resizable | ImGuiTableFlags.SizingStretchProp))
+                {
+                    ImGui.TableSetupColumn("ID");
+                    ImGui.TableSetupColumn("Nickname");
+                    ImGui.TableSetupColumn("Action");
+                    ImGui.TableHeadersRow();
+
+                    Guid? toRemove = null;
+                    foreach (var block in _configuration.BlockedIds)
+                    {
+                        ImGui.TableNextRow();
+                        ImGui.TableNextColumn();
+                        ImGui.Text(block.ToString());
+                        ImGui.TableNextColumn();
+                        var nickname = _configuration.Nicknames.GetValueOrDefault(block, "None");
+                        ImGui.Text(nickname);
+                        ImGui.TableNextColumn();
+                        if (ImGui.Button($"Unblock##{block}"))
+                        {
+                            toRemove = block;
+                        }
+                    }
+                    ImGui.EndTable();
+                    if (toRemove != null)
+                    {
+                        _configuration.BlockedIds.Remove(toRemove.Value);
+                        _configuration.Save();
+                    }
+                }
+                ImGui.EndTabItem();
+            }
+
             if (ImGui.BeginTabItem("IPFS"))
             {
                 ImGui.Text("IPFS Settings");
