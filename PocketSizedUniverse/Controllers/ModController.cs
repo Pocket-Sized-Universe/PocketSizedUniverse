@@ -10,6 +10,7 @@ using Microsoft.Extensions.Logging;
 using Penumbra.Api.IpcSubscribers;
 using PocketSizedUniverse.Data;
 using PocketSizedUniverse.Services;
+using PocketSizedUniverse.Util;
 
 namespace PocketSizedUniverse.Controllers;
 
@@ -349,11 +350,14 @@ public class ModController : IDisposable
                         var filePath = await _ipfsService.ResolveCidToFilePath(f);
                         if (filePath != null)
                         {
-                            var avScan = _antiVirusService.ScanFile(filePath);
-                            if (avScan != ScanResult.VirusNotFound)
+                            if (!Dalamud.Utility.Util.IsWine())
                             {
-                                _logger.LogWarning("File {FilePath} scanned with result {Result}", filePath, avScan);
-                                return;
+                                var avScan = _antiVirusService.ScanFile(filePath);
+                                if (avScan != ScanResult.VirusNotFound)
+                                {
+                                    _logger.LogWarning("File {FilePath} scanned with result {Result}", filePath, avScan);
+                                    return;
+                                }
                             }
                             CidToFilePathCache[f.Cid] = filePath;
                             foreach (var gamePath in f.ApplicablePaths)
