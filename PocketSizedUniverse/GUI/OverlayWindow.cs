@@ -65,7 +65,9 @@ public class OverlayWindow : Window
             var playerObj = _objectTable.PlayerObjects.FirstOrDefault(p => p.EntityId == playerId);
             if (playerObj == null)
                 continue;
-            var filesInFlight = _modController.FileResolveTasks.Count(frt => remote.Value.PlayerData?.ModFiles.Any(f => frt.Key == f.Cid) == true && frt.Value.Status == TaskStatus.Running);
+            var filesInFlight = _modController.FileResolveTasks.Count(frt => (remote.Value.PlayerData?.ModFiles.Any(f => frt.Key == f.Cid) ?? false) && !frt.Value.IsCompleted);
+            if (filesInFlight == 0)
+                continue;
             var text = $"Downloading {filesInFlight} files...";
             var textSize = ImGui.CalcTextSize(text) * 1.2f;
             if (!_gameGui.WorldToScreen(playerObj.Position, out var screenPos))
