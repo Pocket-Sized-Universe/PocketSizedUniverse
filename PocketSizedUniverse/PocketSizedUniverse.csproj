@@ -7,6 +7,7 @@
     </PropertyGroup>
 
     <ItemGroup>
+      <PackageReference Include="AntiVirusScanner" Version="1.0.2" />
       <PackageReference Include="ECommons" Version="3.1.0.13" />
       <PackageReference Include="Glamourer.Api" Version="2.8.0" />
       <PackageReference Include="IpfsShipyard.Ipfs.Http.Client" Version="0.7.0" />

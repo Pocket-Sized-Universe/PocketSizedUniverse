@@ -36,6 +36,7 @@ public class Plugin : IDalamudPlugin
                 services.AddSingleton<SimpleHeelsService>();
                 services.AddSingleton<PetNameService>();
                 services.AddSingleton<PlayerDataService>();
+                services.AddSingleton<AntiVirusService>();
                 services.AddSingleton<ModController>();
                 services.AddSingleton<MainWindow>();
                 services.AddSingleton<SetupWindow>();

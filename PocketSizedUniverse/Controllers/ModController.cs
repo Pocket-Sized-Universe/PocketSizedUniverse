@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.ComponentModel;
+using AntiVirus;
 using Dalamud.Plugin;
 using Dalamud.Plugin.Ipc.Exceptions;
 using Dalamud.Plugin.Services;
@@ -23,6 +24,7 @@ public class ModController : IDisposable
     private readonly IObjectTable _objectTable;
     private readonly IDalamudPluginInterface _pluginInterface;
     private readonly CancellationTokenSource _cts = new();
+    private readonly AntiVirusService _antiVirusService;
     private readonly SemaphoreSlim _updateLock = new(1, 1);
 
     private ConcurrentDictionary<string, (Cid cid, DateTime lastModified)> FileHashCache { get; } =
@@ -32,7 +34,7 @@ public class ModController : IDisposable
 
     public ModController(IFramework framework, Config.Configuration configuration, PenumbraService penumbraService,
         ILogger<ModController> logger, IpfsService ipfsService, IObjectTable objectTable,
-        IDalamudPluginInterface pluginInterface,
+        IDalamudPluginInterface pluginInterface, AntiVirusService antiVirusService,
         PlayerDataService playerDataService)
     {
         _pluginInterface = pluginInterface;
@@ -43,6 +45,7 @@ public class ModController : IDisposable
         _playerDataService = playerDataService;
         _ipfsService = ipfsService;
         _objectTable = objectTable;
+        _antiVirusService = antiVirusService;
         _logger.LogInformation("Mod Controller created");
         GameObjectResourcePathResolved.Subscriber(pluginInterface, OnObjectPathResolved).Enable();
 
@@ -346,6 +349,12 @@ public class ModController : IDisposable
                         var filePath = await _ipfsService.ResolveCidToFilePath(f);
                         if (filePath != null)
                         {
+                            var avScan = _antiVirusService.ScanFile(filePath);
+                            if (avScan != ScanResult.VirusNotFound)
+                            {
+                                _logger.LogWarning("File {FilePath} scanned with result {Result}", filePath, avScan);
+                                return;
+                            }
                             CidToFilePathCache[f.Cid] = filePath;
                             foreach (var gamePath in f.ApplicablePaths)
                             {

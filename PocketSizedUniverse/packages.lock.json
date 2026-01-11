@@ -2,6 +2,12 @@
   "version": 1,
   "dependencies": {
     "net10.0-windows7.0": {
+      "AntiVirusScanner": {
+        "type": "Direct",
+        "requested": "[1.0.2, )",
+        "resolved": "1.0.2",
+        "contentHash": "Cid4UqpZDz/R9oHi3NC/aEXaSWRvJ+Wzp7H8N9HHkg+iWUfe+9kbTl4DbWptoqD81YgcT9uIPKFBUFkyyp0dRQ=="
+      },
       "DalamudPackager": {
         "type": "Direct",
         "requested": "[14.0.1, )",
