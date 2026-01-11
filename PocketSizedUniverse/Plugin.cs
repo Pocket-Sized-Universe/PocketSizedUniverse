@@ -41,6 +41,7 @@ public class Plugin : IDalamudPlugin
                 services.AddSingleton<MainWindow>();
                 services.AddSingleton<SetupWindow>();
                 services.AddSingleton<ConfigWindow>();
+                services.AddSingleton<OverlayWindow>();
                 services.AddSingleton<WindowSystem>();
                 services.AddSingleton<DataController>();
                 services.AddSingleton<GUIController>();

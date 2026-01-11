@@ -24,6 +24,9 @@ public static class GuiUtils
         newValue = current;
         return false;
     }
+    
+    public static uint Color(byte r, byte g, byte b, byte a)
+    { uint ret = a; ret <<= 8; ret += b; ret <<= 8; ret += g; ret <<= 8; ret += r; return ret; }
 
     public static bool IsWine()
     {
