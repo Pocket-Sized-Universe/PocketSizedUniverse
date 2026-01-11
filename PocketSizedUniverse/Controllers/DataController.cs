@@ -205,20 +205,17 @@ public class DataController : IDisposable
 
     private void OnPathsReady(object? sender, ModController.PathsReadyEventArgs e)
     {
-        if (GuidsNeedingApplication.Contains(e.PairId)) return;
-        GuidsNeedingApplication.Enqueue(e.PairId);
+        if (_playerDataService.GuidsNeedingApplication.Contains(e.PairId)) return;
+        _playerDataService.GuidsNeedingApplication.Enqueue(e.PairId);
         _logger.LogDebug("Queued guid {Guid} for application", e.PairId);
     }
-
-    public readonly ConcurrentQueue<Guid> GuidsNeedingApplication = [];
-
 
     private DateTime _lastUpdate = DateTime.MinValue;
     private uint? _currentWorldId;
 
     private void OnUpdate(IFramework framework)
     {
-        if (DateTime.Now - _lastUpdate < TimeSpan.FromSeconds(5)) return;
+        if (DateTime.Now - _lastUpdate < TimeSpan.FromSeconds(1)) return;
         _lastUpdate = DateTime.Now;
         var player = _objectTable.LocalPlayer;
         if (player == null || !GenericHelpers.IsScreenReady())
@@ -281,6 +278,11 @@ public class DataController : IDisposable
         {
             var playerObj =
                 _objectTable.PlayerObjects.FirstOrDefault(p => p.EntityId == playerData.PlayerData?.EntityId);
+            if (playerObj == null && playerData.CollectionId != null)
+            {
+                _playerDataService.GuidsNeedingRemoval.Enqueue(playerData.PairId);
+                continue;
+            }
             if (playerObj == null || !playerData.Dirty)
                 continue;
             if (!_playerDataProcessingTasks.TryGetValue(playerData.PairId, out var task) || task.IsCompleted)
@@ -292,7 +294,12 @@ public class DataController : IDisposable
             }
         }
 
-        if (!GuidsNeedingApplication.TryDequeue(out var cid))
+        if (_playerDataService.GuidsNeedingRemoval.TryDequeue(out var guid))
+        {
+            _modController.CleanupData(_playerDataService.PlayerDataByGuid[guid].CollectionId!.Value, guid);
+        }
+
+        if (!_playerDataService.GuidsNeedingApplication.TryDequeue(out var cid))
             return;
         if (!_playerDataService.PlayerDataByGuid.TryGetValue(cid, out var data) || data.PlayerData == null)
             return;

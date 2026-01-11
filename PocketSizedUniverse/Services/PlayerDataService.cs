@@ -25,6 +25,8 @@ public class PlayerDataService : IDisposable
     public PlayerData? LocalPlayerData { get; set; }
     public Cid? LocalPlayerDataCid { get; set; }
     public ConcurrentDictionary<Guid, RemoteData> PlayerDataByGuid { get; set; } = new();
+    public readonly ConcurrentQueue<Guid> GuidsNeedingApplication = [];
+    public readonly ConcurrentQueue<Guid> GuidsNeedingRemoval = [];
     
     private string _localPlayerDataBase64 = string.Empty;
 

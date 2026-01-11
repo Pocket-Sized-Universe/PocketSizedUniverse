@@ -56,10 +56,27 @@ public class ContextMenuService : IDisposable
             OnClicked = (a) =>
             {
                 _configuration.BlockedIds.Add(playerData.Key);
+                _configuration.Save();
+                _playerDataService.GuidsNeedingRemoval.Enqueue(playerData.Key);
                 Notify.Success("Added to blocklist");
             }
         };
+        SeStringBuilder cleanupBuilder = new SeStringBuilder();
+        var cleanupString = cleanupBuilder.AddText("Cleanup Data").Build();
+        MenuItem cleanupMenuItem = new MenuItem()
+        {
+            Name = cleanupString,
+            UseDefaultPrefix = false,
+            PrefixChar = 'U',
+            PrefixColor = 567,
+            OnClicked = (a) =>
+            {
+                _playerDataService.GuidsNeedingRemoval.Enqueue(playerData.Key);
+                Notify.Success("Data cleanup enqueued");
+            }
+        };
         args.AddMenuItem(menuItem);
+        args.AddMenuItem(cleanupMenuItem);
         args.AddMenuItem(banMenuItem);
     }
 
