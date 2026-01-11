@@ -83,5 +83,6 @@ public class ContextMenuService : IDisposable
     public void Dispose()
     {
         _context.OnMenuOpened -= AddContextMenu;
+        GC.SuppressFinalize(this);
     }
 }

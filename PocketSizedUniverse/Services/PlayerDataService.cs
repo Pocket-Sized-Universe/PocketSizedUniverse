@@ -78,5 +78,6 @@ public class PlayerDataService : IDisposable
     {
         _cts.Cancel();
         _cts.Dispose();
+        GC.SuppressFinalize(this);
     }
 }

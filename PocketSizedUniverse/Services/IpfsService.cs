@@ -335,5 +335,6 @@ public class IpfsService : IDisposable
     {
         StopDaemon().Wait();
         _daemonProcess?.Dispose();
+        GC.SuppressFinalize(this);
     }
 }

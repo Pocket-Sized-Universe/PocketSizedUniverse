@@ -32,6 +32,11 @@ public class ChatController : IDisposable
         {
             try
             {
+                if (!_ipfsService.DaemonIsReady)
+                {
+                    await Task.Delay(TimeSpan.FromSeconds(1), token);
+                    continue;
+                }
                 var subbedTopics = await _ipfsService.GetSubscribedTopics();
                 foreach (var chat in _configuration.Chats)
                 {
@@ -109,6 +114,8 @@ public class ChatController : IDisposable
         {
             cts.Cancel();
         }
+        _cts.Cancel();
         _cts.Dispose();
+        GC.SuppressFinalize(this);
     }
 }

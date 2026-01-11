@@ -81,5 +81,7 @@ public class GUIController : IDisposable
     {
         _uiBuilder.Draw -= _windowSystem.Draw;
         _uiBuilder.OpenMainUi -= _mainWindow.Toggle;
+        _uiBuilder.OpenConfigUi -= _configWindow.Toggle;
+        GC.SuppressFinalize(this);
     }
 }

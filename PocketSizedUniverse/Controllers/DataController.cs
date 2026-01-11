@@ -215,7 +215,7 @@ public class DataController : IDisposable
 
     private void OnUpdate(IFramework framework)
     {
-        if (DateTime.Now - _lastUpdate < TimeSpan.FromSeconds(1)) return;
+        if (DateTime.Now - _lastUpdate < TimeSpan.FromSeconds(5)) return;
         _lastUpdate = DateTime.Now;
         var player = _objectTable.LocalPlayer;
         if (player == null || !GenericHelpers.IsScreenReady())
@@ -354,5 +354,6 @@ public class DataController : IDisposable
         _cts.Cancel();
         _cts.Dispose();
         _updateLock.Dispose();
+        GC.SuppressFinalize(this);
     }
 }
