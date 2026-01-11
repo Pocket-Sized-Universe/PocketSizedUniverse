@@ -46,6 +46,25 @@ public class ConfigWindow : Window
                 ImGui.EndTabItem();
             }
 
+            if (ImGui.BeginTabItem("Chat"))
+            {
+                ImGui.Text("Chat Settings");
+                var myNickname = _configuration.Nicknames.GetValueOrDefault(_configuration.PairingId, "Me");
+                if (ImGui.InputText("My Nickname", ref myNickname, 128))
+                {
+                    _configuration.Nicknames[_configuration.PairingId] = myNickname;
+                    _configuration.Save();
+                }
+
+                if (ImGui.IsItemHovered())
+                {
+                    ImGui.BeginTooltip();
+                    ImGui.Text("Your nickname as shown in chat messages. This is only visible to you, other players set their own nicknames.");
+                    ImGui.EndTooltip();
+                }
+                ImGui.EndTabItem();
+            }
+
             if (ImGui.BeginTabItem("IPFS"))
             {
                 ImGui.Text("IPFS Settings");

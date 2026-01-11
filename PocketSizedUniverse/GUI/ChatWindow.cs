@@ -64,7 +64,7 @@ public class ChatWindow : Window
 
     private void DrawMessage(ChatMessage message, bool alternate)
     {
-        var senderNickname = message.SenderId == _configuration.PairingId ? "Me" : _configuration.Nicknames.GetValueOrDefault(message.SenderId, message.SenderId.ToString());
+        var senderNickname = _configuration.Nicknames.GetValueOrDefault(message.SenderId, message.SenderId.ToString());
         var timestamp = message.Timestamp.ToLocalTime().ToString("g");
 
         // Subtle background for alternating messages
