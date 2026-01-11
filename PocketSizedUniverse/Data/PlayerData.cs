@@ -3,6 +3,7 @@ namespace PocketSizedUniverse.Data;
 public class PlayerData
 {
     public uint EntityId { get; set; }
+    public uint CurrentWorld { get; set; }
     public Guid PairId { get; set; }
     public string? CustomizeState { get; set; }
     public string? GlamourerState { get; set; }

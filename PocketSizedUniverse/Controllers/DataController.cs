@@ -180,9 +180,12 @@ public class DataController : IDisposable
             return;
 
         var pairedGuid = dataObj.PairId;
-        if (pairedGuid == _configuration.PairingId)
+        if (pairedGuid == _configuration.PairingId || _configuration.BlockedIds.Contains(pairedGuid))
             return;
-
+        
+        var currentWorld = dataObj.CurrentWorld;
+        if (currentWorld != _currentWorldId) return;
+        
         if (!_playerDataService.PlayerDataByGuid.TryGetValue(pairedGuid, out var data))
         {
             var remoteData = new RemoteData()
@@ -211,6 +214,7 @@ public class DataController : IDisposable
 
 
     private DateTime _lastUpdate = DateTime.MinValue;
+    private uint? _currentWorldId;
 
     private void OnUpdate(IFramework framework)
     {
@@ -219,14 +223,18 @@ public class DataController : IDisposable
         var player = _objectTable.LocalPlayer;
         if (player == null || !GenericHelpers.IsScreenReady())
         {
+            _currentWorldId = null;
             _playerDataService.LocalPlayerData = null;
             return;
         }
+        
+        _currentWorldId ??= player.CurrentWorld.RowId;
 
         _playerDataService.LocalPlayerData ??= new PlayerData()
         {
             EntityId = player.EntityId,
             PairId = _configuration.PairingId,
+            CurrentWorld = player.CurrentWorld.RowId,
             GlamourerState = _gamourerService.GetStateBase64.Invoke(player.ObjectIndex).Item2
         };
 
