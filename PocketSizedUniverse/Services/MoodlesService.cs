@@ -23,4 +23,10 @@ public class MoodlesService
         SetStatusManager(address, status);
         return true;
     }
+    
+    public bool RevertData(nint address)
+    {
+        ClearStatusManager(address);
+        return true;
+    }
 }

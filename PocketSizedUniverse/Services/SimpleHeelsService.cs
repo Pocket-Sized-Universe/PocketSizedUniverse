@@ -27,4 +27,10 @@ public class SimpleHeelsService
         RegisterPlayer(objectIndex, playerName);
         return true;
     }
+    
+    public bool RevertData(int objectIndex)
+    {
+        UnregisterPlayer(objectIndex);
+        return true;
+    }
 }

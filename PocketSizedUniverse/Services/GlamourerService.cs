@@ -16,14 +16,21 @@ public class GlamourerService
         _logger = logger;
         GetStateBase64 = new GetStateBase64(_pluginInterface);
         ApplyState = new ApplyState(_pluginInterface);
+        RevertState = new RevertState(_pluginInterface);
         _logger.LogInformation("GlamourerService initialized");
     }
     public GetStateBase64 GetStateBase64 { get; }
     public ApplyState ApplyState { get; }
-
+    public RevertState RevertState { get; }
     public bool ApplyData(int objectIndex, string glamState)
     {
         var applyResult = ApplyState.Invoke(glamState, objectIndex, LockKey);
         return applyResult == GlamourerApiEc.Success;
+    }
+    
+    public bool RevertData(int objectIndex)
+    {
+        var revertResult = RevertState.Invoke(objectIndex, LockKey);
+        return revertResult == GlamourerApiEc.Success;
     }
 }

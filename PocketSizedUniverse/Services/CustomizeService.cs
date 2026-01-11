@@ -27,4 +27,10 @@ public class CustomizeService
         var result = ApplyTemporaryCustomizeProfileOnCharacter(objectIndex, customizeData);
         return result.Item1 == 0;
     }
+    
+    public bool RevertData(int objectIndex)
+    {
+        var result = DeleteTemporaryCustomizeProfileOnCharacter((ushort)objectIndex);
+        return result == 0;
+    }
 }

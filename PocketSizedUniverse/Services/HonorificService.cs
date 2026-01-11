@@ -27,4 +27,10 @@ public class HonorificService
         SetCharacterTitle(objectIndex, title);
         return true;
     }
+    
+    public bool RevertData(int objectIndex)
+    {
+        ClearCharacterTitle(objectIndex);
+        return true;
+    }
 }

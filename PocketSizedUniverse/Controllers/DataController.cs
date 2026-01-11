@@ -72,7 +72,7 @@ public class DataController : IDisposable
         var capturedAddress = address;
         _ = Task.Run(async () =>
         {
-            _logger.LogDebug("Glamourer state changed for {Address}", capturedAddress);
+            //_logger.LogDebug("Glamourer state changed for {Address}", capturedAddress);
             await _framework.RunOnFrameworkThread(() =>
             {
                 var player = _objectTable.LocalPlayer;
@@ -298,10 +298,17 @@ public class DataController : IDisposable
         {
             if (_playerDataService.PlayerDataByGuid.TryGetValue(guid, out var playerData))
             {
-                var objectIndex =
-                    _objectTable.PlayerObjects.FirstOrDefault(o => o.EntityId == playerData.PlayerData?.EntityId)?
-                        .ObjectIndex;
-                _modController.CleanupData(_playerDataService.PlayerDataByGuid[guid].CollectionId!.Value, guid, objectIndex);
+                var obj =
+                    _objectTable.PlayerObjects.FirstOrDefault(o => o.EntityId == playerData.PlayerData?.EntityId);
+                if (obj != null)
+                {
+                    _customizeService.DeleteTemporaryCustomizeProfileOnCharacter(obj.ObjectIndex);
+                    _honorificService.ClearCharacterTitle(obj.ObjectIndex);
+                    _moodlesService.ClearStatusManager(obj.Address);
+                    _simpleHeelsService.UnregisterPlayer(obj.ObjectIndex);
+                    _gamourerService.RevertData(obj.ObjectIndex);
+                }
+                _modController.CleanupData(_playerDataService.PlayerDataByGuid[guid].CollectionId!.Value, guid, obj?.ObjectIndex);
             }
         }
 
