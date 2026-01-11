@@ -1,5 +1,7 @@
+using System.Diagnostics;
 using System.Numerics;
 using Dalamud.Bindings.ImGui;
+using Dalamud.Interface;
 using Dalamud.Interface.Colors;
 using Dalamud.Interface.Windowing;
 using ECommons.ImGuiMethods;
@@ -19,6 +21,7 @@ public class MainWindow : Window
     private readonly IpfsService _ipfsService;
     private readonly ChatController _chatController;
     private readonly WindowSystem _windowSystem;
+    private readonly ConfigWindow _configWindow;
 
     private const float FixedWindowWidth = 400f;
     private const int TruncatedCodeLength = 12;
@@ -26,9 +29,10 @@ public class MainWindow : Window
     private const float TabFontScale = 1.15f;
 
     public MainWindow(ModController modController, DataController dataController, Config.Configuration configuration,
-        IpfsService ipfsService, ChatController chatController, WindowSystem windowSystem) : base(
+        IpfsService ipfsService, ChatController chatController, WindowSystem windowSystem, ConfigWindow configWindow) : base(
         "Pocket Sized Universe", ImGuiWindowFlags.AlwaysAutoResize)
     {
+        _configWindow = configWindow;
         _configuration = configuration;
         _modController = modController;
         _dataController = dataController;
@@ -41,6 +45,33 @@ public class MainWindow : Window
             MinimumSize = new Vector2(FixedWindowWidth, 400),
             MaximumSize = new Vector2(FixedWindowWidth, 4000)
         };
+        
+        TitleBarButtons.Add(new TitleBarButton()
+        {
+            Icon = FontAwesomeIcon.Cog,
+            ShowTooltip = () =>
+            {
+                ImGui.BeginTooltip();
+                ImGui.Text("Open Configuration Window");
+                ImGui.EndTooltip();
+            },
+            Click = (button) => _configWindow.Toggle(),
+        });
+        
+        TitleBarButtons.Add(new TitleBarButton()
+        {
+            Click = (button) =>
+            {
+                Dalamud.Utility.Util.OpenLink("https://discord.gg/hFVrRT54rb");
+            },
+            ShowTooltip = () =>
+            {
+                ImGui.BeginTooltip();
+                ImGui.Text("Join the PSU Discord for support and updates!");
+                ImGui.EndTooltip();
+            },
+            Icon = FontAwesomeIcon.Cloud
+        });
     }
 
     enum DrawState
