@@ -331,7 +331,7 @@ public class ModController : IDisposable
         var swaps = remoteData.PlayerData?.AssetSwaps;
         if (assets == null || swaps == null)
             return;
-        Dictionary<string, string> paths = new();
+        ConcurrentDictionary<string, string> paths = new();
         foreach (var f in assets)
         {
             if (CidToFilePathCache.TryGetValue(f.Cid, out var cachedPath) && File.Exists(cachedPath))
@@ -381,7 +381,7 @@ public class ModController : IDisposable
             paths[s.From] = s.To;
         }
 
-        remoteData.PreparedPaths = paths;
+        remoteData.PreparedPaths = paths.ToDictionary(kvp => kvp.Key, kvp => kvp.Value);
         PathsReady?.Invoke(this, new PathsReadyEventArgs(remoteData.PairId));
     }
     

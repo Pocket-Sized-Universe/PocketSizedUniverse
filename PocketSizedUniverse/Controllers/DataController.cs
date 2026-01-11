@@ -275,9 +275,12 @@ public class DataController : IDisposable
                 _objectTable.PlayerObjects.FirstOrDefault(p => p.EntityId == playerData.PlayerData?.EntityId);
             if (playerObj == null || !playerData.Dirty)
                 continue;
-            if (!_playerDataProcessingTasks.TryGetValue(playerData, out var task) || task.IsCompleted)
+            if (!_playerDataProcessingTasks.TryGetValue(playerData.PairId, out var task) || task.IsCompleted)
             {
-                _playerDataProcessingTasks[playerData] = Task.Run(async () => await _modController.PreparePaths(playerData), _cts.Token);
+                _playerDataProcessingTasks[playerData.PairId] = Task.Run(async () => await _modController.PreparePaths(playerData).ContinueWith((obj) =>
+                {
+                    _playerDataProcessingTasks.TryRemove(playerData.PairId, out _);
+                }), _cts.Token);
             }
         }
 
@@ -316,7 +319,7 @@ public class DataController : IDisposable
         _logger.LogInformation("Applied data for {Entity}", remoteData.EntityId);
     }
     
-    private readonly ConcurrentDictionary<RemoteData, Task> _playerDataProcessingTasks = new();
+    private readonly ConcurrentDictionary<Guid, Task> _playerDataProcessingTasks = new();
 
     public void Dispose()
     {
