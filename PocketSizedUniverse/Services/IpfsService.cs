@@ -232,6 +232,10 @@ public class IpfsService : IDisposable
             if (File.Exists(path)) return path;
             var result = await _engine.FileSystem.ReadFileAsync(customAsset.Cid, cancel);
             {
+                var directory = Path.GetDirectoryName(path);
+                if (directory == null) throw new InvalidOperationException("Failed to get directory name.");
+                if (!Directory.Exists(directory))
+                    Directory.CreateDirectory(directory);
                 await using var fileStream = File.Create(path);
                 await result.CopyToAsync(fileStream, cancel);
             }
