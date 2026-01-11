@@ -37,6 +37,7 @@ public class Plugin : IDalamudPlugin
                 services.AddSingleton<PetNameService>();
                 services.AddSingleton<PlayerDataService>();
                 services.AddSingleton<AntiVirusService>();
+                services.AddSingleton<ContextMenuService>();
                 services.AddSingleton<ModController>();
                 services.AddSingleton<MainWindow>();
                 services.AddSingleton<SetupWindow>();
