@@ -296,7 +296,13 @@ public class DataController : IDisposable
 
         if (_playerDataService.GuidsNeedingRemoval.TryDequeue(out var guid))
         {
-            _modController.CleanupData(_playerDataService.PlayerDataByGuid[guid].CollectionId!.Value, guid);
+            if (_playerDataService.PlayerDataByGuid.TryGetValue(guid, out var playerData))
+            {
+                var objectIndex =
+                    _objectTable.PlayerObjects.FirstOrDefault(o => o.EntityId == playerData.PlayerData?.EntityId)?
+                        .ObjectIndex;
+                _modController.CleanupData(_playerDataService.PlayerDataByGuid[guid].CollectionId!.Value, guid, objectIndex);
+            }
         }
 
         if (!_playerDataService.GuidsNeedingApplication.TryDequeue(out var cid))
@@ -343,7 +349,7 @@ public class DataController : IDisposable
         foreach (var data in _playerDataService.PlayerDataByGuid)
         {
             if (data.Value.CollectionId != null)
-                _modController.CleanupData(data.Value.CollectionId.Value, data.Key);
+                _modController.CleanupData(data.Value.CollectionId.Value, data.Key, null);
         }
 
         foreach (var cts in _subscribedTopics)

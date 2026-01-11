@@ -241,7 +241,7 @@ public class ModController : IDisposable
     {
         if (collectionId != null)
         {
-            CleanupData(collectionId.Value, userCid);
+            CleanupData(collectionId.Value, userCid, objectIndex);
         }
 
         _penumbraService.CreateTemporaryCollection.Invoke(
@@ -261,11 +261,13 @@ public class ModController : IDisposable
     private string GetMetaName(Guid cid) => $"PSU_Meta_{cid}";
     private string GetFilesName(Guid cid) => $"PSU_Files_{cid}";
 
-    public void CleanupData(Guid collectionId, Guid userCid)
+    public void CleanupData(Guid collectionId, Guid userCid, int? objectIndex)
     {
         _penumbraService.RemoveTemporaryMod.Invoke(GetMetaName(userCid), collectionId, 0);
         _penumbraService.RemoveTemporaryMod.Invoke(GetFilesName(userCid), collectionId, 0);
         _penumbraService.DeleteTemporaryCollection.Invoke(collectionId);
+        if (objectIndex != null)
+            _penumbraService.RedrawObject.Invoke(objectIndex.Value);
     }
 
     private void OnObjectPathResolved(nint gameObject, string gamePath, string localPath)
