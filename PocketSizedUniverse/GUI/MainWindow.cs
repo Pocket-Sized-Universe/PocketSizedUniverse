@@ -287,11 +287,10 @@ public class MainWindow : Window
         
         ImGui.Spacing();
         ImGui.Spacing();
-
-        var chats = _configuration.Chats;
-        if (chats.Count > 0)
+        
+        if (_configuration.Chats.Count > 0)
         {
-            DrawGuidList(chats, OpenChatWindow);
+            DrawGuidList(_configuration.Chats, OpenChatWindow);
         }
         else
         {
@@ -333,11 +332,10 @@ public class MainWindow : Window
         
         ImGui.Spacing();
         ImGui.Spacing();
-
-        var galaxies = _configuration.Galaxies;
-        if (galaxies.Count > 0)
+        
+        if (_configuration.Galaxies.Count > 0)
         {
-            DrawGuidList(galaxies, CopyGuidToClipboard);
+            DrawGuidList(_configuration.Galaxies, CopyGuidToClipboard);
         }
         else
         {
@@ -393,11 +391,10 @@ public class MainWindow : Window
 
         ImGui.Spacing();
         ImGui.Spacing();
-
-        var pairs = _configuration.IndividualPairs;
-        if (pairs.Count > 0)
+        
+        if (_configuration.IndividualPairs.Count > 0)
         {
-            DrawGuidList(pairs, CopyGuidToClipboard);
+            DrawGuidList(_configuration.IndividualPairs, CopyGuidToClipboard);
         }
         else
         {
@@ -514,9 +511,9 @@ public class MainWindow : Window
 
         if (cidToRemove != null)
         {
-            _configuration.IndividualPairs.Remove(cidToRemove.Value);
+            guids.Remove(cidToRemove.Value);
             _configuration.Save();
-            Notify.Success("Unpaired successfully!");
+            Notify.Success("Removed successfully!");
         }
     }
 
