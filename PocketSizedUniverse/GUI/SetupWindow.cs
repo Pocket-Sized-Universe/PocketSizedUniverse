@@ -158,6 +158,8 @@ public class SetupWindow : Window
             _fileDialogManager.OpenFolderDialog("Select Cache Directory", (bool selected, string result) => _cacheDirectory = result);
         }
         ImGui.SameLine();
+        var disable = string.IsNullOrEmpty(_cacheDirectory);
+        if (disable) ImGui.BeginDisabled();
         if (ImGui.Button("Save"))
         {
             if (!Directory.Exists(_cacheDirectory))
@@ -165,6 +167,7 @@ public class SetupWindow : Window
             _configuration.CacheDirectory = _cacheDirectory;
             _configuration.Save();
         }
+        if (disable) ImGui.EndDisabled();
         _fileDialogManager.Draw();
     }
 }
