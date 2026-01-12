@@ -140,7 +140,7 @@ public class SetupWindow : Window
         ImGui.Text(" - Expert: You manage your own IPFS daemon and run the PSU plugin against it.");
         ImGui.Spacing();
         ImGui.Text("Easy mode is recommended for most users.");
-        if (GuiUtils.IsWine())
+        if (Dalamud.Utility.Util.IsWine())
         {
             ImGui.TextColored(ImGuiColors.DalamudYellow, "When running under Wine, Expert mode is STRONGLY recommended.");
             ImGui.Text("The embedded IPFS daemon may experience connectivity issues when running under Wine.");
