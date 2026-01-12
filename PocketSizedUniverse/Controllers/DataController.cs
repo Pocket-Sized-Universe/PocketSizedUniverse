@@ -309,6 +309,7 @@ public class DataController : IDisposable
                     _gamourerService.RevertData(obj.ObjectIndex);
                 }
                 _modController.CleanupData(_playerDataService.PlayerDataByGuid[guid].CollectionId!.Value, guid, obj?.ObjectIndex);
+                _playerDataService.PlayerDataByGuid.TryRemove(guid, out _);
             }
         }
 
