@@ -1,8 +1,12 @@
+using System.Numerics;
+using System.Reflection;
 using Dalamud.Bindings.ImGui;
 using Dalamud.Interface.Colors;
 using Dalamud.Interface.ImGuiFileDialog;
 using Dalamud.Interface.Style;
+using Dalamud.Interface.Utility.Raii;
 using Dalamud.Interface.Windowing;
+using Dalamud.Plugin;
 using ECommons.ImGuiMethods;
 using PocketSizedUniverse.Services;
 using PocketSizedUniverse.Util;
@@ -13,20 +17,54 @@ public class SetupWindow : Window
 {
     private readonly Config.Configuration _configuration;
     private readonly IpfsService _ipfsService;
-    public SetupWindow(Config.Configuration configuration, IpfsService ipfsService) : base("Pocket Sized Universe Setup", ImGuiWindowFlags.Modal)
+    private readonly IDalamudPluginInterface _pluginInterface;
+    private readonly string _eulaText;
+    public SetupWindow(Config.Configuration configuration, IpfsService ipfsService, IDalamudPluginInterface pluginInterface) : base("Pocket Sized Universe Setup", ImGuiWindowFlags.Modal)
     {
         _configuration = configuration;
         _ipfsService = ipfsService;
+        _pluginInterface = pluginInterface;
+        _eulaText = File.ReadAllText(Path.Combine(_pluginInterface.AssemblyLocation.DirectoryName!, "EULA.txt"));
     }
 
     public override void Draw()
     {
-        if (string.IsNullOrEmpty(_configuration.CacheDirectory))
+        if (!_configuration.EulaAccepted)
+        {
+            DrawEula();
+            DrawEulaAccept();
+        }
+        else if (string.IsNullOrEmpty(_configuration.CacheDirectory))
             DrawCacheSetup();
         else if (_configuration.IpfsMode == null && !(_saveTask?.IsCompletedSuccessfully ?? false))
             DrawIpfsSetup();
         else
             DrawWelcome();
+    }
+
+    private bool _accepted = false;
+    private void DrawEulaAccept()
+    {
+        ImGui.Checkbox("I have read and accept the EULA", ref _accepted);
+        ImGui.Spacing();
+        if (!_accepted)
+            ImGui.BeginDisabled();
+        if (ImGui.Button("Accept"))
+        {
+            _configuration.EulaAccepted = true;
+            _configuration.Save();
+        }
+        if (!_accepted)
+            ImGui.EndDisabled();
+    }
+
+    private void DrawEula()
+    {
+        var footerHeight = ImGui.GetStyle().ItemSpacing.Y + ImGui.GetFrameHeightWithSpacing() * 2;
+        using var child = ImRaii.Child("EulaText", new Vector2(0, -footerHeight), true);
+        if (!child) return;
+        
+        ImGui.TextWrapped(_eulaText);
     }
 
     private void DrawWelcome()

@@ -25,4 +25,10 @@
       <Content Include="PocketSizedUniverse.json" />
     </ItemGroup>
 
+    <ItemGroup>
+      <None Include="EULA.txt">
+        <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+      </None>
+    </ItemGroup>
+
 </Project>

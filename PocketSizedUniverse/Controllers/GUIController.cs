@@ -75,7 +75,7 @@ public class GUIController : IDisposable
             _mainWindow.Toggle();
     }
     
-    private bool IsSetupComplete() => !string.IsNullOrEmpty(_configuration.CacheDirectory) && _configuration.IpfsMode != null;
+    private bool IsSetupComplete() => !string.IsNullOrEmpty(_configuration.CacheDirectory) && _configuration is { IpfsMode: not null, EulaAccepted: true };
     
     public void Dispose()
     {

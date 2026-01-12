@@ -1,0 +1,67 @@
+End User License Agreement (EULA)
+
+Please read this carefully before using this plugin. By clicking “Accept” or using the plugin, you accept all of the terms below. If you do not agree, do not install or use the plugin.
+
+1. What this plugin is (and isn’t)
+
+  - This plugin is a peer-to-peer tool that helps players share configuration and mod-related data directly with each other.
+
+  - There is no central server operated by the plugin creator, and no control over what users send or receive between themselves.
+
+  - This plugin is not created by, endorsed by, or affiliated with Square Enix. Final Fantasy XIV and all related assets are the property of Square Enix. You use this plugin entirely at your own risk.
+
+2. Your responsibilities
+
+  - You are fully responsible for how you use this plugin, who you connect to, and what data you send or receive.
+
+  - You are responsible for your own account security, your own system security, and for complying with all applicable laws, game terms of service, and community rules.
+
+  - You must not use this plugin to share illegal content, malicious files, or anything that violates Square Enix’s terms of service or any other agreement you are bound by.
+
+  - If you share your pairing codes, keys, or other private information with random strangers, that’s on you.
+
+3. P2P networking and data
+
+  - Because the plugin uses peer-to-peer networking, data you choose to share may be stored or cached on devices owned by other users. Once shared, it may not be fully removable.
+
+  - The plugin creator has no technical ability to monitor, filter, block, or undo what happens between peers on the network.
+
+  - You understand that other users may be anywhere in the world, on networks and systems the plugin creator does not control.
+
+4. No warranty
+
+  - This plugin is provided “AS IS” and “AS AVAILABLE”, without any warranties or guarantees of any kind, express or implied.
+
+  - Without limiting the above, there is no warranty that the plugin will be error-free, secure, compatible with future game versions, or that it will not get you disconnected, banned, or otherwise frowned at by anyone.
+
+  - You accept that the plugin may break, misbehave, or explode (figuratively) at exactly the worst possible moment.
+
+5. Limitation of liability
+
+  - To the maximum extent permitted by law, the plugin creator will not be liable for any damages arising out of or related to the plugin, including but not limited to:
+
+      - lost accounts, bans, suspensions, or disciplinary action
+
+      - lost items, characters, progress, or in-game currency
+
+      - data loss, security breaches, malware, or other system issues
+
+      - indirect, incidental, consequential, special, or punitive damages
+
+  - If, despite all this, liability is found, it will be limited to the amount you paid for the plugin, which is usually zero.
+
+6. Updates and changes
+
+  - The plugin, its features, and this EULA may change at any time. Continued use after changes means you accept the updated terms.
+
+  - The plugin creator may stop maintaining or distributing the plugin at any time, without notice or obligation.
+
+7. Final boss: acceptance
+
+By installing, enabling, or using this plugin, you confirm that:
+
+  - You have read and understood this EULA.
+
+  - You are legally allowed to enter into this agreement.
+
+  - You accept full responsibility for your use of the plugin and any consequences that follow.
