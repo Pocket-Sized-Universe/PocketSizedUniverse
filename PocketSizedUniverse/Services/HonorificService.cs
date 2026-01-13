@@ -23,11 +23,11 @@ public class HonorificService
     [EzIPC("ClearCharacterTitle")]
     private readonly Action<int> _clearCharacterTitle;
     
-    public string? GetData(int objectIndex)
+    public string? GetData()
     {
         try
         {
-            return _getCharacterTitle(objectIndex);
+            return _getLocalCharacterTitle();
         }
         catch (IpcNotReadyError)
         {

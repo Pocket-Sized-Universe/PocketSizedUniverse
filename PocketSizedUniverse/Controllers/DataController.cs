@@ -295,7 +295,7 @@ public class DataController : IDisposable
                 PairId = _configuration.PairingId,
                 CurrentWorld = player.CurrentWorld.RowId,
                 GlamourerState = _glamourerService.GetData(player.ObjectIndex),
-                HonorificTitle = _honorificService.GetData(player.ObjectIndex),
+                HonorificTitle = _honorificService.GetData(),
                 MoodlesState = _moodlesService.GetData(player.Address),
                 PetNameState = _petNameService.GetData(),
             };
