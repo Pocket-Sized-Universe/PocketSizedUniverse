@@ -7,6 +7,7 @@ using Dalamud.Game.ClientState.Objects.SubKinds;
 using Dalamud.Plugin;
 using Dalamud.Plugin.Services;
 using ECommons;
+using ECommons.EzIpcManager;
 using ECommons.ImGuiMethods;
 using Glamourer.Api.IpcSubscribers;
 using Ipfs;
@@ -23,7 +24,7 @@ public class DataController : IDisposable
 {
     private ILogger<DataController> _logger;
     private readonly IObjectTable _objectTable;
-    private readonly GlamourerService _gamourerService;
+    private readonly GlamourerService _glamourerService;
     private readonly HonorificService _honorificService;
     private readonly MoodlesService _moodlesService;
     private readonly PetNameService _petNameService;
@@ -40,7 +41,7 @@ public class DataController : IDisposable
     private readonly SemaphoreSlim _updateLock = new(1, 1);
     private readonly ConcurrentDictionary<string, CancellationTokenSource> _subscribedTopics = new();
 
-    public DataController(ILogger<DataController> logger, IObjectTable objectTable, GlamourerService gamourerService,
+    public DataController(ILogger<DataController> logger, IObjectTable objectTable, GlamourerService glamourerService,
         HonorificService honorificService, MoodlesService moodlesService, PetNameService petNameService,
         SimpleHeelsService simpleHeelsService, CustomizeService customizeService, IpfsService ipfsService,
         IFramework framework, Config.Configuration configuration, ModController modController,
@@ -49,7 +50,7 @@ public class DataController : IDisposable
         _logger = logger;
         _configuration = configuration;
         _objectTable = objectTable;
-        _gamourerService = gamourerService;
+        _glamourerService = glamourerService;
         _honorificService = honorificService;
         _moodlesService = moodlesService;
         _petNameService = petNameService;
@@ -65,6 +66,59 @@ public class DataController : IDisposable
         _logger.LogInformation("Data Controller created");
         StateChanged.Subscriber(pluginInterface, OnGlamourerStateChanged).Enable();
         Task.Run(() => DoBackgroundUpdate(_cts.Token), _cts.Token);
+        EzIPC.Init(this);
+    }
+
+    [EzIPCEvent("CustomizePlus.Profile.OnUpdate", applyPrefix: false)]
+    private void OnProfileUpdate(ushort objectIndex, Guid profileId)
+    {
+        _logger.LogDebug("Profile updated for {ObjectIndex} with ID {ProfileId}", objectIndex, profileId);
+        _ = Task.Run(async () =>
+        {
+            await _framework.RunOnFrameworkThread(() =>
+            {
+                var player = _objectTable.LocalPlayer;
+                if (player?.ObjectIndex != objectIndex) return;
+                var profileData = _customizeService.GetCustomizeProfileByUniqueId(profileId).Item2;
+                if (_playerDataService.LocalPlayerData == null) return;
+                _playerDataService.LocalPlayerData.CustomizeState = profileData;
+                _playerDataService.LocalDataDirty = true;
+            });
+        });
+    }
+
+    [EzIPCEvent("PetRenamer.OnPlayerDataChanged", actionLastGenericType: typeof(object), applyPrefix: false)]
+    private void OnPetNameDataChanged(string obj)
+    {
+        _logger.LogDebug("Pet name data changed for {Player}", obj);
+        _playerDataService.LocalPlayerData?.PetNameState = _petNameService.GetPlayerData();
+        _playerDataService.LocalDataDirty = true;
+    }
+
+    [EzIPCEvent("Moodles.StatusManagerModified", actionLastGenericType: typeof(object), applyPrefix: false)]
+    private void OnStatusManagerModified(nint obj)
+    {
+        _logger.LogDebug("Status manager modified for {Address}", obj);
+        _ = Task.Run(async () =>
+        {
+            await _framework.RunOnFrameworkThread(() =>
+            {
+                var player = _objectTable.LocalPlayer;
+                var realObj = _objectTable.CreateObjectReference(obj);
+                if (player?.Address != realObj?.Address) return;
+                var statusManager = _moodlesService.GetStatusManager(obj);
+                _playerDataService.LocalPlayerData?.MoodlesState = statusManager;
+                _playerDataService.LocalDataDirty = true;
+            });
+        });
+    }
+
+    [EzIPCEvent("Honorific.LocalCharacterTitleChanged", actionLastGenericType: typeof(object), applyPrefix: false)]
+    private void OnLocalCharacterTitleChanged(string obj)
+    {
+        _logger.LogDebug("Local character title changed to {Title}", obj);
+        _playerDataService.LocalPlayerData?.HonorificTitle = obj;
+        _playerDataService.LocalDataDirty = true;
     }
 
     private void OnGlamourerStateChanged(nint address)
@@ -81,8 +135,9 @@ public class DataController : IDisposable
                     Task.Run(() =>
                     {
                         _logger.LogDebug("Updating local player data");
-                        var glamState = _gamourerService.GetStateBase64.Invoke(player.ObjectIndex).Item2;
+                        var glamState = _glamourerService.GetStateBase64.Invoke(player.ObjectIndex).Item2;
                         _playerDataService.LocalPlayerData.GlamourerState = glamState;
+                        _ = _modController.UpdatePenumbraData();
                         _playerDataService.LocalDataDirty = true;
                     });
                 }
@@ -92,13 +147,12 @@ public class DataController : IDisposable
 
     private async Task DoBackgroundUpdate(CancellationToken token)
     {
-        var parallelOptions = new ParallelOptions { CancellationToken = token, MaxDegreeOfParallelism = 3 };
         while (!token.IsCancellationRequested)
         {
             try
             {
                 var subbedTopics = await _ipfsService.GetSubscribedTopics();
-                
+
                 var myId = _configuration.PairingId;
                 foreach (var pairedGuid in _configuration.IndividualPairs)
                 {
@@ -138,7 +192,8 @@ public class DataController : IDisposable
                     case true when !subbedTopics.Contains(TopicUtil.GetGlobalSyncTopic()):
                     {
                         var subCts = new CancellationTokenSource();
-                        await _ipfsService.SubscribeToTopic(TopicUtil.GetGlobalSyncTopic(), HandleSubMessage, subCts.Token);
+                        await _ipfsService.SubscribeToTopic(TopicUtil.GetGlobalSyncTopic(), HandleSubMessage,
+                            subCts.Token);
                         _subscribedTopics[TopicUtil.GetGlobalSyncTopic()] = subCts;
                         break;
                     }
@@ -151,8 +206,10 @@ public class DataController : IDisposable
                         }
                         else
                         {
-                            _logger.LogWarning("Global sync topic was subscribed to, but not found in subscribed topics list");
+                            _logger.LogWarning(
+                                "Global sync topic was subscribed to, but not found in subscribed topics list");
                         }
+
                         break;
                     }
                 }
@@ -182,10 +239,10 @@ public class DataController : IDisposable
         var pairedGuid = dataObj.PairId;
         if (pairedGuid == _configuration.PairingId || _configuration.BlockedIds.Contains(pairedGuid))
             return;
-        
+
         var currentWorld = dataObj.CurrentWorld;
         if (currentWorld != _currentWorldId) return;
-        
+
         if (!_playerDataService.PlayerDataByGuid.TryGetValue(pairedGuid, out var data))
         {
             var remoteData = new RemoteData()
@@ -215,7 +272,7 @@ public class DataController : IDisposable
 
     private void OnUpdate(IFramework framework)
     {
-        if (DateTime.Now - _lastUpdate < TimeSpan.FromSeconds(5)) return;
+        if (DateTime.Now - _lastUpdate < TimeSpan.FromSeconds(1)) return;
         _lastUpdate = DateTime.Now;
         var player = _objectTable.LocalPlayer;
         if (player == null || !GenericHelpers.IsScreenReady())
@@ -224,35 +281,32 @@ public class DataController : IDisposable
             _playerDataService.LocalPlayerData = null;
             return;
         }
-        
+
         _currentWorldId ??= player.CurrentWorld.RowId;
 
-        _playerDataService.LocalPlayerData ??= new PlayerData()
+        if (_playerDataService.LocalPlayerData == null)
         {
-            EntityId = player.EntityId,
-            PairId = _configuration.PairingId,
-            CurrentWorld = player.CurrentWorld.RowId,
-            GlamourerState = _gamourerService.GetStateBase64.Invoke(player.ObjectIndex).Item2
-        };
-
-        var honorificTitle = _honorificService.GetLocalCharacterTitle();
-        if (_playerDataService.LocalPlayerData.HonorificTitle != honorificTitle)
-        {
-            _playerDataService.LocalPlayerData.HonorificTitle = honorificTitle;
-            _playerDataService.LocalDataDirty = true;
-        }
-
-        var moodlesState = _moodlesService.GetStatusManager(player.Address);
-        if (_playerDataService.LocalPlayerData.MoodlesState != moodlesState)
-        {
-            _playerDataService.LocalPlayerData.MoodlesState = moodlesState;
-            _playerDataService.LocalDataDirty = true;
-        }
-
-        var petNameState = _petNameService.GetPlayerData();
-        if (_playerDataService.LocalPlayerData.PetNameState != petNameState)
-        {
-            _playerDataService.LocalPlayerData.PetNameState = petNameState;
+            _playerDataService.LocalPlayerData = new PlayerData()
+            {
+                EntityId = player.EntityId,
+                PairId = _configuration.PairingId,
+                CurrentWorld = player.CurrentWorld.RowId,
+                GlamourerState = _glamourerService.GetStateBase64.Invoke(player.ObjectIndex).Item2,
+                HonorificTitle = _honorificService.GetCharacterTitle(player.ObjectIndex),
+                MoodlesState = _moodlesService.GetStatusManager(player.Address),
+                PetNameState = _petNameService.GetPlayerData(),
+            };
+            var customizeProfile = _customizeService.GetActiveProfileOnCharacter(player.ObjectIndex).Item2;
+            if (customizeProfile != null)
+            {
+                var profileData = _customizeService.GetCustomizeProfileByUniqueId(customizeProfile.Value).Item2;
+                if (_playerDataService.LocalPlayerData.CustomizeState != profileData)
+                {
+                    _playerDataService.LocalPlayerData.CustomizeState = profileData;
+                    _playerDataService.LocalDataDirty = true;
+                }
+            }
+            _ = _modController.UpdatePenumbraData();
             _playerDataService.LocalDataDirty = true;
         }
 
@@ -261,17 +315,6 @@ public class DataController : IDisposable
         {
             _playerDataService.LocalPlayerData.HeelsState = heelsState;
             _playerDataService.LocalDataDirty = true;
-        }
-
-        var customizeProfile = _customizeService.GetActiveProfileOnCharacter(player.ObjectIndex).Item2;
-        if (customizeProfile != null)
-        {
-            var profileData = _customizeService.GetCustomizeProfileByUniqueId(customizeProfile.Value).Item2;
-            if (_playerDataService.LocalPlayerData.CustomizeState != profileData)
-            {
-                _playerDataService.LocalPlayerData.CustomizeState = profileData;
-                _playerDataService.LocalDataDirty = true;
-            }
         }
 
         foreach (var playerData in _playerDataService.PlayerDataByGuid.Values)
@@ -283,14 +326,16 @@ public class DataController : IDisposable
                 _playerDataService.GuidsNeedingRemoval.Enqueue(playerData.PairId);
                 continue;
             }
+
             if (playerObj == null || !playerData.Dirty)
                 continue;
             if (!_playerDataProcessingTasks.TryGetValue(playerData.PairId, out var task) || task.IsCompleted)
             {
-                _playerDataProcessingTasks[playerData.PairId] = Task.Run(async () => await _modController.PreparePaths(playerData).ContinueWith((obj) =>
-                {
-                    _playerDataProcessingTasks.TryRemove(playerData.PairId, out _);
-                }), _cts.Token);
+                _playerDataProcessingTasks[playerData.PairId] = Task.Run(
+                    async () => await _modController.PreparePaths(playerData).ContinueWith((obj) =>
+                    {
+                        _playerDataProcessingTasks.TryRemove(playerData.PairId, out _);
+                    }), _cts.Token);
             }
         }
 
@@ -306,9 +351,11 @@ public class DataController : IDisposable
                     _honorificService.ClearCharacterTitle(obj.ObjectIndex);
                     _moodlesService.ClearStatusManager(obj.Address);
                     _simpleHeelsService.UnregisterPlayer(obj.ObjectIndex);
-                    _gamourerService.RevertData(obj.ObjectIndex);
+                    _glamourerService.RevertData(obj.ObjectIndex);
                 }
-                _modController.CleanupData(_playerDataService.PlayerDataByGuid[guid].CollectionId!.Value, guid, obj?.ObjectIndex);
+
+                _modController.CleanupData(_playerDataService.PlayerDataByGuid[guid].CollectionId!.Value, guid,
+                    obj?.ObjectIndex);
                 _playerDataService.PlayerDataByGuid.TryRemove(guid, out _);
             }
         }
@@ -324,7 +371,7 @@ public class DataController : IDisposable
         if (remotePlayer == null) return;
 
         if (remoteData.GlamourerState != null)
-            _gamourerService.ApplyData(remotePlayer.ObjectIndex, remoteData.GlamourerState);
+            _glamourerService.ApplyData(remotePlayer.ObjectIndex, remoteData.GlamourerState);
 
         if (remoteData.CustomizeState != null)
             _customizeService.ApplyData(remotePlayer.ObjectIndex, remoteData.CustomizeState);
@@ -347,7 +394,7 @@ public class DataController : IDisposable
         data.Dirty = false;
         _logger.LogInformation("Applied data for {Entity}", remoteData.EntityId);
     }
-    
+
     private readonly ConcurrentDictionary<Guid, Task> _playerDataProcessingTasks = new();
 
     public void Dispose()

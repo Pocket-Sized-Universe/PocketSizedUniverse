@@ -7,6 +7,7 @@ using Dalamud.Plugin.Services;
 using ECommons;
 using Ipfs;
 using Microsoft.Extensions.Logging;
+using Penumbra.Api.Enums;
 using Penumbra.Api.IpcSubscribers;
 using PocketSizedUniverse.Data;
 using PocketSizedUniverse.Services;
@@ -49,36 +50,30 @@ public class ModController : IDisposable
         _antiVirusService = antiVirusService;
         _logger.LogInformation("Mod Controller created");
         GameObjectResourcePathResolved.Subscriber(pluginInterface, OnObjectPathResolved).Enable();
-
-        Task.Run(() => DoModWork(_cts.Token), _cts.Token);
+        ModAdded.Subscriber(pluginInterface, OnModAdded).Enable();
+        ModDeleted.Subscriber(pluginInterface, OnModDeleted).Enable();
+        ModSettingChanged.Subscriber(pluginInterface, OnModSettingChanged).Enable();
     }
-
-    private async Task DoModWork(CancellationToken token)
+    
+    private void OnModSettingChanged(ModSettingChange modSettingChange, Guid guid, string arg3, bool arg4)
     {
-        while (!token.IsCancellationRequested)
-        {
-            try
-            {
-                if (_playerDataService.LocalPlayerData == null || !_ipfsService.DaemonIsReady) continue;
-                await UpdatePenumbraData(token);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error in background mod work loop.");
-            }
-
-            try
-            {
-                await Task.Delay(TimeSpan.FromSeconds(2), token);
-            }
-            catch (OperationCanceledException)
-            {
-                break;
-            }
-        }
+        _logger.LogDebug("Mod setting changed");
+        _ = UpdatePenumbraData();
+    }
+    
+    private void OnModDeleted(string obj)
+    {
+        _logger.LogDebug("Mod deleted");
+        _ = UpdatePenumbraData();
     }
 
-    private async Task UpdatePenumbraData(CancellationToken token = default)
+    private void OnModAdded(string obj)
+    {
+        _logger.LogDebug("Mod added");
+        _ = UpdatePenumbraData();
+    }
+
+    public async Task UpdatePenumbraData(CancellationToken token = default)
     {
         if (!await _updateLock.WaitAsync(0, token))
         {
@@ -285,38 +280,35 @@ public class ModController : IDisposable
                     var player = _objectTable.LocalPlayer;
                     if (realObj == null || player == null)
                         return;
-                    if (realObj.ObjectIndex - 1 == player.ObjectIndex ||
-                        realObj.ObjectIndex == player.ObjectIndex ||
-                        realObj.OwnerId == player.EntityId)
+                    if (!GameObjectUtil.IsLocalPlayerRelated(realObj, player)) return;
+                    _ = Task.Run(() =>
                     {
-                        _ = Task.Run(() =>
+                        var ext = Path.GetExtension(realLocalPath);
+                        // ReSharper disable once PossibleUnintendedLinearSearchInSet
+                        if (AllowedFileExtensions.AlwaysExclude.Contains(ext, StringComparer.OrdinalIgnoreCase) ||
+                            AllowedFileExtensions.Normal.Contains(ext)) return;
+                        var normalizedGamePath = NormalizePenumbraPath(capturedGamePath);
+                        var normalizedRealPath = NormalizePenumbraPath(realLocalPath);
+                        if (normalizedGamePath == null || normalizedRealPath == null)
+                            return;
+                        if (string.Equals(normalizedRealPath, normalizedGamePath))
+                            return;
+                        if (_configuration.TransientFilesData.TryGetValue(normalizedRealPath,
+                                out var transientData))
                         {
-                            var ext = Path.GetExtension(realLocalPath);
-                            // ReSharper disable once PossibleUnintendedLinearSearchInSet
-                            if (AllowedFileExtensions.AlwaysExclude.Contains(ext, StringComparer.OrdinalIgnoreCase) ||
-                                AllowedFileExtensions.Normal.Contains(ext)) return;
-                            var normalizedGamePath = NormalizePenumbraPath(capturedGamePath);
-                            var normalizedRealPath = NormalizePenumbraPath(realLocalPath);
-                            if (normalizedGamePath == null || normalizedRealPath == null)
-                                return;
-                            if (string.Equals(normalizedRealPath, normalizedGamePath))
-                                return;
-                            if (_configuration.TransientFilesData.TryGetValue(normalizedRealPath,
-                                    out var transientData))
-                            {
-                                if (!transientData.Contains(normalizedGamePath))
-                                    transientData.Add(normalizedGamePath);
-                                _configuration.TransientFilesData[normalizedRealPath] = transientData;
-                                _configuration.Dirty = true;
-                            }
-                            else
-                            {
-                                var hashSet = new List<string>() { normalizedGamePath };
-                                _configuration.TransientFilesData[normalizedRealPath] = hashSet;
-                                _configuration.Dirty = true;
-                            }
-                        });
-                    }
+                            if (!transientData.Contains(normalizedGamePath))
+                                transientData.Add(normalizedGamePath);
+                            _configuration.TransientFilesData[normalizedRealPath] = transientData;
+                            _configuration.Dirty = true;
+                        }
+                        else
+                        {
+                            var hashSet = new List<string>() { normalizedGamePath };
+                            _configuration.TransientFilesData[normalizedRealPath] = hashSet;
+                            _configuration.Dirty = true;
+                        }
+                        _ = UpdatePenumbraData();
+                    });
                 });
             }
             catch (Exception ex)
