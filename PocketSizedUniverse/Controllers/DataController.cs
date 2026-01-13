@@ -70,6 +70,7 @@ public class DataController : IDisposable
     }
 
     [EzIPCEvent("CustomizePlus.Profile.OnUpdate", applyPrefix: false)]
+    // ReSharper disable once UnusedMember.Local
     private void OnProfileUpdate(ushort objectIndex, Guid profileId)
     {
         _logger.LogDebug("Profile updated for {ObjectIndex} with ID {ProfileId}", objectIndex, profileId);
@@ -87,6 +88,7 @@ public class DataController : IDisposable
     }
 
     [EzIPCEvent("PetRenamer.OnPlayerDataChanged", actionLastGenericType: typeof(object), applyPrefix: false)]
+    // ReSharper disable once UnusedMember.Local
     private void OnPetNameDataChanged(string obj)
     {
         _logger.LogDebug("Pet name data changed for {Player}", obj);
@@ -95,6 +97,7 @@ public class DataController : IDisposable
     }
 
     [EzIPCEvent("Moodles.StatusManagerModified", actionLastGenericType: typeof(object), applyPrefix: false)]
+    // ReSharper disable once UnusedMember.Local
     private void OnStatusManagerModified(nint obj)
     {
         _logger.LogDebug("Status manager modified for {Address}", obj);
@@ -113,6 +116,7 @@ public class DataController : IDisposable
     }
 
     [EzIPCEvent("Honorific.LocalCharacterTitleChanged", actionLastGenericType: typeof(object), applyPrefix: false)]
+    // ReSharper disable once UnusedMember.Local
     private void OnLocalCharacterTitleChanged(string obj)
     {
         _logger.LogDebug("Local character title changed to {Title}", obj);
