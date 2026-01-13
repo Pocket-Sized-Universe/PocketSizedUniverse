@@ -395,6 +395,9 @@ public class ModController : IDisposable
         _cts.Cancel();
         _cts.Dispose();
         GameObjectResourcePathResolved.Subscriber(_pluginInterface, OnObjectPathResolved).Disable();
+        ModAdded.Subscriber(_pluginInterface, OnModAdded).Disable();
+        ModDeleted.Subscriber(_pluginInterface, OnModDeleted).Disable();
+        ModSettingChanged.Subscriber(_pluginInterface, OnModSettingChanged).Disable();
         GC.SuppressFinalize(this);
     }
 }
