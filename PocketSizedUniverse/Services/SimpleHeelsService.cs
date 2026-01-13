@@ -1,3 +1,4 @@
+using Dalamud.Plugin.Ipc.Exceptions;
 using ECommons.EzIpcManager;
 #pragma warning disable CS0649 // Field is never assigned to, and will always have its default value
 
@@ -11,26 +12,51 @@ public class SimpleHeelsService
     }
 
     [EzIPC("ApiVersion")]
-    internal readonly Func<(int, int)> ApiVersion;
+    private readonly Func<(int, int)> _apiVersion;
 
     [EzIPC("GetLocalPlayer")]
-    internal readonly Func<string> GetLocalPlayer;
+    private readonly Func<string> _getLocalPlayer;
 
     [EzIPC("RegisterPlayer")]
-    internal readonly Action<int, string> RegisterPlayer;
+    private readonly Action<int, string> _registerPlayer;
 
     [EzIPC("UnregisterPlayer")]
-    internal readonly Action<int> UnregisterPlayer;
+    private readonly Action<int> _unregisterPlayer;
+
+    public string? GetData()
+    {
+        try
+        {
+            return _getLocalPlayer();
+        }
+        catch (IpcNotReadyError)
+        {
+            return null;
+        }
+    }
 
     public bool ApplyData(int objectIndex, string playerName)
     {
-        RegisterPlayer(objectIndex, playerName);
-        return true;
+        try{
+            _registerPlayer(objectIndex, playerName);
+            return true;
+        }
+        catch (IpcNotReadyError)
+        {
+            return false;
+        }
     }
     
     public bool RevertData(int objectIndex)
     {
-        UnregisterPlayer(objectIndex);
-        return true;
+        try
+        {
+            _unregisterPlayer(objectIndex);
+            return true;
+        }
+        catch (IpcNotReadyError)
+        {
+            return false;
+        }
     }
 }

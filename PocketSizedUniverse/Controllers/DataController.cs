@@ -77,11 +77,10 @@ public class DataController : IDisposable
         {
             await _framework.RunOnFrameworkThread(() =>
             {
-                var player = _objectTable.LocalPlayer;
-                if (player?.ObjectIndex != objectIndex) return;
-                var profileData = _customizeService.GetCustomizeProfileByUniqueId(profileId).Item2;
+                if (_objectTable.LocalPlayer?.ObjectIndex != objectIndex) return;
+                var data = _customizeService.GetData(objectIndex);
                 if (_playerDataService.LocalPlayerData == null) return;
-                _playerDataService.LocalPlayerData.CustomizeState = profileData;
+                _playerDataService.LocalPlayerData.CustomizeState = data;
                 _playerDataService.LocalDataDirty = true;
             });
         });
@@ -91,7 +90,7 @@ public class DataController : IDisposable
     private void OnPetNameDataChanged(string obj)
     {
         _logger.LogDebug("Pet name data changed for {Player}", obj);
-        _playerDataService.LocalPlayerData?.PetNameState = _petNameService.GetPlayerData();
+        _playerDataService.LocalPlayerData?.PetNameState = _petNameService.GetData();
         _playerDataService.LocalDataDirty = true;
     }
 
@@ -106,7 +105,7 @@ public class DataController : IDisposable
                 var player = _objectTable.LocalPlayer;
                 var realObj = _objectTable.CreateObjectReference(obj);
                 if (player?.Address != realObj?.Address) return;
-                var statusManager = _moodlesService.GetStatusManager(obj);
+                var statusManager = _moodlesService.GetData(obj);
                 _playerDataService.LocalPlayerData?.MoodlesState = statusManager;
                 _playerDataService.LocalDataDirty = true;
             });
@@ -135,7 +134,7 @@ public class DataController : IDisposable
                     Task.Run(() =>
                     {
                         _logger.LogDebug("Updating local player data");
-                        var glamState = _glamourerService.GetStateBase64.Invoke(player.ObjectIndex).Item2;
+                        var glamState = _glamourerService.GetData(player.ObjectIndex);
                         _playerDataService.LocalPlayerData.GlamourerState = glamState;
                         _ = _modController.UpdatePenumbraData();
                         _playerDataService.LocalDataDirty = true;
@@ -291,26 +290,17 @@ public class DataController : IDisposable
                 EntityId = player.EntityId,
                 PairId = _configuration.PairingId,
                 CurrentWorld = player.CurrentWorld.RowId,
-                GlamourerState = _glamourerService.GetStateBase64.Invoke(player.ObjectIndex).Item2,
-                HonorificTitle = _honorificService.GetCharacterTitle(player.ObjectIndex),
-                MoodlesState = _moodlesService.GetStatusManager(player.Address),
-                PetNameState = _petNameService.GetPlayerData(),
+                GlamourerState = _glamourerService.GetData(player.ObjectIndex),
+                HonorificTitle = _honorificService.GetData(player.ObjectIndex),
+                MoodlesState = _moodlesService.GetData(player.Address),
+                PetNameState = _petNameService.GetData(),
             };
-            var customizeProfile = _customizeService.GetActiveProfileOnCharacter(player.ObjectIndex).Item2;
-            if (customizeProfile != null)
-            {
-                var profileData = _customizeService.GetCustomizeProfileByUniqueId(customizeProfile.Value).Item2;
-                if (_playerDataService.LocalPlayerData.CustomizeState != profileData)
-                {
-                    _playerDataService.LocalPlayerData.CustomizeState = profileData;
-                    _playerDataService.LocalDataDirty = true;
-                }
-            }
+
             _ = _modController.UpdatePenumbraData();
             _playerDataService.LocalDataDirty = true;
         }
 
-        var heelsState = _simpleHeelsService.GetLocalPlayer();
+        var heelsState = _simpleHeelsService.GetData();
         if (_playerDataService.LocalPlayerData.HeelsState != heelsState)
         {
             _playerDataService.LocalPlayerData.HeelsState = heelsState;
@@ -347,10 +337,10 @@ public class DataController : IDisposable
                     _objectTable.PlayerObjects.FirstOrDefault(o => o.EntityId == playerData.PlayerData?.EntityId);
                 if (obj != null)
                 {
-                    _customizeService.DeleteTemporaryCustomizeProfileOnCharacter(obj.ObjectIndex);
-                    _honorificService.ClearCharacterTitle(obj.ObjectIndex);
-                    _moodlesService.ClearStatusManager(obj.Address);
-                    _simpleHeelsService.UnregisterPlayer(obj.ObjectIndex);
+                    _customizeService.RevertData(obj.ObjectIndex);
+                    _honorificService.RevertData(obj.ObjectIndex);
+                    _moodlesService.RevertData(obj.Address);
+                    _simpleHeelsService.RevertData(obj.ObjectIndex);
                     _glamourerService.RevertData(obj.ObjectIndex);
                 }
 
