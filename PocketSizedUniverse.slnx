@@ -1,5 +1,7 @@
 <Solution>
-  <Folder Name="/Solution Files/" />
+  <Folder Name="/Solution Files/">
+    <File Path=".github\workflows\release.yaml" />
+  </Folder>
   <Project Path="HaselCommon/HaselCommon/HaselCommon.csproj">
     <Platform Project="x64" />
   </Project>
