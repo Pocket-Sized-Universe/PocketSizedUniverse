@@ -1,4 +1,5 @@
 <Solution>
+  <Folder Name="/Solution Files/" />
   <Project Path="HaselCommon/HaselCommon/HaselCommon.csproj">
     <Platform Project="x64" />
   </Project>

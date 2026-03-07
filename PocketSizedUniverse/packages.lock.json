@@ -10,9 +10,9 @@
       },
       "DalamudPackager": {
         "type": "Direct",
-        "requested": "[14.0.1, )",
-        "resolved": "14.0.1",
-        "contentHash": "y0WWyUE6dhpGdolK3iKgwys05/nZaVf4ZPtIjpLhJBZvHxkkiE23zYRo7K7uqAgoK/QvK5cqF6l3VG5AbgC6KA=="
+        "requested": "[14.0.2, )",
+        "resolved": "14.0.2",
+        "contentHash": "dQJeq+8eyHzra4Cg5eZ/3LAeS3/UpvvLriYJGSncMK9LqJ7Q4B6jwcOsxo3PfxVd15xj+IzVFxkPqIBmPQu8/w=="
       },
       "DotNet.ReproducibleBuilds": {
         "type": "Direct",
@@ -22,9 +22,9 @@
       },
       "ECommons": {
         "type": "Direct",
-        "requested": "[3.1.0.13, )",
-        "resolved": "3.1.0.13",
-        "contentHash": "h7IvgmSOniX1hXorHogX43hDg7aoneyzWKrPEY9qbN3/By4oc1Z5MgQCeoSp1vloSbbf1MQg1h+/DyNtlpYv2A=="
+        "requested": "[3.1.0.27, )",
+        "resolved": "3.1.0.27",
+        "contentHash": "PkA+aVOf+fHaxxpWM8jZCwBVX3TvNY+rJd7amKYZuVdeF7qpR2jPs0ZYQMejeIY4jUOdRKhaGErqq3ZV9HXZjg=="
       },
       "Glamourer.Api": {
         "type": "Direct",
@@ -34,11 +34,11 @@
       },
       "IpfsShipyard.Ipfs.Http.Client": {
         "type": "Direct",
-        "requested": "[0.7.0, )",
-        "resolved": "0.7.0",
-        "contentHash": "xfcdOfomLYf/EVjugqG8oIFhS882hh/d3HAE7Ew0sZraNnO44grV9bFSEFep+L+KstWOCZFgSQWfuy/h2fQzdw==",
+        "requested": "[0.8.0, )",
+        "resolved": "0.8.0",
+        "contentHash": "RzRbHrIGzO4TWcZ6E25qyQpzn25/vhY2F2mcKBd7dpBIFs9qOYGMcrd3wwtsJ94oxnSoOIVV21tUVUkJHGBv0w==",
         "dependencies": {
-          "IpfsShipyard.Ipfs.Core": "0.8.0",
+          "IpfsShipyard.Ipfs.Core": "0.9.0",
           "Multiformats.Base": "2.0.2",
           "Newtonsoft.Json": "13.0.3"
         }
@@ -95,8 +95,8 @@
       },
       "IpfsShipyard.Ipfs.Core": {
         "type": "Transitive",
-        "resolved": "0.8.0",
-        "contentHash": "/MiKaDauI4ev/J/udM97KvgOcnWpowfFWLV9e3ZJ23kUMJR2LsLMssLHt+D++1euHxAyEnVcW8STDk7ODuUiCg==",
+        "resolved": "0.9.0",
+        "contentHash": "qsfY7vJfCcp1QRjxQIx3WHEgyEP/0zpVLimwgzMXy3Lsqsq7vNaRtl+WahM76oA49/xM/jW512By78JiHtThsA==",
         "dependencies": {
           "Google.Protobuf": "3.26.1",
           "Microsoft.Bcl.AsyncInterfaces": "9.0.8",
