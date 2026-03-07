@@ -164,6 +164,7 @@ public class IpfsService : IDisposable
         await _engine.Config.SetAsync("Swarm.RelayClient.Enabled", true);
         await _engine.Config.SetAsync("Swarm.EnableHolePunching", true);
         await _engine.Config.SetAsync("Ipns.UsePubsub", true);
+        await _engine.Config.SetAsync("Pubsub.Enabled", true);
     }
 
     private async Task<bool> WaitForDaemon()
