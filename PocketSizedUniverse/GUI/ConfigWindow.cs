@@ -139,7 +139,7 @@ public class ConfigWindow : Window
 
             if (ImGui.BeginTabItem("Files"))
             {
-                ImGui.Text("Files Settings");
+                ImGui.Text("Files Stats");
                 ImGui.Text($"Cached files: {_modController.CidToFilePathCache.Count}");
                 ImGui.Text($"Resolving files: {_modController.FileResolveTasks.Count(kvp => !kvp.Value.IsCompleted)}");
                 ImGui.EndTabItem();
