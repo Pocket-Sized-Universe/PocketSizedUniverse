@@ -301,7 +301,7 @@ public class MainWindow : Window
     private void JoinChat()
     {
         var text = ImGui.GetClipboardText();
-        if (Guid.TryParse(text, out var chatId))
+        if (Guid.TryParse(text, out var chatId) && !_configuration.Chats.Contains(chatId))
         {
             _configuration.Chats.Add(chatId);
             _configuration.Save();
@@ -362,7 +362,7 @@ public class MainWindow : Window
     private void JoinGalaxy()
     {
         var text = ImGui.GetClipboardText();
-        if (Guid.TryParse(text, out var guid))
+        if (Guid.TryParse(text, out var guid) && !_configuration.Galaxies.Contains(guid))
         {
             _configuration.Galaxies.Add(guid);
             _configuration.Save();
@@ -520,7 +520,7 @@ public class MainWindow : Window
     private void PairNewCode()
     {
         var text = ImGui.GetClipboardText();
-        if (Guid.TryParse(text, out var guid))
+        if (Guid.TryParse(text, out var guid) && guid != _configuration.PairingId && !_configuration.IndividualPairs.Contains(guid))
         {
             _configuration.IndividualPairs.Add(guid);
             _configuration.Save();
