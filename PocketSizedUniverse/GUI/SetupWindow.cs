@@ -25,6 +25,8 @@ public class SetupWindow : Window
         _ipfsService = ipfsService;
         _pluginInterface = pluginInterface;
         _eulaText = File.ReadAllText(Path.Combine(_pluginInterface.AssemblyLocation.DirectoryName!, "EULA.txt"));
+        Size = new Vector2(400, 300);
+        SizeCondition = ImGuiCond.FirstUseEver;
     }
 
     public override void Draw()
