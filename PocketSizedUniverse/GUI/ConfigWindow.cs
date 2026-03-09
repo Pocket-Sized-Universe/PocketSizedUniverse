@@ -1,3 +1,4 @@
+using System.Numerics;
 using Dalamud.Bindings.ImGui;
 using Dalamud.Interface.Windowing;
 using HaselCommon.Gui.ImGuiTable;
@@ -15,15 +16,20 @@ public class ConfigWindow : Window
     private readonly Config.Configuration _configuration;
     private readonly ModController _modController;
     private readonly IpfsService _ipfsService;
-    public ConfigWindow(Config.Configuration configuration, IpfsService ipfsService, ModController modController) : base("Pocket Sized Universe Config")
+
+    public ConfigWindow(Config.Configuration configuration, IpfsService ipfsService, ModController modController) :
+        base("Pocket Sized Universe Config")
     {
         _configuration = configuration;
         _ipfsService = ipfsService;
         _modController = modController;
+        Size = new Vector2(500, 400);
+        SizeCondition = ImGuiCond.FirstUseEver;
     }
 
     private string? _apiUrl;
     private Config.Configuration.IpfsModeType? _mode;
+
     public override void Draw()
     {
         if (ImGui.BeginTabBar("##Tabs"))
@@ -37,12 +43,15 @@ public class ConfigWindow : Window
                     _configuration.GlobalSyncEnabled = globalSync;
                     _configuration.Save();
                 }
+
                 if (ImGui.IsItemHovered())
                 {
                     ImGui.BeginTooltip();
-                    ImGui.Text("Global Sync allows you to see (and be seen!) by everyone else currently using Pocket Sized Universe.");
+                    ImGui.Text(
+                        "Global Sync allows you to see (and be seen!) by everyone else currently using Pocket Sized Universe.");
                     ImGui.EndTooltip();
                 }
+
                 ImGui.EndTabItem();
             }
 
@@ -59,16 +68,19 @@ public class ConfigWindow : Window
                 if (ImGui.IsItemHovered())
                 {
                     ImGui.BeginTooltip();
-                    ImGui.Text("Your nickname as shown in chat messages. This is only visible to you, other players set their own nicknames.");
+                    ImGui.Text(
+                        "Your nickname as shown in chat messages. This is only visible to you, other players set their own nicknames.");
                     ImGui.EndTooltip();
                 }
+
                 ImGui.EndTabItem();
             }
 
             if (ImGui.BeginTabItem("Blocklist"))
             {
                 ImGui.Text("Blocklist");
-                if (ImGui.BeginTable("##blocklist", 3, ImGuiTableFlags.Borders | ImGuiTableFlags.Resizable | ImGuiTableFlags.SizingStretchProp))
+                if (ImGui.BeginTable("##blocklist", 3,
+                        ImGuiTableFlags.Borders | ImGuiTableFlags.Resizable | ImGuiTableFlags.SizingStretchProp))
                 {
                     ImGui.TableSetupColumn("ID");
                     ImGui.TableSetupColumn("Nickname");
@@ -90,6 +102,7 @@ public class ConfigWindow : Window
                             toRemove = block;
                         }
                     }
+
                     ImGui.EndTable();
                     if (toRemove != null)
                     {
@@ -97,6 +110,7 @@ public class ConfigWindow : Window
                         _configuration.Save();
                     }
                 }
+
                 ImGui.EndTabItem();
             }
 
@@ -104,11 +118,13 @@ public class ConfigWindow : Window
             {
                 ImGui.Text("IPFS Settings");
                 _mode ??= _configuration.IpfsMode ?? throw new InvalidOperationException("IPFS mode not set yet");
-                if (GuiUtils.GenericEnumCombo<Config.Configuration.IpfsModeType>("IPFS Mode", 100, _mode.Value, out var newMode,
+                if (GuiUtils.GenericEnumCombo<Config.Configuration.IpfsModeType>("IPFS Mode", 100, _mode.Value,
+                        out var newMode,
                         Enum.GetValues<Config.Configuration.IpfsModeType>()))
                 {
                     _mode = newMode;
                 }
+
                 if (_mode == Config.Configuration.IpfsModeType.Expert)
                 {
                     _apiUrl ??= _configuration.IpfsApiUrl ?? "http://localhost:5001/";
@@ -126,6 +142,7 @@ public class ConfigWindow : Window
                     _ipfsService.DaemonIsReady = false;
                     _ipfsService.InitEngine();
                 }
+
                 ImGui.Spacing();
                 ImGui.Separator();
                 var maxParallel = _configuration.MaxParallelIpfsRequests;
@@ -134,6 +151,7 @@ public class ConfigWindow : Window
                     _configuration.MaxParallelIpfsRequests = maxParallel;
                     _configuration.Dirty = true;
                 }
+
                 ImGui.EndTabItem();
             }
 
@@ -144,7 +162,7 @@ public class ConfigWindow : Window
                 ImGui.Text($"Resolving files: {_modController.FileResolveTasks.Count(kvp => !kvp.Value.IsCompleted)}");
                 ImGui.EndTabItem();
             }
-            
+
             ImGui.EndTabBar();
         }
     }
