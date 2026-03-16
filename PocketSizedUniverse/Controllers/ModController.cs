@@ -326,57 +326,77 @@ public class ModController : IDisposable
         if (assets == null || swaps == null)
             return;
         ConcurrentDictionary<string, string> paths = new();
-        foreach (var f in assets)
+        using CancellationTokenSource cts = new(TimeSpan.FromMinutes(5));
+        try
         {
-            if (CidToFilePathCache.TryGetValue(f.Cid, out var cachedPath) && File.Exists(cachedPath))
+            foreach (var f in assets)
             {
-                foreach (var gamePath in f.ApplicablePaths)
+                var timeoutToken = cts.Token;
+                if (CidToFilePathCache.TryGetValue(f.Cid, out var cachedPath) && File.Exists(cachedPath))
                 {
-                    paths[gamePath] = cachedPath;
-                }
-            }
-            else if (!FileResolveTasks.TryGetValue(f.Cid, out var task))
-            {
-                FileResolveTasks[f.Cid] = Task.Run(async () =>
-                {
-                    try
+                    foreach (var gamePath in f.ApplicablePaths)
                     {
-                        var filePath = await _ipfsService.ResolveCidToFilePath(f);
-                        if (filePath != null)
+                        paths[gamePath] = cachedPath;
+                    }
+                }
+                else if (!FileResolveTasks.TryGetValue(f.Cid, out var task))
+                {
+                    FileResolveTasks[f.Cid] = Task.Run(async () =>
+                    {
+                        try
                         {
-                            if (!Dalamud.Utility.Util.IsWine())
+                            var filePath = await _ipfsService.ResolveCidToFilePath(f, timeoutToken);
+                            if (filePath != null)
                             {
-                                var avScan = _antiVirusService.ScanFile(filePath);
-                                if (avScan != ScanResult.VirusNotFound)
+                                if (!Dalamud.Utility.Util.IsWine())
                                 {
-                                    _logger.LogWarning("File {FilePath} scanned with result {Result}", filePath, avScan);
-                                    return;
+                                    var avScan = _antiVirusService.ScanFile(filePath);
+                                    if (avScan != ScanResult.VirusNotFound)
+                                    {
+                                        _logger.LogWarning("File {FilePath} scanned with result {Result}", filePath,
+                                            avScan);
+                                        return;
+                                    }
+                                }
+
+                                CidToFilePathCache[f.Cid] = filePath;
+                                foreach (var gamePath in f.ApplicablePaths)
+                                {
+                                    paths[gamePath] = filePath;
                                 }
                             }
-                            CidToFilePathCache[f.Cid] = filePath;
-                            foreach (var gamePath in f.ApplicablePaths)
-                            {
-                                paths[gamePath] = filePath;
-                            }
                         }
-                    }
-                    catch (Exception ex)
-                    {
-                        _logger.LogError(ex, "Error resolving file for CID {Cid}", f.Cid);
-                    }
-                });
+                        catch (TaskCanceledException ex)
+                        {
+                            _logger.LogError(ex, "Task Canceled");
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger.LogError(ex, "Error resolving file for CID {Cid}", f.Cid);
+                        }
+                    }, cts.Token);
+                }
             }
-        }
-        await Task.WhenAll(FileResolveTasks.Values);
 
-        foreach (var s in swaps)
+            await Task.WhenAll(FileResolveTasks.Values);
+            
+            foreach (var s in swaps)
+            {
+                if (string.IsNullOrWhiteSpace(s.From) || string.IsNullOrWhiteSpace(s.To)) continue;
+                paths[s.From] = s.To;
+            }
+
+            remoteData.PreparedPaths = paths.ToDictionary(kvp => kvp.Key, kvp => kvp.Value);
+            PathsReady?.Invoke(this, new PathsReadyEventArgs(remoteData.PairId));
+        }
+        catch (TaskCanceledException ex)
         {
-            if (string.IsNullOrWhiteSpace(s.From) || string.IsNullOrWhiteSpace(s.To)) continue;
-            paths[s.From] = s.To;
+            _logger.LogError(ex, "Task Canceled");
         }
-
-        remoteData.PreparedPaths = paths.ToDictionary(kvp => kvp.Key, kvp => kvp.Value);
-        PathsReady?.Invoke(this, new PathsReadyEventArgs(remoteData.PairId));
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error in PreparePaths");
+        }
     }
     
     public event EventHandler<PathsReadyEventArgs>? PathsReady;
