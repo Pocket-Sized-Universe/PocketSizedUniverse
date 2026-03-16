@@ -379,6 +379,8 @@ public class ModController : IDisposable
             }
 
             await Task.WhenAll(FileResolveTasks.Values);
+            if (FileResolveTasks.Values.Any(t => t.IsFaulted || t.IsCanceled))
+                throw new Exception("Not all  files resolved");
             
             foreach (var s in swaps)
             {
