@@ -10,7 +10,7 @@ public partial class Configuration : IPluginConfiguration
 {
     public int Version { get; set; } = 1;
     public Guid PairingId { get; set; } = Guid.Empty;
-    public ConcurrentDictionary<string, List<string>> TransientFilesData { get; set; } = new();
+    public ConcurrentDictionary<ulong, ConcurrentDictionary<string, List<string>>> TransientFilesData { get; set; } = new();
     public List<Guid> IndividualPairs { get; set; } = [];
     public List<Guid> Galaxies { get; set; } = [];
     public List<Guid> Chats { get; set; } = [];

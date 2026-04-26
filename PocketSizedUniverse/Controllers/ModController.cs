@@ -25,6 +25,7 @@ public class ModController : IDisposable
     private readonly PlayerDataService _playerDataService;
     private readonly IObjectTable _objectTable;
     private readonly IDalamudPluginInterface _pluginInterface;
+    private readonly IPlayerState _playerState;
     private readonly CancellationTokenSource _cts = new();
     private readonly AntiVirusService _antiVirusService;
     private readonly SemaphoreSlim _updateLock = new(1, 1);
@@ -37,11 +38,12 @@ public class ModController : IDisposable
     public ModController(IFramework framework, Config.Configuration configuration, PenumbraService penumbraService,
         ILogger<ModController> logger, IpfsService ipfsService, IObjectTable objectTable,
         IDalamudPluginInterface pluginInterface, AntiVirusService antiVirusService,
-        PlayerDataService playerDataService)
+        PlayerDataService playerDataService, IPlayerState playerState)
     {
         _pluginInterface = pluginInterface;
         _logger = logger;
         _framework = framework;
+        _playerState = playerState;
         _configuration = configuration;
         _penumbraService = penumbraService;
         _playerDataService = playerDataService;
@@ -116,17 +118,21 @@ public class ModController : IDisposable
                     StringComparer.OrdinalIgnoreCase
                 );
 
-            foreach (var (realPath, gamePaths) in _configuration.TransientFilesData)
+            var cid = _playerState.ContentId;
+            if (_configuration.TransientFilesData.TryGetValue(cid, out var transientFiles))
             {
-                if (string.IsNullOrWhiteSpace(realPath) || gamePaths.Count == 0)
-                    continue;
-                if (resolvedPaths.TryGetValue(realPath, out var existing))
+                foreach (var (realPath, gamePaths) in transientFiles)
                 {
-                    existing.UnionWith(gamePaths);
-                }
-                else
-                {
-                    resolvedPaths[realPath] = gamePaths.ToHashSet(StringComparer.OrdinalIgnoreCase);
+                    if (string.IsNullOrWhiteSpace(realPath) || gamePaths.Count == 0)
+                        continue;
+                    if (resolvedPaths.TryGetValue(realPath, out var existing))
+                    {
+                        existing.UnionWith(gamePaths);
+                    }
+                    else
+                    {
+                        resolvedPaths[realPath] = gamePaths.ToHashSet(StringComparer.OrdinalIgnoreCase);
+                    }
                 }
             }
 
@@ -269,47 +275,51 @@ public class ModController : IDisposable
     {
         var capturedGamePath = gamePath;
         var capturedLocalPath = localPath;
-        _ = Task.Run(async () =>
+        _ = _framework.RunOnFrameworkThread(() =>
         {
             try
             {
-                await _framework.RunOnFrameworkThread(() =>
-                {
-                    var realLocalPath = capturedLocalPath.Split('|').Last();
-                    var realObj = _objectTable.CreateObjectReference(gameObject);
-                    var player = _objectTable.LocalPlayer;
-                    if (realObj == null || player == null)
-                        return;
-                    if (!GameObjectUtil.IsLocalPlayerRelated(realObj, player)) return;
-                    _ = Task.Run(() =>
+                var realLocalPath = capturedLocalPath.Split('|').Last();
+                var realObj = _objectTable.CreateObjectReference(gameObject);
+                var player = _objectTable.LocalPlayer;
+                if (realObj == null || player == null)
+                    return;
+                if (!GameObjectUtil.IsLocalPlayerRelated(realObj, player))
+                    return;
+
+                var ext = Path.GetExtension(realLocalPath);
+                // ReSharper disable once PossibleUnintendedLinearSearchInSet
+                if (AllowedFileExtensions.AlwaysExclude.Contains(ext, StringComparer.OrdinalIgnoreCase) ||
+                    AllowedFileExtensions.Normal.Contains(ext))
+                    return;
+
+                var normalizedGamePath = NormalizePenumbraPath(capturedGamePath);
+                var normalizedRealPath = NormalizePenumbraPath(realLocalPath);
+                if (normalizedGamePath == null || normalizedRealPath == null)
+                    return;
+                if (string.Equals(normalizedRealPath, normalizedGamePath, StringComparison.OrdinalIgnoreCase))
+                    return;
+
+                var cid = _playerState.ContentId;
+                var transientFiles = _configuration.TransientFilesData.GetOrAdd(
+                    cid,
+                    _ => new ConcurrentDictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase));
+
+                transientFiles.AddOrUpdate(
+                    normalizedRealPath,
+                    _ => [normalizedGamePath],
+                    (_, paths) =>
                     {
-                        var ext = Path.GetExtension(realLocalPath);
-                        // ReSharper disable once PossibleUnintendedLinearSearchInSet
-                        if (AllowedFileExtensions.AlwaysExclude.Contains(ext, StringComparer.OrdinalIgnoreCase) ||
-                            AllowedFileExtensions.Normal.Contains(ext)) return;
-                        var normalizedGamePath = NormalizePenumbraPath(capturedGamePath);
-                        var normalizedRealPath = NormalizePenumbraPath(realLocalPath);
-                        if (normalizedGamePath == null || normalizedRealPath == null)
-                            return;
-                        if (string.Equals(normalizedRealPath, normalizedGamePath))
-                            return;
-                        if (_configuration.TransientFilesData.TryGetValue(normalizedRealPath,
-                                out var transientData))
+                        if (!paths.Contains(normalizedGamePath, StringComparer.OrdinalIgnoreCase))
                         {
-                            if (!transientData.Contains(normalizedGamePath))
-                                transientData.Add(normalizedGamePath);
-                            _configuration.TransientFilesData[normalizedRealPath] = transientData;
-                            _configuration.Dirty = true;
+                            paths.Add(normalizedGamePath);
                         }
-                        else
-                        {
-                            var hashSet = new List<string>() { normalizedGamePath };
-                            _configuration.TransientFilesData[normalizedRealPath] = hashSet;
-                            _configuration.Dirty = true;
-                        }
-                        _ = UpdatePenumbraData();
+
+                        return paths;
                     });
-                });
+
+                _configuration.Dirty = true;
+                _ = UpdatePenumbraData();
             }
             catch (Exception ex)
             {
