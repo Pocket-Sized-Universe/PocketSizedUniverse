@@ -119,7 +119,7 @@ public class ModController : IDisposable
                 );
 
             var cid = _playerState.ContentId;
-            if (_configuration.TransientFilesData.TryGetValue(cid, out var transientFiles))
+            if (_configuration.TransientFilesDataByContentId.TryGetValue(cid, out var transientFiles))
             {
                 foreach (var (realPath, gamePaths) in transientFiles)
                 {
@@ -301,7 +301,7 @@ public class ModController : IDisposable
                     return;
 
                 var cid = _playerState.ContentId;
-                var transientFiles = _configuration.TransientFilesData.GetOrAdd(
+                var transientFiles = _configuration.TransientFilesDataByContentId.GetOrAdd(
                     cid,
                     _ => new ConcurrentDictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase));
 

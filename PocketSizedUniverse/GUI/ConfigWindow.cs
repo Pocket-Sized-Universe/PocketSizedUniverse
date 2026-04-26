@@ -1,6 +1,7 @@
 using System.Numerics;
 using Dalamud.Bindings.ImGui;
 using Dalamud.Interface.Windowing;
+using HaselCommon.Gui;
 using HaselCommon.Gui.ImGuiTable;
 using HaselCommon.Services;
 using Ipfs.CoreApi;
@@ -160,6 +161,20 @@ public class ConfigWindow : Window
                 ImGui.Text("Files Stats");
                 ImGui.Text($"Cached files: {_modController.CidToFilePathCache.Count}");
                 ImGui.Text($"Resolving files: {_modController.FileResolveTasks.Count(kvp => !kvp.Value.IsCompleted)}");
+                ImGui.EndTabItem();
+            }
+
+            if (ImGui.BeginTabItem("Troubleshooting"))
+            {
+                ImGui.Text("Troubleshooting");
+                ImGui.Spacing();
+                ImGui.Separator();
+                ImGui.TextWrapped("'Transient Data' is anything that is not constantly resolvable to your character. Things like emotes, VFX, certain mount and minion mods. If these types of mods are not working correctly, you can clear the transient data database to reset it.");
+                if (ImGui.Button("Clear Transient Data"))
+                {
+                    _configuration.TransientFilesDataByContentId.Clear();
+                    _configuration.Dirty = true;
+                }
                 ImGui.EndTabItem();
             }
 
