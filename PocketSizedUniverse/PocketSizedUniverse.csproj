@@ -1,29 +1,35 @@
-﻿<Project Sdk="Dalamud.NET.Sdk/14.0.0">
+﻿<Project Sdk="Dalamud.NET.Sdk/15.0.0">
 
     <PropertyGroup>
         <TargetFramework>net10.0-windows7.0</TargetFramework>
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
-        <AssemblyVersion>0.2.0</AssemblyVersion>
     </PropertyGroup>
 
     <ItemGroup>
-      <PackageReference Include="ECommons" Version="3.1.0.8" />
-      <PackageReference Include="Glamourer.Api" Version="2.8.0" />
-      <PackageReference Include="LibGit2Sharp" Version="0.31.0" />
-      <PackageReference Include="Octokit" Version="14.0.0" />
-      <PackageReference Include="Penumbra.Api" Version="5.13.1" />
+      <PackageReference Include="AntiVirusScanner" Version="1.0.2" />
+      <PackageReference Include="ECommons" Version="3.2.0.16" />
+      <PackageReference Include="Glamourer.Api" Version="2.8.1" />
+      <PackageReference Include="IpfsShipyard.Ipfs.Http.Client" Version="0.8.0" />
+      <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.7" />
+      <PackageReference Include="Microsoft.Extensions.Hosting" Version="10.0.7" />
+      <PackageReference Include="Penumbra.Api" Version="5.15.1" />
+      <PackageReference Update="DalamudPackager" Version="15.0.0" />
+      <PackageReference Update="DotNet.ReproducibleBuilds" Version="2.0.2" />
     </ItemGroup>
 
     <ItemGroup>
-      <Content Include="freshclam.conf">
-        <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-      </Content>
+      <ProjectReference Include="..\HaselCommon\HaselCommon\HaselCommon.csproj" />
+    </ItemGroup>
+
+    <ItemGroup>
       <Content Include="PocketSizedUniverse.json" />
     </ItemGroup>
 
     <ItemGroup>
-      <ProjectReference Include="..\OtterGui\OtterGui.csproj" />
+      <None Include="EULA.txt">
+        <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+      </None>
     </ItemGroup>
 
 </Project>

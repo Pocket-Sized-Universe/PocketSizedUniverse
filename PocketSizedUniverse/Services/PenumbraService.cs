@@ -1,30 +1,36 @@
-using ECommons.DalamudServices;
-using Penumbra;
+using Dalamud.Plugin;
+using PocketSizedUniverse.Data;
+using Microsoft.Extensions.Logging;
 using Penumbra.Api.IpcSubscribers;
 
 namespace PocketSizedUniverse.Services;
 
 public class PenumbraService
 {
-    public PenumbraService()
+    private readonly ILogger<PenumbraService> _logger;
+    private readonly IDalamudPluginInterface _pluginInterface;
+    public PenumbraService(IDalamudPluginInterface pluginInterface, ILogger<PenumbraService> logger)
     {
-        GetModDirectory = new GetModDirectory(Svc.PluginInterface);
-        CreateTemporaryCollection = new CreateTemporaryCollection(Svc.PluginInterface);
-        AddTemporaryMod = new AddTemporaryMod(Svc.PluginInterface);
-        GetPlayerMetaManipulations = new GetPlayerMetaManipulations(Svc.PluginInterface);
-        AssignTemporaryCollection = new AssignTemporaryCollection(Svc.PluginInterface);
-        RedrawObject = new RedrawObject(Svc.PluginInterface);
-        GetAllModSettings = new GetAllModSettings(Svc.PluginInterface);
-        GetCollectionForObject = new GetCollectionForObject(Svc.PluginInterface);
-        GetPlayerResourceTrees = new GetPlayerResourceTrees(Svc.PluginInterface);
-        SetTemporaryModSettings = new SetTemporaryModSettings(Svc.PluginInterface);
-        RemoveTemporaryMod = new RemoveTemporaryMod(Svc.PluginInterface);
-        GetGameObjectResourcePaths = new GetGameObjectResourcePaths(Svc.PluginInterface);
-        DeleteTemporaryCollection = new DeleteTemporaryCollection(Svc.PluginInterface);
-        GetModList = new GetModList(Svc.PluginInterface);
-        GetChangedItems = new GetChangedItems(Svc.PluginInterface);
-        GetPlayerResourcePaths = new GetPlayerResourcePaths(Svc.PluginInterface);
-        GetCurrentModSettings = new GetCurrentModSettings(Svc.PluginInterface);
+        _pluginInterface = pluginInterface;
+        _logger = logger;
+        GetModDirectory = new GetModDirectory(_pluginInterface);
+        CreateTemporaryCollection = new CreateTemporaryCollection(_pluginInterface);
+        AddTemporaryMod = new AddTemporaryMod(_pluginInterface);
+        GetPlayerMetaManipulations = new GetPlayerMetaManipulations(_pluginInterface);
+        AssignTemporaryCollection = new AssignTemporaryCollection(_pluginInterface);
+        RedrawObject = new RedrawObject(_pluginInterface);
+        GetAllModSettings = new GetAllModSettings(_pluginInterface);
+        GetCollectionForObject = new GetCollectionForObject(_pluginInterface);
+        GetPlayerResourceTrees = new GetPlayerResourceTrees(_pluginInterface);
+        SetTemporaryModSettings = new SetTemporaryModSettings(_pluginInterface);
+        RemoveTemporaryMod = new RemoveTemporaryMod(_pluginInterface);
+        GetGameObjectResourcePaths = new GetGameObjectResourcePaths(_pluginInterface);
+        DeleteTemporaryCollection = new DeleteTemporaryCollection(_pluginInterface);
+        GetModList = new GetModList(_pluginInterface);
+        GetChangedItems = new GetChangedItems(_pluginInterface);
+        GetPlayerResourcePaths = new GetPlayerResourcePaths(_pluginInterface);
+        GetCurrentModSettings = new GetCurrentModSettings(_pluginInterface);
+        _logger.LogInformation("Penumbra service initialized");
     }
     public GetChangedItems GetChangedItems { get; }
     public GetModList GetModList { get; }
